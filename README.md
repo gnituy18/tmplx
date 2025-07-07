@@ -1,0 +1,42 @@
+# tmplx
+
+tmplx is a compiler that transforms a hybrid HTML/Go template language into a fully dynamic hypermedia web application.
+
+## Example
+
+```html
+<!DOCTYPE html>
+<html>
+
+<head>
+</head>
+
+<body>
+  <script type="text/tmplx">
+    input := ""
+    appName := "Todo App powered by tmplx"
+    list := []string{"init"}
+
+    func add() {
+      list = append(list,input)
+    }
+
+    func delete(i int) {
+      list = slices.Delete(list, i, i+1)
+    }
+  </script>
+
+  <h1> {{ .appName }} </h1>
+
+  <input type="text" tx-value="input">
+  <button tx-onclick="add()">Add</button>
+
+  {{range $i, $item := .list}}
+    <div tx-onclick="delete($i)"> {{ $item }} </button>
+  {{end}}
+
+</body>
+
+</html>
+
+```
