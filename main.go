@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -29,7 +30,7 @@ var dirGen string
 func main() {
 	flag.StringVar(&dirPages, "pages", path.Clean("pages"), "pages directory")
 	flag.StringVar(&dirComponents, "components", path.Clean("components"), "components directory")
-	flag.StringVar(&dirComponents, "gen", path.Clean("gen"), "generation directory")
+	flag.StringVar(&dirGen, "gen", path.Clean("gen"), "generation directory")
 	flag.Parse()
 	dirPages = path.Clean(dirPages)
 	dirComponents = path.Clean(dirComponents)
@@ -77,9 +78,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := page.compile(page.HtmlNode); err != nil {
+	if err := page.generate(); err != nil {
 		log.Fatal(err)
 	}
+
+	t := template.Must(template.New("index").Parse(defaultTargetTmpl))
+	template.Must(t.Parse(defaultHandlerTmpl))
 }
 
 type IdentType int
@@ -191,9 +195,18 @@ func cleanUpTmplxScript(node *html.Node) {
 	}
 }
 
-func (page *Page) compile(node *html.Node) error {
-	var builder = &strings.Builder{}
-	return page.render(builder, node)
+func (page *Page) generate() error {
+	dir := path.Join(dirGen, "pages")
+	fmt.Println(dir)
+	os.MkdirAll(dir, 0755)
+
+	file, err := os.Create(path.Join(dir, page.Name+".tmpl"))
+	if err != nil {
+		return err
+	}
+	page.render(file, page.HtmlNode)
+
+	return nil
 }
 
 func (page *Page) render(w io.StringWriter, node *html.Node) error {
@@ -290,10 +303,10 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 		}
 
 		if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-			return errors.New(fmt.Sprintf("unclosed quote in expression: \"%s\"",node.Data))
+			return errors.New(fmt.Sprintf("unclosed quote in expression: \"%s\"", node.Data))
 		}
 		if braceStack != 0 {
-			return errors.New(fmt.Sprintf("unclosed brace in expression: \"%s\"",node.Data))
+			return errors.New(fmt.Sprintf("unclosed brace in expression: \"%s\"", node.Data))
 		}
 
 		if _, err := w.WriteString(html.EscapeString(string(res))); err != nil {
@@ -515,7 +528,7 @@ func newId(prefix string) *Id {
 	}
 }
 
-const defaultEntryTmpl = `
+const defaultTargetTmpl = `
 package main
 
 import (
@@ -523,6 +536,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"text/template"
 )
 func main() {
 	// {{ .tmplx }}
@@ -534,6 +548,7 @@ const defaultHandlerTmpl = `
 {{ define "handler" }}
 http.HandleFunc("{{ .method }} { .url }", func(w http.ResponseWriter, r *http.Request) {
 	{{ .code }}
+	
 })
 {{ end }}
 `
