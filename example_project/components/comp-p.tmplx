@@ -1,6 +1,9 @@
 <script type="text/tmplx">
   // prop
   text := ""
+  callback := func() {
+
+  }
 </script>
 
 <template>

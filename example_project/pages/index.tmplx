@@ -29,5 +29,5 @@
     </li>
   </ul>
 
-  <comp-p tx-text="appName">
+  <comp tx-text="appName" />
 </body>
