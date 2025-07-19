@@ -1,20 +1,9 @@
 <script type="text/tmplx">
   appName := "Todo"
-
-  input := ""
-
-  list := []string{"init"}
-
-  add := func() {
-    list = append(list, input)
-  }
-
-  delete := func(i int) {
-    list = slices.Delete(list, i, i+1)
-  }
 </script>
 
 <head>
+  <title> { appName } </title>
 </head>
 
 <body>
