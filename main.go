@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"io"
 	"io/fs"
@@ -97,7 +98,7 @@ type Page struct {
 	Name         string
 	ScriptNode   *html.Node
 	ScriptIdents map[string]IdentType
-	Exprs        map[string]string
+	Exprs        map[string]ast.Expr
 	ExprId       *Id
 
 	HtmlNode *html.Node
@@ -178,7 +179,7 @@ func newPage(name, content string) (*Page, error) {
 		Name:         name,
 		ScriptNode:   scriptNode,
 		ScriptIdents: scriptIdents,
-		Exprs:        map[string]string{},
+		Exprs:        map[string]ast.Expr{},
 		ExprId:       newId("expr"),
 
 		HtmlNode: htmlNode,
@@ -197,14 +198,54 @@ func cleanUpTmplxScript(node *html.Node) {
 
 func (page *Page) generate() error {
 	dir := path.Join(dirGen, "pages")
-	fmt.Println(dir)
 	os.MkdirAll(dir, 0755)
 
 	file, err := os.Create(path.Join(dir, page.Name+".tmpl"))
 	if err != nil {
 		return err
 	}
-	page.render(file, page.HtmlNode)
+
+	// TODO use bufio
+	if err := page.render(file, page.HtmlNode); err != nil {
+		return err
+	}
+
+	var code strings.Builder
+	var data strings.Builder
+
+	mapAst := &ast.CompositeLit{
+		Type: &ast.MapType{
+			Key:   &ast.Ident{Name: "string"},
+			Value: &ast.Ident{Name: "any"},
+		},
+	}
+	for key, expr := range page.Exprs {
+		mapAst.Elts = append(mapAst.Elts, &ast.KeyValueExpr{
+			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + key + `"`},
+			Value: expr,
+		})
+	}
+
+	handlerTmpl := template.Must(template.New("handler").Parse(defaultHandlerTmpl))
+	code.WriteString(page.ScriptNode.FirstChild.Data)
+	printer.Fprint(&data, token.NewFileSet(), mapAst)
+
+	var handlerStr strings.Builder
+	handlerTmpl.ExecuteTemplate(&handlerStr, "handler", map[string]any{
+		"method": "GET",
+		"path":   "/",
+		"code":   code.String(),
+		"data":   data.String(),
+	})
+
+	target, err := os.Create(path.Join(dirGen, "main.go"))
+	if err != nil {
+		return err
+	}
+	targetHandler := template.Must(template.New("index").Parse(defaultTargetTmpl))
+	targetHandler.Execute(target, map[string]any{
+		"tmplx": handlerStr.String(),
+	})
 
 	return nil
 }
@@ -251,7 +292,11 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 
 					id := page.ExprId.Next()
 					res = append(res, []byte(fmt.Sprintf("{{.%s}}", id))...)
-					page.Exprs[id] = string(trimmedCurrExpr)
+					exprAst, err := parser.ParseExpr(string(trimmedCurrExpr))
+					if err != nil {
+						return err
+					}
+					page.Exprs[id] = exprAst
 					expr = []byte{}
 				} else {
 					braceStack--
@@ -532,23 +577,21 @@ const defaultTargetTmpl = `
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"sync"
-	"text/template"
+	"html/template"
 )
+
 func main() {
+	tmpl := template.Must(template.ParseFiles("pages/index.tmpl"))
 	// {{ .tmplx }}
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 `
 
 const defaultHandlerTmpl = `
-{{ define "handler" }}
-http.HandleFunc("{{ .method }} { .url }", func(w http.ResponseWriter, r *http.Request) {
+http.HandleFunc("{{ .method }} {{ .path }}", func(w http.ResponseWriter, r *http.Request) {
 	{{ .code }}
-	
+	tmpl.Execute(w, {{ .data }})
 })
-{{ end }}
 `
