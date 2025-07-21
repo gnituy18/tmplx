@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -37,222 +38,80 @@ func main() {
 	dirComponents = path.Clean(dirComponents)
 	dirGen = path.Clean(dirGen)
 
-	// parse components
-	comps := map[string]*Comp{}
-	if err := filepath.WalkDir(dirComponents, func(path string, d fs.DirEntry, err error) error {
-		relPath, err := filepath.Rel(dirComponents, path)
-		if err != nil {
-			return err
-		}
 
-		dir, file := filepath.Split(relPath)
-		ext := filepath.Ext(file)
-		if ext != ".tmplx" {
+	// create pages
+	pages := []*Page{}
+	filepath.WalkDir(dirPages, func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
 			return nil
 		}
 
-		name := strings.ReplaceAll(filepath.Join(dir, strings.TrimSuffix(file, ext)), "/", "-")
-		bs, err := os.ReadFile(path)
+		relPath, err := filepath.Rel(dirPages, path)
 		if err != nil {
 			return err
 		}
 
-		comp, err := newComp(name, string(bs))
+		_, file := filepath.Split(relPath)
+		ext := filepath.Ext(file)
+		if ext != ".tmplx" && ext != ".html" {
+			log.Println("skip parsing file: " + path)
+			return nil
+		}
+
+		f, err := os.Open(path)
 		if err != nil {
 			return err
 		}
 
-		comps[name] = comp
+		page, err := ParsePage(relPath, f)
+		if err != nil {
+			return err
+		}
 
+		pages = append(pages, page)
 		return nil
-	}); err != nil {
-		log.Fatal(err)
-	}
+	})
 
-	// parse pages
-	bs, err := os.ReadFile(filepath.Join(dirPages, "index.tmplx"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	page, err := newPage("index", string(bs))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := page.generate(); err != nil {
-		log.Fatal(err)
+	if err := pages[0].compileTemplate(); err != nil {
+		log.Println(err)
 	}
 
 	t := template.Must(template.New("index").Parse(defaultTargetTmpl))
 	template.Must(t.Parse(defaultHandlerTmpl))
 }
 
-type IdentType int
-
-const (
-	IdentTypeNonFunc = iota
-	IdentTypeFunc
-)
-
 type Page struct {
-	Name         string
-	ScriptNode   *html.Node
-	ScriptIdents map[string]IdentType
-	Exprs        map[string]ast.Expr
-	ExprId       *Id
+	Path string
 
-	HtmlNode *html.Node
+	ScriptNode *html.Node
+	HtmlNode   *html.Node
+
+	Exprs map[string]Expr
 }
 
-func newPage(name, content string) (*Page, error) {
-	var scriptNode *html.Node
-	nodes, err := html.ParseFragment(strings.NewReader(content), &html.Node{Type: html.ElementNode, DataAtom: atom.Head, Data: "head"})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, node := range nodes {
-		if isTmplxScriptNode(node) && scriptNode == nil {
-			scriptNode = node
-		}
-	}
-
-	documentNode, err := html.Parse(strings.NewReader(content))
+func ParsePage(path string, f *os.File) (*Page, error) {
+	documentNode, err := html.Parse(f)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	var scriptNode *html.Node
 	htmlNode := documentNode.FirstChild
+	for n := range htmlNode.Descendants() {
+		if isTmplxScriptNode(n) {
+			scriptNode = n
+			break
+		}
+	}
 	cleanUpTmplxScript(htmlNode)
 
-	scriptIdents := map[string]IdentType{}
-	if scriptNode != nil {
-		f, err := parser.ParseFile(token.NewFileSet(), "index", "package p\n func _() { "+scriptNode.FirstChild.Data+"}", 0)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fAst, _ := f.Decls[0].(*ast.FuncDecl)
-		for _, stmt := range fAst.Body.List {
-			switch s := stmt.(type) {
-			case *ast.DeclStmt:
-				decl, ok := s.Decl.(*ast.GenDecl)
-				if !ok {
-					log.Println("s.Decl.(*ast.GenDecl) type assert failed")
-				}
-
-				for _, spec := range decl.Specs {
-					s, ok := spec.(*ast.ValueSpec)
-					if !ok {
-						continue
-					}
-
-					var t IdentType = IdentTypeNonFunc
-					if _, ok := s.Type.(*ast.FuncType); ok {
-						t = IdentTypeFunc
-					}
-
-					for _, name := range s.Names {
-						scriptIdents[name.Name] = t
-					}
-				}
-			case *ast.AssignStmt:
-				if s.Tok != token.DEFINE {
-					continue
-				}
-
-				for i, expr := range s.Lhs {
-					ident, ok := expr.(*ast.Ident)
-					if !ok {
-						continue
-					}
-					var t IdentType = IdentTypeNonFunc
-					if _, ok := s.Rhs[i].(*ast.FuncLit); ok {
-						t = IdentTypeFunc
-					}
-					scriptIdents[ident.Name] = t
-				}
-			}
-		}
-	}
-
-	return &Page{
-		Name:         name,
-		ScriptNode:   scriptNode,
-		ScriptIdents: scriptIdents,
-		Exprs:        map[string]ast.Expr{},
-		ExprId:       newId("expr"),
-
-		HtmlNode: htmlNode,
-	}, nil
-}
-
-func cleanUpTmplxScript(node *html.Node) {
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		if isTmplxScriptNode(c) {
-			node.RemoveChild(c)
+	exprs := map[string]Expr{}
+	fieldId := newId("field")
+	for node := range htmlNode.Descendants() {
+		if node.Type != html.TextNode {
 			continue
 		}
-		cleanUpTmplxScript(c)
-	}
-}
 
-func (page *Page) generate() error {
-	dir := path.Join(dirGen, "pages")
-	os.MkdirAll(dir, 0755)
-
-	file, err := os.Create(path.Join(dir, page.Name+".tmpl"))
-	if err != nil {
-		return err
-	}
-
-	// TODO use bufio
-	if err := page.render(file, page.HtmlNode); err != nil {
-		return err
-	}
-
-	var code strings.Builder
-	var data strings.Builder
-
-	mapAst := &ast.CompositeLit{
-		Type: &ast.MapType{
-			Key:   &ast.Ident{Name: "string"},
-			Value: &ast.Ident{Name: "any"},
-		},
-	}
-	for key, expr := range page.Exprs {
-		mapAst.Elts = append(mapAst.Elts, &ast.KeyValueExpr{
-			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + key + `"`},
-			Value: expr,
-		})
-	}
-
-	handlerTmpl := template.Must(template.New("handler").Parse(defaultHandlerTmpl))
-	code.WriteString(page.ScriptNode.FirstChild.Data)
-	printer.Fprint(&data, token.NewFileSet(), mapAst)
-
-	var handlerStr strings.Builder
-	handlerTmpl.ExecuteTemplate(&handlerStr, "handler", map[string]any{
-		"method": "GET",
-		"path":   "/",
-		"code":   code.String(),
-		"data":   data.String(),
-	})
-
-	target, err := os.Create(path.Join(dirGen, "main.go"))
-	if err != nil {
-		return err
-	}
-	targetHandler := template.Must(template.New("index").Parse(defaultTargetTmpl))
-	targetHandler.Execute(target, map[string]any{
-		"tmplx": handlerStr.String(),
-	})
-
-	return nil
-}
-
-func (page *Page) render(w io.StringWriter, node *html.Node) error {
-	switch node.Type {
-	case html.TextNode:
 		braceStack := 0
 		isInDoubleQuote := false
 		isInSingleQuote := false
@@ -290,13 +149,21 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 						continue
 					}
 
-					id := page.ExprId.Next()
-					res = append(res, []byte(fmt.Sprintf("{{.%s}}", id))...)
+					if expr, found := exprs[string(trimmedCurrExpr)]; found {
+						res = append(res, []byte(fmt.Sprintf("{{.%s}}", expr.FieldId))...)
+						continue
+					}
+
+					fieldId := fieldId.next()
 					exprAst, err := parser.ParseExpr(string(trimmedCurrExpr))
 					if err != nil {
-						return err
+						return nil, err
 					}
-					page.Exprs[id] = exprAst
+					exprs[string(trimmedCurrExpr)] = Expr{
+						Ast:     exprAst,
+						FieldId: fieldId,
+					}
+					res = append(res, []byte(fmt.Sprintf("{{.%s}}", fieldId))...)
 					expr = []byte{}
 				} else {
 					braceStack--
@@ -345,18 +212,58 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 					expr = append(expr, byte(r))
 				}
 			}
+
 		}
 
 		if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-			return errors.New(fmt.Sprintf("unclosed quote in expression: \"%s\"", node.Data))
+			return nil, errors.New(fmt.Sprintf("unclosed quote in expression: \"%s\"", node.Data))
 		}
 		if braceStack != 0 {
-			return errors.New(fmt.Sprintf("unclosed brace in expression: \"%s\"", node.Data))
+			return nil, errors.New(fmt.Sprintf("unclosed brace in expression: \"%s\"", node.Data))
 		}
 
-		if _, err := w.WriteString(html.EscapeString(string(res))); err != nil {
+		node.Data = string(res)
+	}
+
+
+	return &Page{
+		Path:       path,
+		ScriptNode: scriptNode,
+		HtmlNode:   htmlNode,
+
+		Exprs: exprs,
+	}, nil
+}
+
+func (page *Page) compileTemplate() error {
+	relDir, file := filepath.Split(page.Path)
+	if ext := filepath.Ext(file); ext != "" {
+		file, _ = strings.CutSuffix(file, ext)
+	}
+
+	dir := path.Join(dirGen, "pages", relDir)
+	os.MkdirAll(dir, 0755)
+
+	f, err := os.Create(path.Join(dir, file+".html"))
+	if err != nil {
+		return err
+	}
+
+	buf := bufio.NewWriter(f)
+	if err := page.render(buf, page.HtmlNode); err != nil {
+		return err
+	}
+
+	return buf.Flush()
+}
+
+func (page *Page) render(w io.StringWriter, node *html.Node) error {
+	switch node.Type {
+	case html.TextNode:
+		if _, err := w.WriteString(html.EscapeString(node.Data)); err != nil {
 			return err
 		}
+
 	case html.ElementNode:
 		if _, err := w.WriteString("<"); err != nil {
 			return err
@@ -451,6 +358,92 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 	return nil
 }
 
+func (page *Page) generate() error {
+	var code strings.Builder
+	var data strings.Builder
+
+	mapAst := &ast.CompositeLit{
+		Type: &ast.MapType{
+			Key:   &ast.Ident{Name: "string"},
+			Value: &ast.Ident{Name: "any"},
+		},
+	}
+	// for key, expr := range page.Exprs {
+	// 	mapAst.Elts = append(mapAst.Elts, &ast.KeyValueExpr{
+	// 		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + key + `"`},
+	// 		Value: expr,
+	// 	})
+	// }
+
+	handlerTmpl := template.Must(template.New("handler").Parse(defaultHandlerTmpl))
+	code.WriteString(page.ScriptNode.FirstChild.Data)
+	printer.Fprint(&data, token.NewFileSet(), mapAst)
+
+	var handlerStr strings.Builder
+	handlerTmpl.ExecuteTemplate(&handlerStr, "handler", map[string]any{
+		"method": "GET",
+		"path":   "/",
+		"code":   code.String(),
+		"data":   data.String(),
+	})
+
+	target, err := os.Create(path.Join(dirGen, "main.go"))
+	if err != nil {
+		return err
+	}
+	targetHandler := template.Must(template.New("index").Parse(defaultTargetTmpl))
+	targetHandler.Execute(target, map[string]any{
+		"tmplx": handlerStr.String(),
+	})
+
+	return nil
+}
+
+func isTmplxScriptNode(node *html.Node) bool {
+	if node.DataAtom != atom.Script {
+		return false
+	}
+
+	for _, attr := range node.Attr {
+		if attr.Key == "type" && attr.Val == mimeType {
+			return true
+		}
+	}
+
+	return false
+}
+
+func cleanUpTmplxScript(node *html.Node) {
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		if isTmplxScriptNode(c) {
+			node.RemoveChild(c)
+			continue
+		}
+		cleanUpTmplxScript(c)
+	}
+}
+
+type Expr struct {
+	Ast     ast.Expr
+	FieldId string
+}
+
+type Id struct {
+	Curr   int
+	Prefix string
+}
+
+func (id *Id) next() string {
+	id.Curr++
+	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
+}
+
+func newId(prefix string) *Id {
+	return &Id{
+		Prefix: prefix,
+	}
+}
+
 // https://html.spec.whatwg.org/#void-elements
 func isVoidElement(name string) bool {
 	switch name {
@@ -508,69 +501,6 @@ func isChildNodeRawText(name string) bool {
 	}
 
 	return false
-}
-
-type Comp struct {
-	Name         string
-	ScriptNode   *html.Node
-	TemplateNode *html.Node
-}
-
-func newComp(name, content string) (*Comp, error) {
-	nodes, err := html.ParseFragment(strings.NewReader(content), &html.Node{Type: html.ElementNode, DataAtom: atom.Body, Data: "body"})
-	if err != nil {
-		return nil, err
-	}
-
-	var scriptNode, templateNode *html.Node
-
-	for _, node := range nodes {
-		if isTmplxScriptNode(node) && scriptNode == nil {
-			scriptNode = node
-		} else if node.DataAtom == atom.Template && templateNode == nil {
-			templateNode = node
-		}
-	}
-
-	if templateNode == nil {
-		return nil, errors.New("<template> not found in " + name)
-	}
-
-	return &Comp{
-		Name:         name,
-		ScriptNode:   scriptNode,
-		TemplateNode: templateNode,
-	}, nil
-}
-
-func isTmplxScriptNode(node *html.Node) bool {
-	if node.DataAtom != atom.Script {
-		return false
-	}
-
-	for _, attr := range node.Attr {
-		if attr.Key == "type" && attr.Val == mimeType {
-			return true
-		}
-	}
-
-	return false
-}
-
-type Id struct {
-	Curr   int
-	Prefix string
-}
-
-func (id *Id) Next() string {
-	id.Curr++
-	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
-}
-
-func newId(prefix string) *Id {
-	return &Id{
-		Prefix: prefix,
-	}
 }
 
 const defaultTargetTmpl = `
