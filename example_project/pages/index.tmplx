@@ -1,5 +1,5 @@
 <script type="text/tmplx">
-  appName := "Tmplx"
+  var appName = "Tmplx"
 </script>
 
 <html>
@@ -11,7 +11,7 @@
   <h1> { appName } </h1>
 
   <input type="text" tx-value="input">
-  <button tx-onclick="add">Add</button>
+  <button tx-onclick="add()">Add</button>
 
   <ul>
     <li tx-for="i, item := range list">
