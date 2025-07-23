@@ -1,0 +1,13 @@
+<script type="text/tmplx">
+  text := "Tmplx"
+</script>
+
+<html>
+<head>
+  <title> { text } </title>
+</head>
+
+<body>
+  <h1> { text } </h1>
+</body>
+</html>

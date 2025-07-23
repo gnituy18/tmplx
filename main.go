@@ -80,13 +80,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := pages[0].compileTemplate(); err != nil {
-		log.Fatal(err)
-	}
-
 	var handlers strings.Builder
-	handlers.WriteString("txTmpl := template.Must(template.ParseGlob(filepath.Join(\"pages\", \"*.tmpl\")))\n")
-	pageHandlerTmpl.Execute(&handlers, pages[0].handlerFields())
+	handlers.WriteString(`
+	pages := []string{}
+	filepath.WalkDir("pages", func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() { return nil }
+		pages = append(pages, path)
+		return nil
+	})
+	txTmpl := template.Must(template.ParseFiles(pages...))
+	`)
+	for _, page := range pages {
+		if err := page.compileTemplate(); err != nil {
+			log.Fatal(err)
+		}
+		pageHandlerTmpl.Execute(&handlers, page.handlerFields())
+	}
 
 	if targetPath == "" {
 		target, err := os.Create(path.Join(dirGen, "main.go"))
@@ -430,7 +439,13 @@ func (page *Page) urlPath() string {
 	if name == "index" {
 		name = ""
 	}
-	return "/" + path.Join(dir, name)
+
+	p := "/" + path.Join(dir, name)
+	if found := strings.HasSuffix(p, "/"); found {
+		p += "{$}"
+	}
+
+	return p
 }
 
 func (page *Page) handlerFields() HandlerFields {
@@ -590,8 +605,8 @@ import (
 	"log"
 	"net/http"
 	"html/template"
+	"io/fs"
 	"path/filepath"
-	"strings"
 )
 
 func main() {
