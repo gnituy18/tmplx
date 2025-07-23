@@ -1,7 +1,8 @@
 <script type="text/tmplx">
-  appName := "Todo"
+  appName := "Tmplx"
 </script>
 
+<html>
 <head>
   <title> { appName } </title>
 </head>
@@ -18,5 +19,6 @@
     </li>
   </ul>
 
-  <comp tx-text="appName" />
+  <comp text="appName" />
 </body>
+</html>

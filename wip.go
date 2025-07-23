@@ -8,66 +8,6 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
-type IdentType int
-
-const (
-	IdentTypeNonFunc = iota
-	IdentTypeFunc
-)
-
-
-// scriptIdents := map[string]IdentType{}
-// if scriptNode != nil {
-// 	f, err := parser.ParseFile(token.NewFileSet(), "index", "package p\n func _() { "+scriptNode.FirstChild.Data+"}", 0)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	fAst, _ := f.Decls[0].(*ast.FuncDecl)
-// 	for _, stmt := range fAst.Body.List {
-// 		switch s := stmt.(type) {
-// 		case *ast.DeclStmt:
-// 			decl, ok := s.Decl.(*ast.GenDecl)
-// 			if !ok {
-// 				log.Println("s.Decl.(*ast.GenDecl) type assert failed")
-// 			}
-
-// 			for _, spec := range decl.Specs {
-// 				s, ok := spec.(*ast.ValueSpec)
-// 				if !ok {
-// 					continue
-// 				}
-
-// 				var t IdentType = IdentTypeNonFunc
-// 				if _, ok := s.Type.(*ast.FuncType); ok {
-// 					t = IdentTypeFunc
-// 				}
-
-// 				for _, name := range s.Names {
-// 					scriptIdents[name.Name] = t
-// 				}
-// 			}
-// 		case *ast.AssignStmt:
-// 			if s.Tok != token.DEFINE {
-// 				continue
-// 			}
-
-// 			for i, expr := range s.Lhs {
-// 				ident, ok := expr.(*ast.Ident)
-// 				if !ok {
-// 					continue
-// 				}
-// 				var t IdentType = IdentTypeNonFunc
-// 				if _, ok := s.Rhs[i].(*ast.FuncLit); ok {
-// 					t = IdentTypeFunc
-// 				}
-// 				scriptIdents[ident.Name] = t
-// 			}
-// 		}
-// 	}
-// }
-
-
-
 
 // parse components
 // comps := map[string]*Comp{}
