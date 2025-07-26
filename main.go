@@ -10,6 +10,8 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 	"io"
 	"io/fs"
 	"log"
@@ -18,9 +20,6 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
 )
 
 const mimeType = "text/tmplx"
@@ -138,7 +137,9 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 	}
 	cleanUpTmplxScript(htmlNode)
 
-	scriptIdents := map[string]IdentType{}
+	vars := map[string]*Var{}
+	varNames := []string{}
+	funcs := map[string]*Func{}
 	if scriptNode != nil {
 		f, err := parser.ParseFile(token.NewFileSet(), path, "package p\n"+scriptNode.FirstChild.Data, 0)
 		if err != nil {
@@ -146,39 +147,105 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 		}
 
 		for _, decl := range f.Decls {
-			switch d := decl.(type) {
-			case *ast.GenDecl:
-				// TODO handle imports
-				if d.Tok == token.CONST || d.Tok == token.TYPE || d.Tok == token.IMPORT {
-					return nil, errors.New(`no const, type and import declaration`)
+			d, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+
+			// TODO handle imports
+			if d.Tok == token.CONST || d.Tok == token.TYPE || d.Tok == token.IMPORT {
+				return nil, errors.New(`no const, type and import declaration`)
+			}
+
+			for _, spec := range d.Specs {
+				s, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					return nil, errors.New("not a value spec")
 				}
 
-				for _, spec := range d.Specs {
-					s, ok := spec.(*ast.ValueSpec)
-					if !ok {
-						continue
+				if s.Type == nil {
+					return nil, errors.New("must specify a type ")
+				}
+
+				if len(s.Values) == 0 {
+					for _, ident := range s.Names {
+						vars[ident.Name] = &Var{
+							Name:      ident.Name,
+							Type:      VarTypeState,
+							Dependent: []*Var{},
+						}
+						varNames = append(varNames, ident.Name)
 					}
+					continue
+				}
 
-					for _, name := range s.Names {
-						scriptIdents[name.Name] = IdentTypeNonFunc
+				if len(s.Values) > len(s.Names) {
+					return nil, errors.New("extra init exprs")
+				}
+
+				if len(s.Values) < len(s.Names) {
+					return nil, errors.New("missing init exprs")
+				}
+
+				for i, v := range s.Values {
+					name := s.Names[i].Name
+					newVar := &Var{
+						Name:      name,
+						Expr:      v,
+						Dependent: []*Var{},
 					}
-				}
+					ast.Inspect(v, func(n ast.Node) bool {
+						ident, ok := n.(*ast.Ident)
+						if !ok {
+							return true
+						}
 
-			case *ast.FuncDecl:
-				if d.Recv != nil {
-					return nil, errors.New("no method declaration")
+						p, ok := vars[ident.Name]
+						if ok {
+							newVar.Type = VarTypeDerived
+							p.Dependent = append(p.Dependent, newVar)
+						}
+
+						return true
+					})
+					vars[name] = newVar
+					varNames = append(varNames, name)
 				}
-				if d.Type.Results != nil {
-					return nil, errors.New("func must not have returns")
-				}
-				scriptIdents[d.Name.Name] = IdentTypeFunc
+			}
+		}
+		for _, decl := range f.Decls {
+			d, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+
+			if d.Recv != nil {
+				return nil, errors.New("no method declaration")
+			}
+			if d.Type.Results != nil {
+				return nil, errors.New("func must not have returns")
+			}
+
+			funcs[d.Name.Name] = &Func{
+				Name: d.Name.Name,
 			}
 		}
 	}
 
+	for _, v := range vars {
+		s := ""
+		for _, d := range v.Dependent {
+			s += d.Name + " "
+		}
+	}
+
+	fmt.Println(vars)
+	fmt.Println(varNames)
+	fmt.Println(funcs)
+
 	exprs := map[string]Expr{}
 	fieldId := newId("field")
-	// use Walk to pass idents
+	// TODO use Walk to pass idents
 	for node := range htmlNode.Descendants() {
 		switch node.Type {
 		case html.TextNode:
@@ -297,14 +364,17 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 			for _, attr := range node.Attr {
 				if strings.HasPrefix(attr.Key, "tx-on") {
 					if expr, err := parser.ParseExpr(attr.Val); err == nil {
-						callExpr, ok := expr.(*ast.CallExpr)
-						if !ok {
-							return nil, errors.New(fmt.Sprintf("not a call expression: %s", attr.Val))
+						callExpr, isCall := expr.(*ast.CallExpr)
+						if isCall {
+							if ident, isIdent := callExpr.Fun.(*ast.Ident); isIdent {
+								if funcs[ident.Name] != nil {
+									// TODO named handler
+									fmt.Println("tx-on " + ident.Name)
+								}
+							}
 						}
-
-						// TODO finish call
-						fmt.Println(callExpr.Fun)
 					}
+					// TODO anonymous handler
 
 					continue
 				}
@@ -510,12 +580,24 @@ func cleanUpTmplxScript(node *html.Node) {
 	}
 }
 
-type IdentType int
+type VarType int
 
 const (
-	IdentTypeNonFunc = iota
-	IdentTypeFunc
+	VarTypeState = iota
+	VarTypeDerived
 )
+
+type Var struct {
+	Name      string
+	Type      VarType
+	Expr      ast.Expr
+	Dependent []*Var
+}
+
+type Func struct {
+	Name           string
+	AffectedStates []string
+}
 
 type Expr struct {
 	Ast     ast.Expr
@@ -602,8 +684,6 @@ type HandlerFields struct {
 	Code   string
 	Fields string
 }
-
-func test() {}
 
 const defaultPageHandlerTmpl = `
 http.HandleFunc("GET {{ .Path }}", func(w http.ResponseWriter, r *http.Request) {
