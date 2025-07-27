@@ -1,5 +1,11 @@
 <script type="text/tmplx">
-  var appName string = "Tmplx"
+  var appName string
+  var heading string
+
+  func init() {
+    appName = "Tmplx"
+    heading = "hello " + appName
+  }
 </script>
 
 <html>
@@ -8,7 +14,7 @@
 </head>
 
 <body>
-  <h1> { appName } </h1>
+  <h1> { heading } </h1>
 
   <input type="text" tx-value="input">
   <button tx-onclick="add()">Add</button>

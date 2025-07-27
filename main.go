@@ -630,6 +630,12 @@ func (page *Page) handlerFields() HandlerFields {
 		printer.Fprint(&code, token.NewFileSet(), decl)
 		code.WriteString("\n")
 	}
+	if f, ok := page.Funcs["init"]; ok {
+		for _, stmt := range f.Body.List {
+			printer.Fprint(&code, token.NewFileSet(), stmt)
+			code.WriteString("\n")
+		}
+	}
 
 	fieldsAst := &ast.CompositeLit{
 		Type: &ast.MapType{
