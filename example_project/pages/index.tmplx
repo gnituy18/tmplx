@@ -1,5 +1,5 @@
 <script type="text/tmplx">
-  var appName = "Tmplx"
+  var appName string = "Tmplx"
 </script>
 
 <html>

@@ -38,3 +38,9 @@ tmplx is a compiler that transforms a hybrid HTML/Go template language into a fu
 
 </body>
 ```
+
+## State
+1. Must specifiy a type
+1. Must have it's own init
+
+## Derived

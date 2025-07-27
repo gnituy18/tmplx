@@ -118,6 +118,10 @@ type Page struct {
 	ScriptNode *html.Node
 	HtmlNode   *html.Node
 
+	Vars       map[string]*Var
+	VarNames   []string
+	Funcs      map[string]*Func
+	FuncNames  []string
 	FieldExprs map[string]Expr
 }
 
@@ -140,6 +144,7 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 	vars := map[string]*Var{}
 	varNames := []string{}
 	funcs := map[string]*Func{}
+	funcNames := []string{}
 	if scriptNode != nil {
 		f, err := parser.ParseFile(token.NewFileSet(), path, "package p\n"+scriptNode.FirstChild.Data, 0)
 		if err != nil {
@@ -172,6 +177,7 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 						vars[ident.Name] = &Var{
 							Name:      ident.Name,
 							Type:      VarTypeState,
+							TypeExpr:  s.Type,
 							Dependent: []*Var{},
 						}
 						varNames = append(varNames, ident.Name)
@@ -191,7 +197,8 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 					name := s.Names[i].Name
 					newVar := &Var{
 						Name:      name,
-						Expr:      v,
+						TypeExpr:  s.Type,
+						InitExpr:  v,
 						Dependent: []*Var{},
 					}
 					ast.Inspect(v, func(n ast.Node) bool {
@@ -226,22 +233,22 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 				return nil, errors.New("func must not have returns")
 			}
 
-			funcs[d.Name.Name] = &Func{
-				Name: d.Name.Name,
+			modifiedStates := map[string]struct{}{}
+			modifiedDerived := map[string]struct{}{}
+			modifiedVars(vars, &modifiedStates, &modifiedDerived, d.Body)
+
+			if len(modifiedDerived) > 0 {
+				return nil, errors.New("can not modify derived")
 			}
+
+			funcs[d.Name.Name] = &Func{
+				Name:           d.Name.Name,
+				ModifiedStates: modifiedStates,
+				Body:           d.Body,
+			}
+			funcNames = append(funcNames, d.Name.Name)
 		}
 	}
-
-	for _, v := range vars {
-		s := ""
-		for _, d := range v.Dependent {
-			s += d.Name + " "
-		}
-	}
-
-	fmt.Println(vars)
-	fmt.Println(varNames)
-	fmt.Println(funcs)
 
 	exprs := map[string]Expr{}
 	fieldId := newId("field")
@@ -387,8 +394,81 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 		ScriptNode: scriptNode,
 		HtmlNode:   htmlNode,
 
+		Vars:       vars,
+		VarNames:   varNames,
+		Funcs:      funcs,
+		FuncNames:  funcNames,
 		FieldExprs: exprs,
 	}, nil
+}
+
+func modifiedVars(vars map[string]*Var, ms, md *map[string]struct{}, node ast.Node) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch stmt := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range stmt.Lhs {
+				found := false
+				ast.Inspect(lhs, func(n ast.Node) bool {
+					if found {
+						return false
+					}
+
+					ident, ok := n.(*ast.Ident)
+					if !ok {
+						return true
+					}
+
+					v, ok := vars[ident.Name]
+					if !ok {
+						return false
+					}
+
+					if v.Type == VarTypeState {
+						(*ms)[v.Name] = struct{}{}
+					} else {
+						(*md)[v.Name] = struct{}{}
+					}
+					found = true
+					return false
+				})
+
+			}
+
+			for _, rhs := range stmt.Rhs {
+				modifiedVars(vars, ms, md, rhs)
+			}
+
+			return false
+		case *ast.IncDecStmt:
+			found := false
+			ast.Inspect(stmt.X, func(n ast.Node) bool {
+				if found {
+					return false
+				}
+
+				ident, ok := n.(*ast.Ident)
+				if !ok {
+					return true
+				}
+
+				v, ok := vars[ident.Name]
+				if !ok {
+					return false
+				}
+
+				if v.Type == VarTypeState {
+					(*ms)[v.Name] = struct{}{}
+				} else {
+					(*md)[v.Name] = struct{}{}
+				}
+				found = true
+				return false
+			})
+			return false
+		}
+
+		return true
+	})
 }
 
 func (page *Page) compileTemplate() error {
@@ -531,6 +611,26 @@ func (page *Page) urlPath() string {
 }
 
 func (page *Page) handlerFields() HandlerFields {
+	var code strings.Builder
+	for _, name := range page.VarNames {
+		v := page.Vars[name]
+		spec := &ast.ValueSpec{
+			Names: []*ast.Ident{{Name: name}},
+			Type:  v.TypeExpr,
+		}
+		if v.InitExpr != nil {
+			spec.Values = []ast.Expr{v.InitExpr}
+		}
+
+		decl := &ast.GenDecl{
+			Tok:   token.VAR,
+			Specs: []ast.Spec{spec},
+		}
+
+		printer.Fprint(&code, token.NewFileSet(), decl)
+		code.WriteString("\n")
+	}
+
 	fieldsAst := &ast.CompositeLit{
 		Type: &ast.MapType{
 			Key:   &ast.Ident{Name: "string"},
@@ -547,9 +647,10 @@ func (page *Page) handlerFields() HandlerFields {
 
 	var fields strings.Builder
 	printer.Fprint(&fields, token.NewFileSet(), fieldsAst)
+
 	return HandlerFields{
 		Path:   page.urlPath(),
-		Code:   page.ScriptNode.FirstChild.Data,
+		Code:   code.String(),
 		Fields: fields.String(),
 	}
 }
@@ -590,13 +691,15 @@ const (
 type Var struct {
 	Name      string
 	Type      VarType
-	Expr      ast.Expr
+	TypeExpr  ast.Expr
+	InitExpr  ast.Expr
 	Dependent []*Var
 }
 
 type Func struct {
 	Name           string
-	AffectedStates []string
+	Body           *ast.BlockStmt
+	ModifiedStates map[string]struct{}
 }
 
 type Expr struct {
