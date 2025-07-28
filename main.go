@@ -250,12 +250,63 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 		}
 	}
 
+	tmplxJsNode := &html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Script,
+		Data:     "script",
+	}
+
+	tmplxJsNode.AppendChild(&html.Node{
+		Type: html.TextNode,
+		Data: `
+document.addEventListener('DOMContentLoaded', function() {
+  const addHandler = (node) => {
+    const walker = document.createTreeWalker(
+      node,
+      NodeFilter.SHOW_ELEMENT,
+      (n) => {
+        for (let attr of n.attributes) {
+          if (attr.name.startsWith('tx-on')) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+        return NodeFilter.FILTER_SKIP
+      }
+    );
+    while (walker.nextNode()) {
+      const cn = walker.currentNode;
+      for (let attr of cn.attributes) {
+        if (attr.name.startsWith('tx-on')) {
+          const eName = attr.name.slice(5);
+          cn.addEventListener(eName, () => console.log(attr.value))
+        }
+      }
+    }
+  }
+
+  new MutationObserver((records) => {
+    records.forEach((record) => {
+      if (record.type !== 'childList') return
+      records.addedNodes()
+    })
+  }).observe(document.documentElement, { childList: true, subList: true })
+  addHandler(document.documentElement)
+});
+`,
+	})
+
+	htmlNode.FirstChild.AppendChild(tmplxJsNode)
+
 	exprs := map[string]Expr{}
 	fieldId := newId("field")
 	// TODO use Walk to pass idents
 	for node := range htmlNode.Descendants() {
 		switch node.Type {
 		case html.TextNode:
+			if node.Parent.DataAtom == atom.Script && node.Parent.Data == "script" {
+				continue
+			}
+
 			braceStack := 0
 			isInDoubleQuote := false
 			isInSingleQuote := false
@@ -390,15 +441,16 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 	}
 
 	return &Page{
-		Path:       path,
-		ScriptNode: scriptNode,
-		HtmlNode:   htmlNode,
+		Path: path,
 
+		ScriptNode: scriptNode,
 		Vars:       vars,
 		VarNames:   varNames,
 		Funcs:      funcs,
 		FuncNames:  funcNames,
 		FieldExprs: exprs,
+
+		HtmlNode: htmlNode,
 	}, nil
 }
 
@@ -568,7 +620,7 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 					continue
 				}
 
-				if err := page.render(w, c); err != nil {
+				if _, err := w.WriteString(c.Data); err != nil {
 					return err
 				}
 			}
