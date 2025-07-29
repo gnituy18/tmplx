@@ -235,7 +235,7 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 
 			modifiedStates := map[string]struct{}{}
 			modifiedDerived := map[string]struct{}{}
-			modifiedVars(vars, &modifiedStates, &modifiedDerived, d.Body)
+			modifiedVars(vars, &modifiedStates, &modifiedDerived, d)
 
 			if len(modifiedDerived) > 0 {
 				return nil, errors.New("can not modify derived")
@@ -244,7 +244,7 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 			funcs[d.Name.Name] = &Func{
 				Name:           d.Name.Name,
 				ModifiedStates: modifiedStates,
-				Body:           d.Body,
+				Decl:           d,
 			}
 			funcNames = append(funcNames, d.Name.Name)
 		}
@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 	exprs := map[string]Expr{}
 	fieldId := newId("field")
-	// TODO use Walk to pass idents
+	// funcId := newId("func")
 	for node := range htmlNode.Descendants() {
 		switch node.Type {
 		case html.TextNode:
@@ -419,23 +419,89 @@ document.addEventListener('DOMContentLoaded', function() {
 
 			node.Data = string(res)
 		case html.ElementNode:
-			for _, attr := range node.Attr {
-				if strings.HasPrefix(attr.Key, "tx-on") {
-					if expr, err := parser.ParseExpr(attr.Val); err == nil {
-						callExpr, isCall := expr.(*ast.CallExpr)
-						if isCall {
-							if ident, isIdent := callExpr.Fun.(*ast.Ident); isIdent {
-								if funcs[ident.Name] != nil {
-									// TODO named handler
-									fmt.Println("tx-on " + ident.Name)
-								}
-							}
-						}
-					}
-					// TODO anonymous handler
-
+			for i, attr := range node.Attr {
+				if !strings.HasPrefix(attr.Key, "tx-on") {
 					continue
 				}
+				expr, err := parser.ParseExpr(attr.Val)
+				if err == nil {
+					callExpr, isCall := expr.(*ast.CallExpr)
+					if !isCall {
+						continue
+					}
+
+					ident, isIdent := callExpr.Fun.(*ast.Ident)
+					if !isIdent {
+						continue
+					}
+
+					f, ok := funcs[ident.Name]
+					if !ok {
+						continue
+					}
+
+					p, _ := strings.CutSuffix(path, filepath.Ext(path))
+					p = strings.ReplaceAll(p, "/", "-")
+					p = strings.ReplaceAll(p, "{", "")
+					p = strings.ReplaceAll(p, "}", "")
+					p += "-" + f.Name
+
+					params := []string{}
+					for _, list := range f.Decl.Type.Params.List {
+						for _, ident := range list.Names {
+							params = append(params, ident.Name)
+						}
+					}
+
+					if len(params) != len(callExpr.Args) {
+						return nil, errors.New("params length not match: " + f.Name)
+					}
+
+					paramsStr := ""
+					if len(params) > 0 {
+						for i, p := range params {
+							found := false
+							ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
+								if found {
+									return false
+								}
+
+								ident, ok := n.(*ast.Ident)
+								if !ok {
+									return true
+								}
+
+								if _, ok := vars[ident.Name]; ok {
+									found = true
+								}
+
+								return false
+							})
+
+							if found {
+								return nil, errors.New("state and derived can not be in params")
+							}
+
+							var sb strings.Builder
+							printer.Fprint(&sb, token.NewFileSet(), callExpr.Args[i])
+							exprStr := sb.String()
+							if i == 0 {
+								paramsStr += fmt.Sprintf("?%s={{$%s}}", p, exprStr)
+								continue
+							}
+							paramsStr += fmt.Sprintf("&%s={{$%s}}", p, exprStr)
+						}
+					}
+
+					node.Attr[i] = html.Attribute{
+						Key: attr.Key,
+						Val: fmt.Sprintf("%s%s", p, paramsStr),
+					}
+				}
+
+				// TODO anonymous handler
+
+				continue
 			}
 		}
 	}
@@ -683,7 +749,7 @@ func (page *Page) handlerFields() HandlerFields {
 		code.WriteString("\n")
 	}
 	if f, ok := page.Funcs["init"]; ok {
-		for _, stmt := range f.Body.List {
+		for _, stmt := range f.Decl.Name.Name {
 			printer.Fprint(&code, token.NewFileSet(), stmt)
 			code.WriteString("\n")
 		}
@@ -756,7 +822,7 @@ type Var struct {
 
 type Func struct {
 	Name           string
-	Body           *ast.BlockStmt
+	Decl           *ast.FuncDecl
 	ModifiedStates map[string]struct{}
 }
 
