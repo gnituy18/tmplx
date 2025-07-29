@@ -233,8 +233,8 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 				return nil, errors.New("func must not have returns")
 			}
 
-			modifiedStates := map[string]struct{}{}
-			modifiedDerived := map[string]struct{}{}
+			modifiedStates := []string{}
+			modifiedDerived := []string{}
 			modifiedVars(vars, &modifiedStates, &modifiedDerived, d)
 
 			if len(modifiedDerived) > 0 {
@@ -260,6 +260,8 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 		Type: html.TextNode,
 		Data: `
 document.addEventListener('DOMContentLoaded', function() {
+  const state = JSON.parse(this.getElementById("tx-state").innerHTML)
+  const funcs = JSON.parse(this.getElementById("tx-funcs").innerHTML)
   const addHandler = (node) => {
     const walker = document.createTreeWalker(
       node,
@@ -278,7 +280,10 @@ document.addEventListener('DOMContentLoaded', function() {
       for (let attr of cn.attributes) {
         if (attr.name.startsWith('tx-on')) {
           const eName = attr.name.slice(5);
-          cn.addEventListener(eName, () => console.log(attr.value))
+          cn.addEventListener(eName, async () => {
+            console.log(state)
+            console.log(funcs)
+          })
         }
       }
     }
@@ -296,6 +301,36 @@ document.addEventListener('DOMContentLoaded', function() {
 	})
 
 	htmlNode.FirstChild.AppendChild(tmplxJsNode)
+
+	stateNode := &html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Script,
+		Data:     "script",
+		Attr: []html.Attribute{
+			{Key: "type", Val: "application/json"},
+			{Key: "id", Val: "tx-state"},
+		},
+	}
+	stateNode.AppendChild(&html.Node{
+		Type: html.TextNode,
+		Data: "{{.state}}",
+	})
+	htmlNode.FirstChild.AppendChild(stateNode)
+
+	funcsNode := &html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Script,
+		Data:     "script",
+		Attr: []html.Attribute{
+			{Key: "type", Val: "application/json"},
+			{Key: "id", Val: "tx-funcs"},
+		},
+	}
+	funcsNode.AppendChild(&html.Node{
+		Type: html.TextNode,
+		Data: "{{.funcs}}",
+	})
+	htmlNode.FirstChild.AppendChild(funcsNode)
 
 	exprs := map[string]Expr{}
 	fieldId := newId("field")
@@ -475,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
 									found = true
 								}
 
-								return false
+								return true
 							})
 
 							if found {
@@ -520,7 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
 	}, nil
 }
 
-func modifiedVars(vars map[string]*Var, ms, md *map[string]struct{}, node ast.Node) {
+func modifiedVars(vars map[string]*Var, ms, md *[]string, node ast.Node) {
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch stmt := n.(type) {
 		case *ast.AssignStmt:
@@ -542,9 +577,9 @@ func modifiedVars(vars map[string]*Var, ms, md *map[string]struct{}, node ast.No
 					}
 
 					if v.Type == VarTypeState {
-						(*ms)[v.Name] = struct{}{}
+						(*ms) = append((*ms), v.Name)
 					} else {
-						(*md)[v.Name] = struct{}{}
+						(*md) = append((*md), v.Name)
 					}
 					found = true
 					return false
@@ -575,9 +610,9 @@ func modifiedVars(vars map[string]*Var, ms, md *map[string]struct{}, node ast.No
 				}
 
 				if v.Type == VarTypeState {
-					(*ms)[v.Name] = struct{}{}
+					(*ms) = append((*ms), v.Name)
 				} else {
-					(*md)[v.Name] = struct{}{}
+					(*md) = append((*md), v.Name)
 				}
 				found = true
 				return false
@@ -769,6 +804,56 @@ func (page *Page) handlerFields() HandlerFields {
 		})
 	}
 
+	stateAst := &ast.CompositeLit{
+		Type: &ast.MapType{
+			Key:   &ast.Ident{Name: "string"},
+			Value: &ast.Ident{Name: "any"},
+		},
+	}
+
+	for _, varName := range page.VarNames {
+		name := page.Vars[varName].Name
+		stateAst.Elts = append(stateAst.Elts, &ast.KeyValueExpr{
+			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + name + `"`},
+			Value: &ast.Ident{Name: name},
+		})
+	}
+
+	funcsAst := &ast.CompositeLit{
+		Type: &ast.MapType{
+			Key:   &ast.Ident{Name: "string"},
+			Value: &ast.ArrayType{Elt: &ast.Ident{Name: "string"}},
+		},
+	}
+
+	for _, funcName := range page.FuncNames {
+		if funcName == "init" {
+			continue
+		}
+		f := page.Funcs[funcName]
+		elts := []ast.Expr{}
+		for _, varName := range f.ModifiedStates {
+			elts = append(elts, &ast.BasicLit{Kind: token.STRING, Value: `"` + varName + `"`})
+		}
+		funcsAst.Elts = append(funcsAst.Elts, &ast.KeyValueExpr{
+			Key: &ast.BasicLit{Kind: token.STRING, Value: `"` + funcName + `"`},
+			Value: &ast.CompositeLit{
+				Elts: elts,
+			},
+		})
+
+	}
+
+	fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
+		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"state"`},
+		Value: stateAst,
+	})
+
+	fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
+		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"funcs"`},
+		Value: funcsAst,
+	})
+
 	var fields strings.Builder
 	printer.Fprint(&fields, token.NewFileSet(), fieldsAst)
 
@@ -823,7 +908,7 @@ type Var struct {
 type Func struct {
 	Name           string
 	Decl           *ast.FuncDecl
-	ModifiedStates map[string]struct{}
+	ModifiedStates []string
 }
 
 type Expr struct {
