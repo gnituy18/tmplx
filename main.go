@@ -53,6 +53,10 @@ func main() {
 	// create pages
 	pages := []*Page{}
 	if err := filepath.WalkDir(dirPages, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if d.IsDir() {
 			return nil
 		}
@@ -100,6 +104,9 @@ func main() {
 			log.Fatal(err)
 		}
 		pageHandlerTmpl.Execute(&handlers, page.handlerFields())
+		for _, fields := range page.funcHandlerFields() {
+			pageHandlerTmpl.Execute(&handlers, fields)
+		}
 	}
 
 	if targetPath == "" {
@@ -261,7 +268,6 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 		Data: `
 document.addEventListener('DOMContentLoaded', function() {
   const state = JSON.parse(this.getElementById("tx-state").innerHTML)
-  const funcs = JSON.parse(this.getElementById("tx-funcs").innerHTML)
   const addHandler = (node) => {
     const walker = document.createTreeWalker(
       node,
@@ -281,8 +287,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (attr.name.startsWith('tx-on')) {
           const eName = attr.name.slice(5);
           cn.addEventListener(eName, async () => {
-            console.log(state)
-            console.log(funcs)
+            const states = {}
+
+            for (let key in state) {
+              states[key] = JSON.stringify(state[key])
+            }
+            const res = await fetch("/tx/" + attr.value + "?" + new URLSearchParams(states).toString())
+            res.text().then(html => {
+              document.open()
+              document.write(html)
+              document.close()
+            })
           })
         }
       }
@@ -297,6 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }).observe(document.documentElement, { childList: true, subList: true })
   addHandler(document.documentElement)
 });
+
 `,
 	})
 
@@ -316,21 +332,6 @@ document.addEventListener('DOMContentLoaded', function() {
 		Data: "{{.state}}",
 	})
 	htmlNode.FirstChild.AppendChild(stateNode)
-
-	funcsNode := &html.Node{
-		Type:     html.ElementNode,
-		DataAtom: atom.Script,
-		Data:     "script",
-		Attr: []html.Attribute{
-			{Key: "type", Val: "application/json"},
-			{Key: "id", Val: "tx-funcs"},
-		},
-	}
-	funcsNode.AppendChild(&html.Node{
-		Type: html.TextNode,
-		Data: "{{.funcs}}",
-	})
-	htmlNode.FirstChild.AppendChild(funcsNode)
 
 	exprs := map[string]Expr{}
 	fieldId := newId("field")
@@ -763,6 +764,117 @@ func (page *Page) urlPath() string {
 	return p
 }
 
+func (page *Page) funcHandlerFields() []HandlerFields {
+	var varCode strings.Builder
+	varCode.WriteString("query := r.URL.Query()\n")
+
+	for _, name := range page.VarNames {
+		v := page.Vars[name]
+		spec := &ast.ValueSpec{
+			Names: []*ast.Ident{{Name: name}},
+			Type:  v.TypeExpr,
+		}
+
+		if v.Type == VarTypeDerived && v.InitExpr != nil {
+			spec.Values = []ast.Expr{v.InitExpr}
+		}
+
+		decl := &ast.GenDecl{
+			Tok:   token.VAR,
+			Specs: []ast.Spec{spec},
+		}
+
+		printer.Fprint(&varCode, token.NewFileSet(), decl)
+		varCode.WriteString("\n")
+
+		if v.Type == VarTypeDerived {
+			continue
+		}
+
+		varCode.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", name, name))
+	}
+
+	var varCodeDerived strings.Builder
+	for _, name := range page.VarNames {
+		v := page.Vars[name]
+		if v.Type != VarTypeDerived {
+			continue
+		}
+
+		assign := &ast.AssignStmt{
+			Lhs: []ast.Expr{&ast.Ident{Name: name}},
+			Tok: token.ASSIGN,
+			Rhs: []ast.Expr{v.InitExpr},
+		}
+
+		printer.Fprint(&varCodeDerived, token.NewFileSet(), assign)
+		varCodeDerived.WriteString("\n")
+	}
+
+	handlers := []HandlerFields{}
+	for _, funcName := range page.FuncNames {
+		var code strings.Builder
+		code.WriteString(varCode.String())
+
+		f := page.Funcs[funcName]
+		for _, stmt := range f.Decl.Body.List {
+			printer.Fprint(&code, token.NewFileSet(), stmt)
+			code.WriteString("\n")
+		}
+		fieldsAst := &ast.CompositeLit{
+			Type: &ast.MapType{
+				Key:   &ast.Ident{Name: "string"},
+				Value: &ast.Ident{Name: "any"},
+			},
+		}
+
+		for _, expr := range page.FieldExprs {
+			fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
+				Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + expr.FieldId + `"`},
+				Value: expr.Ast,
+			})
+		}
+
+		stateAst := &ast.CompositeLit{
+			Type: &ast.MapType{
+				Key:   &ast.Ident{Name: "string"},
+				Value: &ast.Ident{Name: "any"},
+			},
+		}
+
+		for _, varName := range page.VarNames {
+			name := page.Vars[varName].Name
+			stateAst.Elts = append(stateAst.Elts, &ast.KeyValueExpr{
+				Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + name + `"`},
+				Value: &ast.Ident{Name: name},
+			})
+		}
+
+		fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
+			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"state"`},
+			Value: stateAst,
+		})
+
+		var fields strings.Builder
+		printer.Fprint(&fields, token.NewFileSet(), fieldsAst)
+		code.WriteString(varCodeDerived.String())
+
+		p, _ := strings.CutSuffix(page.Path, filepath.Ext(page.Path))
+		p = strings.ReplaceAll(p, "/", "-")
+		p = strings.ReplaceAll(p, "{", "")
+		p = strings.ReplaceAll(p, "}", "")
+		p += "-" + f.Name
+		handlers = append(handlers, HandlerFields{
+			Path:     "/tx/" + p,
+			Code:     code.String(),
+			Fields:   fields.String(),
+			TmplName: page.urlPath(),
+		})
+	}
+
+	return handlers
+}
+
 func (page *Page) handlerFields() HandlerFields {
 	var code strings.Builder
 	for _, name := range page.VarNames {
@@ -784,7 +896,7 @@ func (page *Page) handlerFields() HandlerFields {
 		code.WriteString("\n")
 	}
 	if f, ok := page.Funcs["init"]; ok {
-		for _, stmt := range f.Decl.Name.Name {
+		for _, stmt := range f.Decl.Body.List {
 			printer.Fprint(&code, token.NewFileSet(), stmt)
 			code.WriteString("\n")
 		}
@@ -819,48 +931,19 @@ func (page *Page) handlerFields() HandlerFields {
 		})
 	}
 
-	funcsAst := &ast.CompositeLit{
-		Type: &ast.MapType{
-			Key:   &ast.Ident{Name: "string"},
-			Value: &ast.ArrayType{Elt: &ast.Ident{Name: "string"}},
-		},
-	}
-
-	for _, funcName := range page.FuncNames {
-		if funcName == "init" {
-			continue
-		}
-		f := page.Funcs[funcName]
-		elts := []ast.Expr{}
-		for _, varName := range f.ModifiedStates {
-			elts = append(elts, &ast.BasicLit{Kind: token.STRING, Value: `"` + varName + `"`})
-		}
-		funcsAst.Elts = append(funcsAst.Elts, &ast.KeyValueExpr{
-			Key: &ast.BasicLit{Kind: token.STRING, Value: `"` + funcName + `"`},
-			Value: &ast.CompositeLit{
-				Elts: elts,
-			},
-		})
-
-	}
-
 	fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
 		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"state"`},
 		Value: stateAst,
-	})
-
-	fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
-		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"funcs"`},
-		Value: funcsAst,
 	})
 
 	var fields strings.Builder
 	printer.Fprint(&fields, token.NewFileSet(), fieldsAst)
 
 	return HandlerFields{
-		Path:   page.urlPath(),
-		Code:   code.String(),
-		Fields: fields.String(),
+		Path:     page.urlPath(),
+		Code:     code.String(),
+		Fields:   fields.String(),
+		TmplName: page.urlPath(),
 	}
 }
 
@@ -992,15 +1075,16 @@ func isChildNodeRawText(name string) bool {
 }
 
 type HandlerFields struct {
-	Path   string
-	Code   string
-	Fields string
+	Path     string
+	Code     string
+	Fields   string
+	TmplName string
 }
 
 const defaultPageHandlerTmpl = `
 http.HandleFunc("GET {{ .Path }}", func(w http.ResponseWriter, r *http.Request) {
 	{{ .Code }}
-	txTmpl.ExecuteTemplate(w, "{{ .Path }}", {{ .Fields }})
+	txTmpl.ExecuteTemplate(w, "{{ .TmplName }}", {{ .Fields }})
 })
 `
 
@@ -1013,6 +1097,7 @@ import (
 	"html/template"
 	"io/fs"
 	"path/filepath"
+	"encoding/json"
 )
 
 func main() {
