@@ -6,41 +6,37 @@ tmplx is a compiler that transforms a hybrid HTML/Go template language into a fu
 
 ```html
 <script type="text/tmplx">
-  appName := "Todo"
+  var title string = "Tmplx!"
+  var h1 string = "Hello, Tmplx!"
 
-  input := ""
+  var counter int = 0
+  var counterTimes10 int = counter*10
 
-  list := []string{"init"}
-
-  add := func() {
-    list = append(list, input)
+  func addOne() {
+    counter++
   }
 
-  delete := func(i int) {
-    list = slices.Delete(list, i, i+1)
+  func subOne() {
+    counter--
   }
 </script>
 
+<html>
 <head>
+  <title> { title } </title>
 </head>
 
 <body>
-  <h1> { appName } </h1>
+  <h1> { h1 } </h1>
+  
+  <h2> Counter <h2>
+  <p>counter: { counter}</p>
 
-  <input type="text" tx-value="input">
-  <button tx-onclick="add">Add</button>
+  <button tx-onclick="addOne()">Add 1</button>
+  <button tx-onclick="subOne()">Subtract 1</button>
 
-  <ul>
-    <li tx-for="i, item := range list">
-      <button tx-onclick="delete(i)">delete</button>
-    </li>
-  </ul>
-
+  <h2> Derived <h2>
+  <p>counter * 10 = { counterTimes10 }</p>
 </body>
+</html>
 ```
-
-## State
-1. Must specifiy a type
-1. Must have it's own init
-
-## Derived

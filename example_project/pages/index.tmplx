@@ -1,30 +1,34 @@
 <script type="text/tmplx">
-  var appName string
-  var heading string
+  var title string = "Tmplx!"
+  var h1 string = "Hello, Tmplx!"
 
-  func init() {
-    appName = "Tmplx"
-    heading = "hello " + appName
+  var counter int = 0
+  var counterTimes10 int = counter*10
+
+  func addOne() {
+    counter++
+  }
+
+  func subOne() {
+    counter--
   }
 </script>
 
 <html>
 <head>
-  <title> { appName } </title>
+  <title> { title } </title>
 </head>
 
 <body>
-  <h1> { heading } </h1>
+  <h1> { h1 } </h1>
+  
+  <h2> Counter <h2>
+  <p>counter: { counter}</p>
 
-  <input type="text" tx-value="input">
-  <button tx-onclick="add()">Add</button>
+  <button tx-onclick="addOne()">Add 1</button>
+  <button tx-onclick="subOne()">Subtract 1</button>
 
-  <ul>
-    <li tx-for="i, item := range list">
-      <button tx-onclick="delete(i)">delete</button>
-    </li>
-  </ul>
-
-  <comp text="appName" />
+  <h2> Derived <h2>
+  <p>counter * 10 = { counterTimes10 }</p>
 </body>
 </html>

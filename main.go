@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -12,6 +11,7 @@ import (
 	"go/token"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"io/fs"
 	"log"
@@ -26,207 +26,229 @@ const mimeType = "text/tmplx"
 
 var dirPages string
 var dirComponents string
-var dirGen string
+var output string
 
 const defaultTargetPath = "main.go"
-
-var targetPath string
-
-var a = change()
-
-func change() string {
-	return "a"
-}
 
 func main() {
 	flag.StringVar(&dirPages, "pages", path.Clean("pages"), "pages directory")
 	flag.StringVar(&dirComponents, "components", path.Clean("components"), "components directory")
-	flag.StringVar(&dirGen, "gen", path.Clean("gen"), "generation directory")
-	flag.StringVar(&targetPath, "target", "", "file for injecting handler codes")
+	flag.StringVar(&output, "output", path.Clean("./tmplx/tmplx.go"), "output file")
 	flag.Parse()
 	dirPages = path.Clean(dirPages)
 	dirComponents = path.Clean(dirComponents)
-	dirGen = path.Clean(dirGen)
+	output = path.Clean(output)
 
-	pageHandlerTmpl := template.Must(template.New("handler").Parse(defaultPageHandlerTmpl))
-
-	// create pages
 	pages := []*Page{}
 	if err := filepath.WalkDir(dirPages, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("pages directory not found (file: %s): %w", path, err)
 		}
 
 		if d.IsDir() {
 			return nil
 		}
 
-		relPath, err := filepath.Rel(dirPages, path)
-		if err != nil {
-			return err
-		}
-
-		_, file := filepath.Split(relPath)
-		ext := filepath.Ext(file)
+		_, filename := filepath.Split(path)
+		ext := filepath.Ext(filename)
 		if ext != ".tmplx" && ext != ".html" {
-			log.Println("skip parsing file: " + path)
+			log.Println("skip file without .tmplx or .html (file: %s)" + path)
 			return nil
 		}
 
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-
-		page, err := ParsePage(relPath, f)
-		if err != nil {
-			return err
-		}
-
-		pages = append(pages, page)
+		pages = append(pages, &Page{FilePath: path})
 		return nil
 	}); err != nil {
+		log.Fatalln(err)
+	}
+
+	g := new(errgroup.Group)
+	for _, page := range pages {
+		g.Go(page.Parse)
+	}
+	if err := g.Wait(); err != nil {
+		log.Fatalln(err)
+	}
+
+	var tmplDefs strings.Builder
+	var tmplHandlers strings.Builder
+	tmplxHandlerTmpl := template.Must(template.New("tmplx_handler").Parse(`
+{
+	Url: "{{.Url}}",
+	HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
+		{{ .Code }}
+		tmpl.ExecuteTemplate(w, "{{ .TmplName }}", {{ .Fields }})
+	},
+},`))
+	for _, page := range pages {
+		if _, err := tmplDefs.WriteString(fmt.Sprintf("{{define \"%s\"}}\n", page.urlPath())); err != nil {
+			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
+		}
+		if err := page.render(&tmplDefs, page.HtmlNode); err != nil {
+			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
+		}
+		if _, err := tmplDefs.WriteString("\n{{end}}\n"); err != nil {
+			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
+		}
+
+		tmplxHandlerTmpl.Execute(&tmplHandlers, page.pageHandlerFields())
+		for _, fields := range page.funcHandlerFields() {
+			tmplxHandlerTmpl.Execute(&tmplHandlers, fields)
+		}
+	}
+
+	tmplPackage, err := createFile(output)
+	if err != nil {
 		log.Fatal(err)
 	}
+	tmplPackage.WriteString(`
+package tmplx
 
-	var handlers strings.Builder
-	handlers.WriteString(`
-		pages := []string{}
-		filepath.WalkDir("pages", func(path string, d fs.DirEntry, err error) error {
-			if d.IsDir() { return nil }
-			pages = append(pages, path)
-			return nil
-		})
-		txTmpl := template.Must(template.ParseFiles(pages...))
-	`)
-	for _, page := range pages {
-		if err := page.compileTemplate(); err != nil {
-			log.Fatal(err)
-		}
-		pageHandlerTmpl.Execute(&handlers, page.handlerFields())
-		for _, fields := range page.funcHandlerFields() {
-			pageHandlerTmpl.Execute(&handlers, fields)
-		}
-	}
+import (
+	"encoding/json"
+	"html/template"
+	"net/http"
+)
 
-	if targetPath == "" {
-		target, err := os.Create(path.Join(dirGen, "main.go"))
-		if err != nil {
-			log.Fatal(err)
-		}
+type TmplxHandler struct {
+        Url		string
+	HandlerFunc 	http.HandlerFunc
+}
+`)
+	tmplPackage.WriteString(fmt.Sprintf("var tmpl = template.Must(template.New(\"tmplx_handlers\").Parse(`%s`))\n", tmplDefs.String()))
+	tmplPackage.WriteString(fmt.Sprintf("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n%s}\n", tmplHandlers.String()))
+	tmplPackage.WriteString("func Handlers() []TmplxHandler { return tmplxHandlers }")
 
-		target.WriteString(strings.Replace(defaultTargetTmpl, "// tmplx //", handlers.String(), 1))
-	}
+	tmplPackage.Close()
 }
 
 type Page struct {
-	Path string
+	FilePath string
+	RelPath  string
 
-	ScriptNode *html.Node
 	HtmlNode   *html.Node
+	ScriptNode *html.Node
 
-	Vars       map[string]*Var
-	VarNames   []string
-	Funcs      map[string]*Func
-	FuncNames  []string
+	VarNames  []string
+	Vars      map[string]*Var
+	FuncNames []string
+	Funcs     map[string]*Func
+
 	FieldExprs map[string]Expr
 }
 
-func ParsePage(path string, f *os.File) (*Page, error) {
-	documentNode, err := html.Parse(f)
+func (page *Page) Parse() error {
+	relPath, err := filepath.Rel(dirPages, page.FilePath)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("relative path not found: %w", err)
+	}
+	page.RelPath = relPath
+
+	f, err := os.Open(page.FilePath)
+	if err != nil {
+		return fmt.Errorf("open page file failed: %w", err)
 	}
 
-	var scriptNode *html.Node
-	htmlNode := documentNode.FirstChild
-	for n := range htmlNode.Descendants() {
+	documentNode, err := html.Parse(f)
+	if err != nil {
+		return fmt.Errorf("parse html failed (file: %s): %w", page.FilePath, err)
+	}
+	page.HtmlNode = documentNode.FirstChild
+
+	for n := range page.HtmlNode.Descendants() {
 		if isTmplxScriptNode(n) {
-			scriptNode = n
+			page.ScriptNode = n
 			break
 		}
 	}
-	cleanUpTmplxScript(htmlNode)
+	cleanUpTmplxScript(page.HtmlNode)
 
-	vars := map[string]*Var{}
-	varNames := []string{}
-	funcs := map[string]*Func{}
-	funcNames := []string{}
-	if scriptNode != nil {
-		f, err := parser.ParseFile(token.NewFileSet(), path, "package p\n"+scriptNode.FirstChild.Data, 0)
+	page.VarNames = []string{}
+	page.Vars = map[string]*Var{}
+	page.FuncNames = []string{}
+	page.Funcs = map[string]*Func{}
+	if page.ScriptNode != nil {
+		f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, "package p\n"+page.ScriptNode.FirstChild.Data, 0)
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("parse script failed (file: %s): %w", page.FilePath, err)
 		}
 
+		// parse vars
 		for _, decl := range f.Decls {
 			d, ok := decl.(*ast.GenDecl)
 			if !ok {
 				continue
 			}
 
-			// TODO handle imports
+			// TODO implement import declaration
 			if d.Tok == token.CONST || d.Tok == token.TYPE || d.Tok == token.IMPORT {
-				return nil, errors.New(`no const, type and import declaration`)
+				return fmt.Errorf(`no "const", "type" or "import" declarations (file: %s)`, page.FilePath)
 			}
 
 			for _, spec := range d.Specs {
 				s, ok := spec.(*ast.ValueSpec)
 				if !ok {
-					return nil, errors.New("not a value spec")
+					return fmt.Errorf("not a value spec (file: %s): %s", page.FilePath, astToCode(spec))
 				}
 
 				if s.Type == nil {
-					return nil, errors.New("must specify a type ")
+					return fmt.Errorf("must specify a type in declaration (file: %s): %s", page.FilePath, astToCode(spec))
 				}
 
 				if len(s.Values) == 0 {
 					for _, ident := range s.Names {
-						vars[ident.Name] = &Var{
-							Name:      ident.Name,
-							Type:      VarTypeState,
-							TypeExpr:  s.Type,
-							Dependent: []*Var{},
+						page.VarNames = append(page.VarNames, ident.Name)
+						page.Vars[ident.Name] = &Var{
+							Name:     ident.Name,
+							Type:     VarTypeState,
+							TypeExpr: s.Type,
 						}
-						varNames = append(varNames, ident.Name)
 					}
 					continue
 				}
 
 				if len(s.Values) > len(s.Names) {
-					return nil, errors.New("extra init exprs")
+					return fmt.Errorf("extra init exprs (file: %s): %s", page.FilePath, astToCode(spec))
 				}
 
 				if len(s.Values) < len(s.Names) {
-					return nil, errors.New("missing init exprs")
+					return fmt.Errorf("missin init exprs (file: %s): %s", page.FilePath, astToCode(spec))
 				}
 
 				for i, v := range s.Values {
-					name := s.Names[i].Name
-					newVar := &Var{
-						Name:      name,
-						TypeExpr:  s.Type,
-						InitExpr:  v,
-						Dependent: []*Var{},
-					}
+					found := false
+					t := VarTypeState
 					ast.Inspect(v, func(n ast.Node) bool {
+						if found {
+							return false
+						}
+
 						ident, ok := n.(*ast.Ident)
 						if !ok {
 							return true
 						}
 
-						p, ok := vars[ident.Name]
-						if ok {
-							newVar.Type = VarTypeDerived
-							p.Dependent = append(p.Dependent, newVar)
+						if _, ok := page.Vars[ident.Name]; ok {
+							found = true
+							t = VarTypeDerived
+							return false
 						}
 
 						return true
 					})
-					vars[name] = newVar
-					varNames = append(varNames, name)
+					name := s.Names[i].Name
+					page.VarNames = append(page.VarNames, name)
+					page.Vars[name] = &Var{
+						Name:     name,
+						Type:     VarType(t),
+						TypeExpr: s.Type,
+						InitExpr: v,
+					}
 				}
 			}
 		}
+
+		// parse funcs
 		for _, decl := range f.Decls {
 			d, ok := decl.(*ast.FuncDecl)
 			if !ok {
@@ -234,36 +256,34 @@ func ParsePage(path string, f *os.File) (*Page, error) {
 			}
 
 			if d.Recv != nil {
-				return nil, errors.New("no method declaration")
+				return fmt.Errorf("no method declaration (file: %s)", page.FilePath)
 			}
 			if d.Type.Results != nil {
-				return nil, errors.New("func must not have returns")
+				return fmt.Errorf("functions must not have return values (file: %s)", page.FilePath)
 			}
 
-			modifiedStates := []string{}
 			modifiedDerived := []string{}
-			modifiedVars(vars, &modifiedStates, &modifiedDerived, d)
+			page.modifiedVars(d, &modifiedDerived)
 
 			if len(modifiedDerived) > 0 {
-				return nil, errors.New("can not modify derived")
+				return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
 			}
 
-			funcs[d.Name.Name] = &Func{
-				Name:           d.Name.Name,
-				ModifiedStates: modifiedStates,
-				Decl:           d,
+			page.FuncNames = append(page.FuncNames, d.Name.Name)
+			page.Funcs[d.Name.Name] = &Func{
+				Name: d.Name.Name,
+				Decl: d,
 			}
-			funcNames = append(funcNames, d.Name.Name)
 		}
 	}
 
-	tmplxJsNode := &html.Node{
+	runtimeScriptNode := &html.Node{
 		Type:     html.ElementNode,
 		DataAtom: atom.Script,
 		Data:     "script",
 	}
 
-	tmplxJsNode.AppendChild(&html.Node{
+	runtimeScriptNode.AppendChild(&html.Node{
 		Type: html.TextNode,
 		Data: `
 document.addEventListener('DOMContentLoaded', function() {
@@ -312,11 +332,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }).observe(document.documentElement, { childList: true, subList: true })
   addHandler(document.documentElement)
 });
-
 `,
 	})
 
-	htmlNode.FirstChild.AppendChild(tmplxJsNode)
+	page.HtmlNode.FirstChild.AppendChild(runtimeScriptNode)
 
 	stateNode := &html.Node{
 		Type:     html.ElementNode,
@@ -331,15 +350,15 @@ document.addEventListener('DOMContentLoaded', function() {
 		Type: html.TextNode,
 		Data: "{{.state}}",
 	})
-	htmlNode.FirstChild.AppendChild(stateNode)
+	page.HtmlNode.FirstChild.AppendChild(stateNode)
 
-	exprs := map[string]Expr{}
-	fieldId := newId("field")
-	// funcId := newId("func")
-	for node := range htmlNode.Descendants() {
+	page.FieldExprs = map[string]Expr{}
+	fieldIdGen := newIdGen("field")
+	for node := range page.HtmlNode.Descendants() {
 		switch node.Type {
 		case html.TextNode:
-			if node.Parent.DataAtom == atom.Script && node.Parent.Data == "script" {
+			// TODO review
+			if node.Parent.DataAtom == atom.Script || node.Parent.Data == "script" {
 				continue
 			}
 
@@ -380,17 +399,17 @@ document.addEventListener('DOMContentLoaded', function() {
 							continue
 						}
 
-						if expr, found := exprs[string(trimmedCurrExpr)]; found {
+						if expr, found := page.FieldExprs[string(trimmedCurrExpr)]; found {
 							res = append(res, []byte(fmt.Sprintf("{{.%s}}", expr.FieldId))...)
 							continue
 						}
 
-						fieldId := fieldId.next()
+						fieldId := fieldIdGen.next()
 						exprAst, err := parser.ParseExpr(string(trimmedCurrExpr))
 						if err != nil {
-							return nil, err
+							return fmt.Errorf("parse expression error (file: %s): %s: %w", page.FilePath, string(trimmedCurrExpr), err)
 						}
-						exprs[string(trimmedCurrExpr)] = Expr{
+						page.FieldExprs[string(trimmedCurrExpr)] = Expr{
 							Ast:     exprAst,
 							FieldId: fieldId,
 						}
@@ -447,10 +466,10 @@ document.addEventListener('DOMContentLoaded', function() {
 			}
 
 			if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-				return nil, errors.New(fmt.Sprintf("unclosed quote in expression: \"%s\"", node.Data))
+				return fmt.Errorf("unclosed quote in expression (file: %s): %s", page.FilePath, node.Data)
 			}
 			if braceStack != 0 {
-				return nil, errors.New(fmt.Sprintf("unclosed brace in expression: \"%s\"", node.Data))
+				return fmt.Errorf("unclosed brace in expression (file: %s): %s", page.FilePath, node.Data)
 			}
 
 			node.Data = string(res)
@@ -459,8 +478,10 @@ document.addEventListener('DOMContentLoaded', function() {
 				if !strings.HasPrefix(attr.Key, "tx-on") {
 					continue
 				}
+
 				expr, err := parser.ParseExpr(attr.Val)
 				if err == nil {
+					// TODO handle x.y as anonymous handler
 					callExpr, isCall := expr.(*ast.CallExpr)
 					if !isCall {
 						continue
@@ -471,16 +492,10 @@ document.addEventListener('DOMContentLoaded', function() {
 						continue
 					}
 
-					f, ok := funcs[ident.Name]
+					f, ok := page.Funcs[ident.Name]
 					if !ok {
 						continue
 					}
-
-					p, _ := strings.CutSuffix(path, filepath.Ext(path))
-					p = strings.ReplaceAll(p, "/", "-")
-					p = strings.ReplaceAll(p, "{", "")
-					p = strings.ReplaceAll(p, "}", "")
-					p += "-" + f.Name
 
 					params := []string{}
 					for _, list := range f.Decl.Type.Params.List {
@@ -490,15 +505,15 @@ document.addEventListener('DOMContentLoaded', function() {
 					}
 
 					if len(params) != len(callExpr.Args) {
-						return nil, errors.New("params length not match: " + f.Name)
+						return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToCode(callExpr))
 					}
 
 					paramsStr := ""
 					if len(params) > 0 {
 						for i, p := range params {
-							found := false
+							foundVar := false
 							ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
-								if found {
+								if foundVar {
 									return false
 								}
 
@@ -507,56 +522,45 @@ document.addEventListener('DOMContentLoaded', function() {
 									return true
 								}
 
-								if _, ok := vars[ident.Name]; ok {
-									found = true
+								if _, ok := page.Vars[ident.Name]; ok {
+									foundVar = true
+									return false
 								}
 
 								return true
 							})
 
-							if found {
-								return nil, errors.New("state and derived can not be in params")
+							if foundVar {
+								return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, callExpr.Args[i])
 							}
 
-							var sb strings.Builder
-							printer.Fprint(&sb, token.NewFileSet(), callExpr.Args[i])
-							exprStr := sb.String()
+							arg := astToCode(callExpr.Args[i])
 							if i == 0 {
-								paramsStr += fmt.Sprintf("?%s={{$%s}}", p, exprStr)
+								paramsStr += fmt.Sprintf("?%s={{$%s}}", p, arg)
 								continue
 							}
-							paramsStr += fmt.Sprintf("&%s={{$%s}}", p, exprStr)
+
+							paramsStr += fmt.Sprintf("&%s={{$%s}}", p, arg)
 						}
 					}
 
 					node.Attr[i] = html.Attribute{
 						Key: attr.Key,
-						Val: fmt.Sprintf("%s%s", p, paramsStr),
+						Val: fmt.Sprintf("%s%s", page.funcId(f.Name), paramsStr),
 					}
 				}
 
 				// TODO anonymous handler
-
 				continue
 			}
 		}
 	}
 
-	return &Page{
-		Path: path,
-
-		ScriptNode: scriptNode,
-		Vars:       vars,
-		VarNames:   varNames,
-		Funcs:      funcs,
-		FuncNames:  funcNames,
-		FieldExprs: exprs,
-
-		HtmlNode: htmlNode,
-	}, nil
+	return nil
 }
 
-func modifiedVars(vars map[string]*Var, ms, md *[]string, node ast.Node) {
+// The first identifier appearing on the LHS of an assignment statement or in an inc/dec statement is a modified variable.
+func (page *Page) modifiedVars(node ast.Node, md *[]string) {
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch stmt := n.(type) {
 		case *ast.AssignStmt:
@@ -571,25 +575,24 @@ func modifiedVars(vars map[string]*Var, ms, md *[]string, node ast.Node) {
 					if !ok {
 						return true
 					}
+					found = true
 
-					v, ok := vars[ident.Name]
+					v, ok := page.Vars[ident.Name]
 					if !ok {
 						return false
 					}
 
-					if v.Type == VarTypeState {
-						(*ms) = append((*ms), v.Name)
-					} else {
-						(*md) = append((*md), v.Name)
+					if v.Type != VarTypeDerived {
+						return false
 					}
-					found = true
+
+					(*md) = append((*md), v.Name)
 					return false
 				})
-
 			}
 
 			for _, rhs := range stmt.Rhs {
-				modifiedVars(vars, ms, md, rhs)
+				page.modifiedVars(rhs, md)
 			}
 
 			return false
@@ -604,18 +607,18 @@ func modifiedVars(vars map[string]*Var, ms, md *[]string, node ast.Node) {
 				if !ok {
 					return true
 				}
+				found = true
 
-				v, ok := vars[ident.Name]
+				v, ok := page.Vars[ident.Name]
 				if !ok {
 					return false
 				}
 
-				if v.Type == VarTypeState {
-					(*ms) = append((*ms), v.Name)
-				} else {
-					(*md) = append((*md), v.Name)
+				if v.Type != VarTypeDerived {
+					return false
 				}
-				found = true
+
+				(*md) = append((*md), v.Name)
 				return false
 			})
 			return false
@@ -623,30 +626,6 @@ func modifiedVars(vars map[string]*Var, ms, md *[]string, node ast.Node) {
 
 		return true
 	})
-}
-
-func (page *Page) compileTemplate() error {
-	relDir, file := filepath.Split(page.Path)
-	if ext := filepath.Ext(file); ext != "" {
-		file, _ = strings.CutSuffix(file, ext)
-	}
-
-	dir := path.Join(dirGen, "pages", relDir)
-	os.MkdirAll(dir, 0755)
-
-	f, err := os.Create(path.Join(dir, file+".tmpl"))
-	if err != nil {
-		return err
-	}
-
-	buf := bufio.NewWriter(f)
-	buf.WriteString(fmt.Sprintf("{{define \"%s\"}}\n", page.urlPath()))
-	if err := page.render(buf, page.HtmlNode); err != nil {
-		return err
-	}
-	buf.WriteString("{{end}}")
-
-	return buf.Flush()
 }
 
 func (page *Page) render(w io.StringWriter, node *html.Node) error {
@@ -750,7 +729,7 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 }
 
 func (page *Page) urlPath() string {
-	dir, file := filepath.Split(page.Path)
+	dir, file := filepath.Split(page.RelPath)
 	name, _ := strings.CutSuffix(file, filepath.Ext(file))
 	if name == "index" {
 		name = ""
@@ -764,9 +743,53 @@ func (page *Page) urlPath() string {
 	return p
 }
 
+type HandlerFields struct {
+	Url      string
+	Code     string
+	Fields   string
+	TmplName string
+}
+
+func (page *Page) pageHandlerFields() HandlerFields {
+	var code strings.Builder
+	for _, name := range page.VarNames {
+		v := page.Vars[name]
+		spec := &ast.ValueSpec{
+			Names: []*ast.Ident{{Name: name}},
+			Type:  v.TypeExpr,
+		}
+		if v.InitExpr != nil {
+			spec.Values = []ast.Expr{v.InitExpr}
+		}
+
+		decl := &ast.GenDecl{
+			Tok:   token.VAR,
+			Specs: []ast.Spec{spec},
+		}
+
+		code.WriteString(astToCode(decl) + "\n")
+	}
+	if f, ok := page.Funcs["init"]; ok {
+		for _, stmt := range f.Decl.Body.List {
+			code.WriteString(astToCode(stmt) + "\n")
+		}
+	}
+	page.writeDerivedAst(&code)
+
+	var fields strings.Builder
+	page.writeFieldsAst(&fields)
+
+	return HandlerFields{
+		Url:      page.urlPath(),
+		Code:     code.String(),
+		TmplName: page.urlPath(),
+		Fields:   fields.String(),
+	}
+}
+
 func (page *Page) funcHandlerFields() []HandlerFields {
-	var varCode strings.Builder
-	varCode.WriteString("query := r.URL.Query()\n")
+	var codeVar strings.Builder
+	codeVar.WriteString("query := r.URL.Query()\n")
 
 	for _, name := range page.VarNames {
 		v := page.Vars[name]
@@ -784,88 +807,37 @@ func (page *Page) funcHandlerFields() []HandlerFields {
 			Specs: []ast.Spec{spec},
 		}
 
-		printer.Fprint(&varCode, token.NewFileSet(), decl)
-		varCode.WriteString("\n")
+		printer.Fprint(&codeVar, token.NewFileSet(), decl)
+		codeVar.WriteString("\n")
 
 		if v.Type == VarTypeDerived {
 			continue
 		}
 
-		varCode.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", name, name))
+		codeVar.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", name, name))
 	}
 
-	var varCodeDerived strings.Builder
-	for _, name := range page.VarNames {
-		v := page.Vars[name]
-		if v.Type != VarTypeDerived {
-			continue
-		}
-
-		assign := &ast.AssignStmt{
-			Lhs: []ast.Expr{&ast.Ident{Name: name}},
-			Tok: token.ASSIGN,
-			Rhs: []ast.Expr{v.InitExpr},
-		}
-
-		printer.Fprint(&varCodeDerived, token.NewFileSet(), assign)
-		varCodeDerived.WriteString("\n")
-	}
+	var codeDerived strings.Builder
+	page.writeDerivedAst(&codeDerived)
 
 	handlers := []HandlerFields{}
 	for _, funcName := range page.FuncNames {
 		var code strings.Builder
-		code.WriteString(varCode.String())
+		code.WriteString(codeVar.String())
 
 		f := page.Funcs[funcName]
 		for _, stmt := range f.Decl.Body.List {
 			printer.Fprint(&code, token.NewFileSet(), stmt)
 			code.WriteString("\n")
 		}
-		fieldsAst := &ast.CompositeLit{
-			Type: &ast.MapType{
-				Key:   &ast.Ident{Name: "string"},
-				Value: &ast.Ident{Name: "any"},
-			},
-		}
 
-		for _, expr := range page.FieldExprs {
-			fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
-				Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + expr.FieldId + `"`},
-				Value: expr.Ast,
-			})
-		}
-
-		stateAst := &ast.CompositeLit{
-			Type: &ast.MapType{
-				Key:   &ast.Ident{Name: "string"},
-				Value: &ast.Ident{Name: "any"},
-			},
-		}
-
-		for _, varName := range page.VarNames {
-			name := page.Vars[varName].Name
-			stateAst.Elts = append(stateAst.Elts, &ast.KeyValueExpr{
-				Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + name + `"`},
-				Value: &ast.Ident{Name: name},
-			})
-		}
-
-		fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
-			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"state"`},
-			Value: stateAst,
-		})
+		code.WriteString(codeDerived.String())
 
 		var fields strings.Builder
-		printer.Fprint(&fields, token.NewFileSet(), fieldsAst)
-		code.WriteString(varCodeDerived.String())
+		page.writeFieldsAst(&fields)
 
-		p, _ := strings.CutSuffix(page.Path, filepath.Ext(page.Path))
-		p = strings.ReplaceAll(p, "/", "-")
-		p = strings.ReplaceAll(p, "{", "")
-		p = strings.ReplaceAll(p, "}", "")
-		p += "-" + f.Name
 		handlers = append(handlers, HandlerFields{
-			Path:     "/tx/" + p,
+			Url:      "/tx/" + page.funcId(funcName),
 			Code:     code.String(),
 			Fields:   fields.String(),
 			TmplName: page.urlPath(),
@@ -875,33 +847,7 @@ func (page *Page) funcHandlerFields() []HandlerFields {
 	return handlers
 }
 
-func (page *Page) handlerFields() HandlerFields {
-	var code strings.Builder
-	for _, name := range page.VarNames {
-		v := page.Vars[name]
-		spec := &ast.ValueSpec{
-			Names: []*ast.Ident{{Name: name}},
-			Type:  v.TypeExpr,
-		}
-		if v.InitExpr != nil {
-			spec.Values = []ast.Expr{v.InitExpr}
-		}
-
-		decl := &ast.GenDecl{
-			Tok:   token.VAR,
-			Specs: []ast.Spec{spec},
-		}
-
-		printer.Fprint(&code, token.NewFileSet(), decl)
-		code.WriteString("\n")
-	}
-	if f, ok := page.Funcs["init"]; ok {
-		for _, stmt := range f.Decl.Body.List {
-			printer.Fprint(&code, token.NewFileSet(), stmt)
-			code.WriteString("\n")
-		}
-	}
-
+func (page *Page) writeFieldsAst(sb *strings.Builder) {
 	fieldsAst := &ast.CompositeLit{
 		Type: &ast.MapType{
 			Key:   &ast.Ident{Name: "string"},
@@ -936,15 +882,58 @@ func (page *Page) handlerFields() HandlerFields {
 		Value: stateAst,
 	})
 
-	var fields strings.Builder
-	printer.Fprint(&fields, token.NewFileSet(), fieldsAst)
+	sb.WriteString(astToCode(fieldsAst))
+}
 
-	return HandlerFields{
-		Path:     page.urlPath(),
-		Code:     code.String(),
-		Fields:   fields.String(),
-		TmplName: page.urlPath(),
+func (page *Page) writeDerivedAst(sb *strings.Builder) {
+	for _, name := range page.VarNames {
+		v := page.Vars[name]
+		if v.Type != VarTypeDerived {
+			continue
+		}
+
+		assign := &ast.AssignStmt{
+			Lhs: []ast.Expr{&ast.Ident{Name: name}},
+			Tok: token.ASSIGN,
+			Rhs: []ast.Expr{v.InitExpr},
+		}
+
+		printer.Fprint(sb, token.NewFileSet(), assign)
+		sb.WriteString("\n")
 	}
+}
+
+func (page *Page) funcId(funcName string) string {
+	p, _ := strings.CutSuffix(page.RelPath, filepath.Ext(page.RelPath))
+	p = strings.ReplaceAll(p, "/", "-")
+	p = strings.ReplaceAll(p, "{", "")
+	p = strings.ReplaceAll(p, "}", "")
+	p += "-" + funcName
+	return p
+}
+
+type VarType int
+
+const (
+	VarTypeState = iota
+	VarTypeDerived
+)
+
+type Var struct {
+	Name     string
+	Type     VarType
+	TypeExpr ast.Expr
+	InitExpr ast.Expr
+}
+
+type Func struct {
+	Name string
+	Decl *ast.FuncDecl
+}
+
+type Expr struct {
+	Ast     ast.Expr
+	FieldId string
 }
 
 func isTmplxScriptNode(node *html.Node) bool {
@@ -973,44 +962,24 @@ func cleanUpTmplxScript(node *html.Node) {
 	}
 }
 
-type VarType int
-
-const (
-	VarTypeState = iota
-	VarTypeDerived
-)
-
-type Var struct {
-	Name      string
-	Type      VarType
-	TypeExpr  ast.Expr
-	InitExpr  ast.Expr
-	Dependent []*Var
+func astToCode(a ast.Node) string {
+	var buf strings.Builder
+	printer.Fprint(&buf, token.NewFileSet(), a)
+	return buf.String()
 }
 
-type Func struct {
-	Name           string
-	Decl           *ast.FuncDecl
-	ModifiedStates []string
-}
-
-type Expr struct {
-	Ast     ast.Expr
-	FieldId string
-}
-
-type Id struct {
+type IdGen struct {
 	Curr   int
 	Prefix string
 }
 
-func (id *Id) next() string {
+func (id *IdGen) next() string {
 	id.Curr++
 	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
 }
 
-func newId(prefix string) *Id {
-	return &Id{
+func newIdGen(prefix string) *IdGen {
+	return &IdGen{
 		Prefix: prefix,
 	}
 }
@@ -1074,34 +1043,14 @@ func isChildNodeRawText(name string) bool {
 	return false
 }
 
-type HandlerFields struct {
-	Path     string
-	Code     string
-	Fields   string
-	TmplName string
+func createFile(path string) (*os.File, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
 }
-
-const defaultPageHandlerTmpl = `
-http.HandleFunc("GET {{ .Path }}", func(w http.ResponseWriter, r *http.Request) {
-	{{ .Code }}
-	txTmpl.ExecuteTemplate(w, "{{ .TmplName }}", {{ .Fields }})
-})
-`
-
-const defaultTargetTmpl = `
-package main
-
-import (
-	"log"
-	"net/http"
-	"html/template"
-	"io/fs"
-	"path/filepath"
-	"encoding/json"
-)
-
-func main() {
-	// tmplx //
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-`
