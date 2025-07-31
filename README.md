@@ -4,6 +4,8 @@ tmplx is a compiler that transforms a hybrid HTML/Go template language into a fu
 
 ## Example
 
+![demo](demo.webm)
+
 ```html
 <script type="text/tmplx">
   var title string = "Tmplx!"
@@ -29,13 +31,11 @@ tmplx is a compiler that transforms a hybrid HTML/Go template language into a fu
 <body>
   <h1> { h1 } </h1>
   
-  <h2> Counter <h2>
   <p>counter: { counter}</p>
 
   <button tx-onclick="addOne()">Add 1</button>
   <button tx-onclick="subOne()">Subtract 1</button>
 
-  <h2> Derived <h2>
   <p>counter * 10 = { counterTimes10 }</p>
 </body>
 </html>

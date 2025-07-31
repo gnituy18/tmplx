@@ -69,17 +69,15 @@ document.addEventListener('DOMContentLoaded', function() {
 <body>
   <h1> {{.field_2}} </h1>
   
-  <h2> Counter </h2><h2>
   <p>counter: {{.field_3}}</p>
 
   <button tx-onclick="index-addOne">Add 1</button>
   <button tx-onclick="index-subOne">Subtract 1</button>
 
-  </h2><h2> Derived </h2><h2>
   <p>counter * 10 = {{.field_4}}</p>
 
 
-</h2></body></html>
+</body></html>
 {{end}}
 `))
 var tmplxHandlers []TmplxHandler = []TmplxHandler{
@@ -110,7 +108,7 @@ var counterTimes10 int = counter * 10
 counter++
 counterTimes10 = counter * 10
 
-		tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_4": counterTimes10, "field_1": title, "field_2": h1, "field_3": counter, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
+		tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_1": title, "field_2": h1, "field_3": counter, "field_4": counterTimes10, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
 	},
 },
 {
@@ -127,7 +125,7 @@ var counterTimes10 int = counter * 10
 counter--
 counterTimes10 = counter * 10
 
-		tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_1": title, "field_2": h1, "field_3": counter, "field_4": counterTimes10, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
+		tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_4": counterTimes10, "field_1": title, "field_2": h1, "field_3": counter, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
 	},
 },}
 func Handlers() []TmplxHandler { return tmplxHandlers }
