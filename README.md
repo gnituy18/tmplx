@@ -4,7 +4,7 @@ tmplx is a compiler that transforms a hybrid HTML/Go template language into a fu
 
 ## Example
 
-![demo](demo.webm)
+[demo.webm](https://github.com/user-attachments/assets/b58e69de-e071-464b-a8c4-05a37063225d)
 
 ```html
 <script type="text/tmplx">
