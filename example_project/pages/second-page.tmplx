@@ -1,0 +1,15 @@
+<script type="text/tmplx">
+  var title string = "Second Page"
+  var h1 string = "Hello, Again!"
+
+</script>
+
+<html>
+<head>
+  <title> { title } </title>
+</head>
+
+<body>
+  <h1> { h1 } </h1>
+</body>
+</html>
