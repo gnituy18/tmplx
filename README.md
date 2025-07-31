@@ -3,10 +3,10 @@
 tmplx is a compiler that transforms hybrid HTML/Go templates into a fully dynamic hypermedia web application.
 Check out [Example Project](https://github.com/gnituy18/tmplx/tree/main/example_project) to see what it can do.
 
-tmplx tries bring state-driven UI development to the hypermedia world.
+tmplx tries to bring state-driven UI development to the hypermedia world.
 Paired with Go, my language of choice, it offers a seamless experience for building web apps.
 
-HTMX is an powerful tool that enhances the current state of HTML. However, it lacks a robust framework for our minds to manage the complexity of larger web apps.
+HTMX is a powerful tool that enhances the current state of HTML. However, it lacks a robust framework for our minds to manage the complexity of larger web apps.
 
 > [!WARNING]
 > The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
@@ -59,10 +59,10 @@ Edit `pages/index.tmplx`
 ```
 compile
 ```sh
-# ./my_project
+# Run from my_project directory
 tmplx
 ```
-you will then see a new package created: `tmplx/handler.go`.
+you will then see a new file generated: `tmplx/handler.go`.
 To run the app, create a `main.go`
 ```go
 package main
@@ -88,4 +88,65 @@ Now, you have a hypermedia app.
 go run .
 ```
 
-## Todos
+## Features
+### Go Expression
+```
+...
+<p> { "Hello, " + "Tmplx!" } </p>
+<p> { 100 / 2 - 3 } is 47 </p>
+```
+
+### State
+```html
+<script type="text/tmplx">
+  var str string = "Hello,"
+  var m map[string]int = map[string]int{ "key": 100 }
+</script>
+
+...
+<p> { str } World! </p>
+<p> { m["key"] } </p>
+```
+
+### Derived
+```html
+<script type="text/tmplx">
+  var num1 int = 100
+  var num2 int = num1 * 2
+</script>
+
+...
+<p> { num2 } is 200 </p>
+```
+
+### Actions (`tx-on*`)
+```html
+<script type="text/tmplx">
+  var str string = "A"
+
+  func appendA() {
+    str = append(str, 'A')
+  }
+</script>
+
+...
+<p>{ str }</p>
+<button tx-onclick="appendA()">Append A</button>
+```
+### inline statements (Unimplemented)
+
+```html
+<script type="text/tmplx">
+  var num int = 1
+</script>
+
+...
+<button tx-onclick="num++">Append A</button>
+```
+### `tx-if` (Unimplemented)
+### `tx-for` (Unimplemented)
+### Components (Unimplemented)
+### Styles and Classes (Unimplemented)
+### ...
+
+
