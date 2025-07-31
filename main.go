@@ -33,7 +33,7 @@ const defaultTargetPath = "main.go"
 func main() {
 	flag.StringVar(&dirPages, "pages", path.Clean("pages"), "pages directory")
 	flag.StringVar(&dirComponents, "components", path.Clean("components"), "components directory")
-	flag.StringVar(&output, "output", path.Clean("./tmplx/tmplx.go"), "output file")
+	flag.StringVar(&output, "output", path.Clean("./tmplx/handler.go"), "output file")
 	flag.Parse()
 	dirPages = path.Clean(dirPages)
 	dirComponents = path.Clean(dirComponents)
