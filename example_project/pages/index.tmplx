@@ -1,5 +1,5 @@
 <script type="text/tmplx">
-  var title string = "Tmplx!"
+  var title string = "Tmplx"
   var h1 string = "Hello, Tmplx!"
 
   var counter int = 0
@@ -28,5 +28,7 @@
   <button tx-onclick="subOne()">Subtract 1</button>
 
   <p>counter * 10 = { counterTimes10 }</p>
+
+  <a href="/second-page">second page</a>
 </body>
 </html>
