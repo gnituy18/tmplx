@@ -9,9 +9,6 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"io/fs"
 	"log"
@@ -20,6 +17,11 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
+	"golang.org/x/sync/errgroup"
+	goimports "golang.org/x/tools/imports"
 )
 
 const mimeType = "text/tmplx"
@@ -28,16 +30,16 @@ var dirPages string
 var dirComponents string
 var output string
 
-const defaultTargetPath = "main.go"
-
 func main() {
 	flag.StringVar(&dirPages, "pages", path.Clean("pages"), "pages directory")
 	flag.StringVar(&dirComponents, "components", path.Clean("components"), "components directory")
-	flag.StringVar(&output, "output", path.Clean("./tmplx/handler.go"), "output file")
+	flag.StringVar(&output, "output", "", "output file")
 	flag.Parse()
 	dirPages = path.Clean(dirPages)
 	dirComponents = path.Clean(dirComponents)
-	output = path.Clean(output)
+	if output != "" {
+		output = path.Clean(output)
+	}
 
 	pages := []*Page{}
 	if err := filepath.WalkDir(dirPages, func(path string, d fs.DirEntry, err error) error {
@@ -70,6 +72,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	var imports strings.Builder
 	var tmplDefs strings.Builder
 	var tmplHandlers strings.Builder
 	tmplxHandlerTmpl := template.Must(template.New("tmplx_handler").Parse(`
@@ -81,6 +84,11 @@ func main() {
 	},
 },`))
 	for _, page := range pages {
+		for _, im := range page.Imports {
+			if _, err := imports.WriteString(astToCode(im) + "\n"); err != nil {
+				log.Fatalln(fmt.Errorf("imports WriteString failed: %w", err))
+			}
+		}
 		if _, err := tmplDefs.WriteString(fmt.Sprintf("{{define \"%s\"}}\n", page.urlPath())); err != nil {
 			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
 		}
@@ -97,29 +105,40 @@ func main() {
 		}
 	}
 
-	tmplPackage, err := createFile(output)
-	if err != nil {
-		log.Fatal(err)
-	}
-	tmplPackage.WriteString(`
-package tmplx
-
+	var out strings.Builder
+	out.WriteString("package tmplx\n")
+	out.WriteString(fmt.Sprintf(`
 import (
-	"encoding/json"
-	"html/template"
-	"net/http"
-)
+%s
+)`, imports.String()))
 
+	out.WriteString(`
 type TmplxHandler struct {
         Url		string
 	HandlerFunc 	http.HandlerFunc
 }
 `)
-	tmplPackage.WriteString(fmt.Sprintf("var tmpl = template.Must(template.New(\"tmplx_handlers\").Parse(`%s`))\n", tmplDefs.String()))
-	tmplPackage.WriteString(fmt.Sprintf("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n%s}\n", tmplHandlers.String()))
-	tmplPackage.WriteString("func Handlers() []TmplxHandler { return tmplxHandlers }")
+	out.WriteString(fmt.Sprintf("var tmpl = template.Must(template.New(\"tmplx_handlers\").Parse(`%s`))\n", tmplDefs.String()))
+	out.WriteString("func Handlers() []TmplxHandler { return tmplxHandlers }\n\n")
+	out.WriteString(fmt.Sprintf("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n%s}\n", tmplHandlers.String()))
 
-	tmplPackage.Close()
+	outStr := out.String()
+	formatted, err := goimports.Process("temp.go", []byte(outStr), nil)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("format output file failed: %w", err))
+	}
+
+	if output != "" {
+		f, err := createFile(output)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		f.Write(formatted)
+		defer f.Close()
+	}
+
+	os.Stdout.Write(formatted)
 }
 
 type Page struct {
@@ -129,6 +148,7 @@ type Page struct {
 	HtmlNode   *html.Node
 	ScriptNode *html.Node
 
+	Imports   []*ast.ImportSpec
 	VarNames  []string
 	Vars      map[string]*Var
 	FuncNames []string
@@ -163,6 +183,7 @@ func (page *Page) Parse() error {
 	}
 	cleanUpTmplxScript(page.HtmlNode)
 
+	page.Imports = []*ast.ImportSpec{}
 	page.VarNames = []string{}
 	page.Vars = map[string]*Var{}
 	page.FuncNames = []string{}
@@ -173,6 +194,27 @@ func (page *Page) Parse() error {
 			return fmt.Errorf("parse script failed (file: %s): %w", page.FilePath, err)
 		}
 
+		// parse imports
+		for _, decl := range f.Decls {
+			d, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+
+			if d.Tok != token.IMPORT {
+				continue
+			}
+
+			for _, spec := range d.Specs {
+				s, ok := spec.(*ast.ImportSpec)
+				if !ok {
+					return fmt.Errorf("not a import spec(file: %s): %s", page.FilePath, astToCode(spec))
+				}
+
+				page.Imports = append(page.Imports, s)
+			}
+		}
+
 		// parse vars
 		for _, decl := range f.Decls {
 			d, ok := decl.(*ast.GenDecl)
@@ -180,9 +222,8 @@ func (page *Page) Parse() error {
 				continue
 			}
 
-			// TODO implement import declaration
-			if d.Tok == token.CONST || d.Tok == token.TYPE || d.Tok == token.IMPORT {
-				return fmt.Errorf(`no "const", "type" or "import" declarations (file: %s)`, page.FilePath)
+			if d.Tok != token.VAR {
+				continue
 			}
 
 			for _, spec := range d.Specs {
