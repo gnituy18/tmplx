@@ -2,7 +2,6 @@ package tmplx
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"text/template"
 )
@@ -152,7 +151,7 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	{
 		Url: "/{$}",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			var title string = fmt.Sprintf("Tmplx %s", "f")
+			var title string = "Tmplx"
 			var h1 string = "Hello, Tmplx!"
 			var counter int = 0
 			var counterTimes10 int = counter * 10
@@ -175,7 +174,7 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			counter++
 			counterTimes10 = counter * 10
 
-			tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_3": counter, "field_4": counterTimes10, "field_1": title, "field_2": h1, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
+			tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_1": title, "field_2": h1, "field_3": counter, "field_4": counterTimes10, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
 		},
 	},
 	{
