@@ -188,6 +188,7 @@ func (page *Page) Parse() error {
 	page.Vars = map[string]*Var{}
 	page.FuncNames = []string{}
 	page.Funcs = map[string]*Func{}
+	funcNameGen := newIdGen("func")
 	if page.ScriptNode != nil {
 		f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, "package p\n"+page.ScriptNode.FirstChild.Data, 0)
 		if err != nil {
@@ -522,77 +523,96 @@ document.addEventListener('DOMContentLoaded', function() {
 
 				expr, err := parser.ParseExpr(attr.Val)
 				if err == nil {
-					// TODO handle x.y as anonymous handler
-					callExpr, isCall := expr.(*ast.CallExpr)
-					if !isCall {
-						continue
-					}
+					switch e := expr.(type) {
+					case *ast.CallExpr:
 
-					ident, isIdent := callExpr.Fun.(*ast.Ident)
-					if !isIdent {
-						continue
-					}
-
-					f, ok := page.Funcs[ident.Name]
-					if !ok {
-						continue
-					}
-
-					params := []string{}
-					for _, list := range f.Decl.Type.Params.List {
-						for _, ident := range list.Names {
-							params = append(params, ident.Name)
+						ident, isIdent := e.Fun.(*ast.Ident)
+						if !isIdent {
+							continue
 						}
-					}
 
-					if len(params) != len(callExpr.Args) {
-						return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToCode(callExpr))
-					}
+						f, ok := page.Funcs[ident.Name]
+						if !ok {
+							continue
+						}
 
-					paramsStr := ""
-					if len(params) > 0 {
-						for i, p := range params {
-							foundVar := false
-							ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
-								if foundVar {
-									return false
-								}
+						params := []string{}
+						for _, list := range f.Decl.Type.Params.List {
+							for _, ident := range list.Names {
+								params = append(params, ident.Name)
+							}
+						}
 
-								ident, ok := n.(*ast.Ident)
-								if !ok {
+						if len(params) != len(e.Args) {
+							return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToCode(e))
+						}
+
+						paramsStr := ""
+						if len(params) > 0 {
+							for i, p := range params {
+								foundVar := false
+								ast.Inspect(e.Args[i], func(n ast.Node) bool {
+									if foundVar {
+										return false
+									}
+
+									ident, ok := n.(*ast.Ident)
+									if !ok {
+										return true
+									}
+
+									if _, ok := page.Vars[ident.Name]; ok {
+										foundVar = true
+										return false
+									}
+
 									return true
+								})
+
+								if foundVar {
+									return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, e.Args[i])
 								}
 
-								if _, ok := page.Vars[ident.Name]; ok {
-									foundVar = true
-									return false
+								arg := astToCode(e.Args[i])
+								if i == 0 {
+									paramsStr += fmt.Sprintf("?%s={{$%s}}", p, arg)
+									continue
 								}
 
-								return true
-							})
-
-							if foundVar {
-								return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, callExpr.Args[i])
+								paramsStr += fmt.Sprintf("&%s={{$%s}}", p, arg)
 							}
+						}
 
-							arg := astToCode(callExpr.Args[i])
-							if i == 0 {
-								paramsStr += fmt.Sprintf("?%s={{$%s}}", p, arg)
-								continue
-							}
-
-							paramsStr += fmt.Sprintf("&%s={{$%s}}", p, arg)
+						node.Attr[i] = html.Attribute{
+							Key: attr.Key,
+							Val: fmt.Sprintf("%s%s", page.funcId(f.Name), paramsStr),
 						}
 					}
-
-					node.Attr[i] = html.Attribute{
-						Key: attr.Key,
-						Val: fmt.Sprintf("%s%s", page.funcId(f.Name), paramsStr),
-					}
+					continue
 				}
 
-				// TODO anonymous handler
-				continue
+				fName := funcNameGen.next()
+				f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {"+attr.Val+"}", fName), 0)
+				if err != nil {
+					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+				}
+				decl, ok := f.Decls[0].(*ast.FuncDecl)
+				if !ok {
+					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+				}
+
+				modifiedDerived := []string{}
+				page.modifiedVars(decl, &modifiedDerived)
+
+				if len(modifiedDerived) > 0 {
+					return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
+				}
+
+				page.FuncNames = append(page.FuncNames, decl.Name.Name)
+				page.Funcs[decl.Name.Name] = &Func{
+					Name: decl.Name.Name,
+					Decl: decl,
+				}
 			}
 		}
 	}
