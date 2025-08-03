@@ -325,9 +325,6 @@ func (page *Page) Parse() error {
 		Type:     html.ElementNode,
 		DataAtom: atom.Script,
 		Data:     "script",
-		Attr: []html.Attribute{
-			{Key: "tx-ignore"},
-		},
 	}
 
 	runtimeScriptNode.AppendChild(&html.Node{
@@ -391,7 +388,6 @@ document.addEventListener('DOMContentLoaded', function() {
 		Attr: []html.Attribute{
 			{Key: "type", Val: "application/json"},
 			{Key: "id", Val: "tx-state"},
-			{Key: "tx-ignore"},
 		},
 	}
 	stateNode.AppendChild(&html.Node{
@@ -428,6 +424,34 @@ document.addEventListener('DOMContentLoaded', function() {
 			}
 
 			for i, attr := range node.Attr {
+				if attr.Key == "tx-if" || attr.Key == "tx-else-if" {
+					trimmedExpr := strings.TrimSpace("true && " + attr.Val)
+					ast, err := parser.ParseExpr(trimmedExpr)
+					if err != nil {
+						return fmt.Errorf("tx-if not an expression (file: %s): %s", page.FilePath, attr.Val)
+					}
+
+					fieldId := fieldIdGen.next()
+
+					page.FieldExprs[trimmedExpr] = Expr{
+						Ast:     ast,
+						FieldId: fieldId,
+					}
+
+					node.Attr[i] = html.Attribute{
+						Key: attr.Key,
+						Val: "." + fieldId,
+					}
+					continue
+				}
+
+				if attr.Key == "tx-else" {
+					if attr.Val != "" {
+						return fmt.Errorf("tx-else should not have any expr val (file: %s): %s", page.FilePath, attr.Val)
+					}
+					continue
+				}
+
 				if strings.HasPrefix(attr.Key, "tx-on") {
 					expr, err := parser.ParseExpr(attr.Val)
 					if err == nil {
@@ -793,9 +817,65 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 			}
 		}
 
-		// https://html.spec.whatwg.org/#parsing-html-fragments
-		if isChildNodeRawText(node.Data) {
-			for c := node.FirstChild; c != nil; c = c.NextSibling {
+		// 0 -> 1 (if) -> 2(else-if) -> 3(else) -> 0
+		prevCondState := CondStateDefault
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			// check if {{end}} needed
+			if c.Type == html.ElementNode {
+				currCondState, field := condState(c)
+				switch prevCondState {
+				case CondStateDefault:
+					if currCondState == CondStateElseIf || currCondState == CondStateElse {
+						return fmt.Errorf("detect tx-else-if or tx-else right after non-cond node (file: %s): %s", page.FilePath, c.Data)
+					}
+				case CondStateIf:
+					if currCondState <= prevCondState {
+						if _, err := w.WriteString("{{ end }}\n"); err != nil {
+							return err
+						}
+					}
+				case CondStateElseIf:
+					if currCondState < prevCondState {
+						if _, err := w.WriteString("{{ end }}\n"); err != nil {
+							return err
+						}
+					}
+				case CondStateElse:
+					if currCondState == CondStateElseIf || currCondState == CondStateElse {
+						return fmt.Errorf("detect tx-else-if or tx-else right after tx-else (file: %s): %s", page.FilePath, c.Data)
+					}
+
+					if _, err := w.WriteString("{{ end }}\n"); err != nil {
+						return err
+					}
+				}
+
+				switch currCondState {
+				case CondStateDefault:
+				case CondStateIf:
+					if _, err := w.WriteString("{{if " + field + "}}\n"); err != nil {
+						return err
+					}
+				case CondStateElseIf:
+					if _, err := w.WriteString("{{else if " + field + "}}\n"); err != nil {
+						return err
+					}
+				case CondStateElse:
+					if _, err := w.WriteString("{{else}}\n"); err != nil {
+						return err
+					}
+				}
+
+				prevCondState = currCondState
+			}
+			if c.NextSibling == nil && (prevCondState == CondStateIf || prevCondState == CondStateElseIf || prevCondState == CondStateElse) {
+				if _, err := w.WriteString("{{ end }}\n"); err != nil {
+					return err
+				}
+			}
+
+			// https://html.spec.whatwg.org/#parsing-html-fragments
+			if isChildNodeRawText(node.Data) {
 				if c.Type != html.TextNode {
 					continue
 				}
@@ -803,9 +883,7 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 				if _, err := w.WriteString(c.Data); err != nil {
 					return err
 				}
-			}
-		} else {
-			for c := node.FirstChild; c != nil; c = c.NextSibling {
+			} else {
 				if err := page.render(w, c); err != nil {
 					return err
 				}
@@ -825,6 +903,32 @@ func (page *Page) render(w io.StringWriter, node *html.Node) error {
 	}
 
 	return nil
+}
+
+type CondStateType int
+
+const (
+	CondStateDefault CondStateType = iota
+	CondStateIf
+	CondStateElseIf
+	CondStateElse
+)
+
+func condState(n *html.Node) (CondStateType, string) {
+	for _, attr := range n.Attr {
+		if attr.Key == "tx-if" {
+			return CondStateIf, attr.Val
+		}
+
+		if attr.Key == "tx-else-if" {
+			return CondStateElseIf, attr.Val
+		}
+
+		if attr.Key == "tx-else" {
+			return CondStateElse, ""
+		}
+	}
+	return CondStateDefault, ""
 }
 
 func (page *Page) urlPath() string {
