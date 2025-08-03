@@ -80,6 +80,8 @@ func main() {
 	Url: "{{.Url}}",
 	HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 		{{ .Code }}
+		stateBytes, _ := json.Marshal({{ .State }})
+		state := string(stateBytes)
 		tmpl.ExecuteTemplate(w, "{{ .TmplName }}", {{ .Fields }})
 	},
 },`))
@@ -323,6 +325,9 @@ func (page *Page) Parse() error {
 		Type:     html.ElementNode,
 		DataAtom: atom.Script,
 		Data:     "script",
+		Attr: []html.Attribute{
+			{Key: "tx-ignore"},
+		},
 	}
 
 	runtimeScriptNode.AppendChild(&html.Node{
@@ -386,6 +391,7 @@ document.addEventListener('DOMContentLoaded', function() {
 		Attr: []html.Attribute{
 			{Key: "type", Val: "application/json"},
 			{Key: "id", Val: "tx-state"},
+			{Key: "tx-ignore"},
 		},
 	}
 	stateNode.AppendChild(&html.Node{
@@ -399,219 +405,137 @@ document.addEventListener('DOMContentLoaded', function() {
 	for node := range page.HtmlNode.Descendants() {
 		switch node.Type {
 		case html.TextNode:
-			// TODO review
 			if node.Parent.DataAtom == atom.Script || node.Parent.Data == "script" {
 				continue
 			}
 
-			braceStack := 0
-			isInDoubleQuote := false
-			isInSingleQuote := false
-			isInBackQuote := false
-			skipNext := false
-
-			expr := []byte{}
-			res := []byte{}
-			for _, r := range node.Data {
-				if skipNext {
-					expr = append(expr, byte(r))
-					skipNext = false
-					continue
-				}
-
-				switch r {
-				case '{':
-					if braceStack == 0 {
-						braceStack++
-					} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
-						expr = append(expr, byte(r))
-					} else {
-						braceStack++
-						expr = append(expr, byte(r))
-					}
-				case '}':
-					if braceStack == 0 {
-						res = append(res, byte(r))
-					} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
-						expr = append(expr, byte(r))
-					} else if braceStack == 1 {
-						braceStack--
-						trimmedCurrExpr := bytes.TrimSpace(expr)
-						if len(trimmedCurrExpr) == 0 {
-							continue
-						}
-
-						if expr, found := page.FieldExprs[string(trimmedCurrExpr)]; found {
-							res = append(res, []byte(fmt.Sprintf("{{.%s}}", expr.FieldId))...)
-							continue
-						}
-
-						fieldId := fieldIdGen.next()
-						exprAst, err := parser.ParseExpr(string(trimmedCurrExpr))
-						if err != nil {
-							return fmt.Errorf("parse expression error (file: %s): %s: %w", page.FilePath, string(trimmedCurrExpr), err)
-						}
-						page.FieldExprs[string(trimmedCurrExpr)] = Expr{
-							Ast:     exprAst,
-							FieldId: fieldId,
-						}
-						res = append(res, []byte(fmt.Sprintf("{{.%s}}", fieldId))...)
-						expr = []byte{}
-					} else {
-						braceStack--
-						expr = append(expr, byte(r))
-					}
-				case '"':
-					if braceStack == 0 {
-						res = append(res, byte(r))
-					} else if isInSingleQuote || isInBackQuote {
-						expr = append(expr, byte(r))
-					} else {
-						isInDoubleQuote = !isInDoubleQuote
-						expr = append(expr, byte(r))
-					}
-				case '\'':
-					if braceStack == 0 {
-						res = append(res, byte(r))
-					} else if isInDoubleQuote || isInBackQuote {
-						expr = append(expr, byte(r))
-					} else {
-						isInSingleQuote = !isInSingleQuote
-						expr = append(expr, byte(r))
-					}
-				case '`':
-					if braceStack == 0 {
-						res = append(res, byte(r))
-					} else if isInDoubleQuote || isInSingleQuote {
-						expr = append(expr, byte(r))
-					} else {
-						isInBackQuote = !isInBackQuote
-						expr = append(expr, byte(r))
-					}
-				case '\\':
-					if braceStack == 0 {
-						res = append(res, byte(r))
-					} else if isInDoubleQuote || isInSingleQuote {
-						skipNext = true
-						expr = append(expr, byte(r))
-					} else {
-						expr = append(expr, byte(r))
-					}
-				default:
-					if braceStack == 0 {
-						res = append(res, byte(r))
-					} else {
-						expr = append(expr, byte(r))
-					}
-				}
-
-			}
-
-			if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-				return fmt.Errorf("unclosed quote in expression (file: %s): %s", page.FilePath, node.Data)
-			}
-			if braceStack != 0 {
-				return fmt.Errorf("unclosed brace in expression (file: %s): %s", page.FilePath, node.Data)
+			res, err := page.parseTmpl(node.Data, fieldIdGen)
+			if err != nil {
+				return err
 			}
 
 			node.Data = string(res)
 		case html.ElementNode:
-			for i, attr := range node.Attr {
-				if !strings.HasPrefix(attr.Key, "tx-on") {
-					continue
+			ignore := false
+			for _, attr := range node.Attr {
+				if attr.Key == "tx-ignore" {
+					ignore = true
 				}
+			}
 
-				expr, err := parser.ParseExpr(attr.Val)
-				if err == nil {
-					switch e := expr.(type) {
-					case *ast.CallExpr:
+			if ignore {
+				continue
+			}
 
-						ident, isIdent := e.Fun.(*ast.Ident)
-						if !isIdent {
-							continue
-						}
+			for i, attr := range node.Attr {
+				if strings.HasPrefix(attr.Key, "tx-on") {
+					expr, err := parser.ParseExpr(attr.Val)
+					if err == nil {
+						switch e := expr.(type) {
+						case *ast.CallExpr:
 
-						f, ok := page.Funcs[ident.Name]
-						if !ok {
-							continue
-						}
-
-						params := []string{}
-						for _, list := range f.Decl.Type.Params.List {
-							for _, ident := range list.Names {
-								params = append(params, ident.Name)
+							ident, isIdent := e.Fun.(*ast.Ident)
+							if !isIdent {
+								continue
 							}
-						}
 
-						if len(params) != len(e.Args) {
-							return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToCode(e))
-						}
+							f, ok := page.Funcs[ident.Name]
+							if !ok {
+								continue
+							}
 
-						paramsStr := ""
-						if len(params) > 0 {
-							for i, p := range params {
-								foundVar := false
-								ast.Inspect(e.Args[i], func(n ast.Node) bool {
-									if foundVar {
-										return false
-									}
+							params := []string{}
+							for _, list := range f.Decl.Type.Params.List {
+								for _, ident := range list.Names {
+									params = append(params, ident.Name)
+								}
+							}
 
-									ident, ok := n.(*ast.Ident)
-									if !ok {
+							if len(params) != len(e.Args) {
+								return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToCode(e))
+							}
+
+							paramsStr := ""
+							if len(params) > 0 {
+								for i, p := range params {
+									foundVar := false
+									ast.Inspect(e.Args[i], func(n ast.Node) bool {
+										if foundVar {
+											return false
+										}
+
+										ident, ok := n.(*ast.Ident)
+										if !ok {
+											return true
+										}
+
+										if _, ok := page.Vars[ident.Name]; ok {
+											foundVar = true
+											return false
+										}
+
 										return true
+									})
+
+									if foundVar {
+										return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, e.Args[i])
 									}
 
-									if _, ok := page.Vars[ident.Name]; ok {
-										foundVar = true
-										return false
+									arg := astToCode(e.Args[i])
+									if i == 0 {
+										paramsStr += fmt.Sprintf("?%s={{$%s}}", p, arg)
+										continue
 									}
 
-									return true
-								})
-
-								if foundVar {
-									return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, e.Args[i])
+									paramsStr += fmt.Sprintf("&%s={{$%s}}", p, arg)
 								}
+							}
 
-								arg := astToCode(e.Args[i])
-								if i == 0 {
-									paramsStr += fmt.Sprintf("?%s={{$%s}}", p, arg)
-									continue
-								}
-
-								paramsStr += fmt.Sprintf("&%s={{$%s}}", p, arg)
+							node.Attr[i] = html.Attribute{
+								Key: attr.Key,
+								Val: fmt.Sprintf("%s%s", page.funcId(f.Name), paramsStr),
 							}
 						}
+						continue
+					}
 
-						node.Attr[i] = html.Attribute{
-							Key: attr.Key,
-							Val: fmt.Sprintf("%s%s", page.funcId(f.Name), paramsStr),
-						}
+					fName := funcNameGen.next()
+					f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {"+attr.Val+"}", fName), 0)
+					if err != nil {
+						return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+					}
+					decl, ok := f.Decls[0].(*ast.FuncDecl)
+					if !ok {
+						return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+					}
+
+					modifiedDerived := []string{}
+					page.modifiedVars(decl, &modifiedDerived)
+
+					if len(modifiedDerived) > 0 {
+						return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
+					}
+
+					page.FuncNames = append(page.FuncNames, decl.Name.Name)
+					page.Funcs[decl.Name.Name] = &Func{
+						Name: decl.Name.Name,
+						Decl: decl,
+					}
+					node.Attr[i] = html.Attribute{
+						Key: attr.Key,
+						Val: page.funcId(decl.Name.Name),
 					}
 					continue
 				}
 
-				fName := funcNameGen.next()
-				f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {"+attr.Val+"}", fName), 0)
+				res, err := page.parseTmpl(attr.Val, fieldIdGen)
 				if err != nil {
-					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
-				}
-				decl, ok := f.Decls[0].(*ast.FuncDecl)
-				if !ok {
-					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+					return err
 				}
 
-				modifiedDerived := []string{}
-				page.modifiedVars(decl, &modifiedDerived)
-
-				if len(modifiedDerived) > 0 {
-					return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
-				}
-
-				page.FuncNames = append(page.FuncNames, decl.Name.Name)
-				page.Funcs[decl.Name.Name] = &Func{
-					Name: decl.Name.Name,
-					Decl: decl,
+				node.Attr[i] = html.Attribute{
+					Key: attr.Key,
+					Val: string(res),
 				}
 			}
 		}
@@ -687,6 +611,120 @@ func (page *Page) modifiedVars(node ast.Node, md *[]string) {
 
 		return true
 	})
+}
+
+func (page *Page) parseTmpl(str string, idGen *IdGen) ([]byte, error) {
+	braceStack := 0
+	isInDoubleQuote := false
+	isInSingleQuote := false
+	isInBackQuote := false
+	skipNext := false
+
+	expr := []byte{}
+	res := []byte{}
+	for _, r := range str {
+		if skipNext {
+			expr = append(expr, byte(r))
+			skipNext = false
+			continue
+		}
+
+		switch r {
+		case '{':
+			if braceStack == 0 {
+				braceStack++
+			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else {
+				braceStack++
+				expr = append(expr, byte(r))
+			}
+		case '}':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else if braceStack == 1 {
+				braceStack--
+				trimmedCurrExpr := bytes.TrimSpace(expr)
+				if len(trimmedCurrExpr) == 0 {
+					continue
+				}
+
+				if expr, found := page.FieldExprs[string(trimmedCurrExpr)]; found {
+					res = append(res, []byte(fmt.Sprintf("{{.%s}}", expr.FieldId))...)
+					continue
+				}
+
+				fieldId := idGen.next()
+				exprAst, err := parser.ParseExpr(string(trimmedCurrExpr))
+				if err != nil {
+					return nil, fmt.Errorf("parse expression error (file: %s): %s: %w", page.FilePath, string(trimmedCurrExpr), err)
+				}
+				page.FieldExprs[string(trimmedCurrExpr)] = Expr{
+					Ast:     exprAst,
+					FieldId: fieldId,
+				}
+				res = append(res, []byte(fmt.Sprintf("{{.%s}}", fieldId))...)
+				expr = []byte{}
+			} else {
+				braceStack--
+				expr = append(expr, byte(r))
+			}
+		case '"':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInSingleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else {
+				isInDoubleQuote = !isInDoubleQuote
+				expr = append(expr, byte(r))
+			}
+		case '\'':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else {
+				isInSingleQuote = !isInSingleQuote
+				expr = append(expr, byte(r))
+			}
+		case '`':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInSingleQuote {
+				expr = append(expr, byte(r))
+			} else {
+				isInBackQuote = !isInBackQuote
+				expr = append(expr, byte(r))
+			}
+		case '\\':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInSingleQuote {
+				skipNext = true
+				expr = append(expr, byte(r))
+			} else {
+				expr = append(expr, byte(r))
+			}
+		default:
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else {
+				expr = append(expr, byte(r))
+			}
+		}
+
+	}
+
+	if isInDoubleQuote || isInBackQuote || isInSingleQuote {
+		return nil, fmt.Errorf("unclosed quote in expression (file: %s): %s", page.FilePath, str)
+	}
+	if braceStack != 0 {
+		return nil, fmt.Errorf("unclosed brace in expression (file: %s): %s", page.FilePath, str)
+	}
+
+	return res, nil
 }
 
 func (page *Page) render(w io.StringWriter, node *html.Node) error {
@@ -807,6 +845,7 @@ func (page *Page) urlPath() string {
 type HandlerFields struct {
 	Url      string
 	Code     string
+	State    string
 	Fields   string
 	TmplName string
 }
@@ -840,9 +879,13 @@ func (page *Page) pageHandlerFields() HandlerFields {
 	var fields strings.Builder
 	page.writeFieldsAst(&fields)
 
+	var state strings.Builder
+	page.writeStateFieldsAst(&state)
+
 	return HandlerFields{
 		Url:      page.urlPath(),
 		Code:     code.String(),
+		State:    state.String(),
 		TmplName: page.urlPath(),
 		Fields:   fields.String(),
 	}
@@ -897,15 +940,38 @@ func (page *Page) funcHandlerFields() []HandlerFields {
 		var fields strings.Builder
 		page.writeFieldsAst(&fields)
 
+		var state strings.Builder
+		page.writeStateFieldsAst(&state)
+
 		handlers = append(handlers, HandlerFields{
 			Url:      "/tx/" + page.funcId(funcName),
 			Code:     code.String(),
+			State:    state.String(),
 			Fields:   fields.String(),
 			TmplName: page.urlPath(),
 		})
 	}
 
 	return handlers
+}
+
+func (page *Page) writeStateFieldsAst(sb *strings.Builder) {
+	stateAst := &ast.CompositeLit{
+		Type: &ast.MapType{
+			Key:   &ast.Ident{Name: "string"},
+			Value: &ast.Ident{Name: "any"},
+		},
+	}
+
+	for _, varName := range page.VarNames {
+		name := page.Vars[varName].Name
+		stateAst.Elts = append(stateAst.Elts, &ast.KeyValueExpr{
+			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + name + `"`},
+			Value: &ast.Ident{Name: name},
+		})
+	}
+
+	sb.WriteString(astToCode(stateAst))
 }
 
 func (page *Page) writeFieldsAst(sb *strings.Builder) {
@@ -923,24 +989,9 @@ func (page *Page) writeFieldsAst(sb *strings.Builder) {
 		})
 	}
 
-	stateAst := &ast.CompositeLit{
-		Type: &ast.MapType{
-			Key:   &ast.Ident{Name: "string"},
-			Value: &ast.Ident{Name: "any"},
-		},
-	}
-
-	for _, varName := range page.VarNames {
-		name := page.Vars[varName].Name
-		stateAst.Elts = append(stateAst.Elts, &ast.KeyValueExpr{
-			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + name + `"`},
-			Value: &ast.Ident{Name: name},
-		})
-	}
-
 	fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
 		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"state"`},
-		Value: stateAst,
+		Value: &ast.Ident{Name: "state"},
 	})
 
 	sb.WriteString(astToCode(fieldsAst))
