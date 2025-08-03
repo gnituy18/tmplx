@@ -133,8 +133,7 @@ go run .
 <p>{ str }</p>
 <button tx-onclick="appendA()">Append A</button>
 ```
-### inline statements (Unimplemented)
-
+### inline statements
 ```html
 <script type="text/tmplx">
   var num int = 1
@@ -143,7 +142,17 @@ go run .
 ...
 <button tx-onclick="num++">Append A</button>
 ```
-### `tx-if` (Unimplemented)
+### `tx-if`
+```html
+<script type="text/tmplx">
+  var num int = 1
+</script>
+
+...
+<button tx-onclick="num++">Append A</button>
+<p tx-if="counter % 2 == 1"> odd </p>
+<p tx-else > even </p>
+```
 ### `tx-for` (Unimplemented)
 ### Components (Unimplemented)
 ### Styles and Classes (Unimplemented)
