@@ -134,10 +134,6 @@ go run .
 <button tx-onclick="appendA()">Append A</button>
 ```
 ### inline statements
-<<<<<<< HEAD
-=======
-
->>>>>>> d2b748c (Add tx-for)
 ```html
 <script type="text/tmplx">
   var num int = 1

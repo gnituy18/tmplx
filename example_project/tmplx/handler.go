@@ -2,8 +2,9 @@ package tmplx
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
-	"text/template"
 )
 
 type TmplxHandler struct {
@@ -11,14 +12,7 @@ type TmplxHandler struct {
 	HandlerFunc http.HandlerFunc
 }
 
-var tmpl = template.Must(template.New("tmplx_handlers").Parse(`{{define "/{$}"}}
-<html><head>
-
-
-
-  <title> {{.field_1}} </title>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
+var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
   const state = JSON.parse(this.getElementById("tx-state").innerHTML)
   const addHandler = (node) => {
     const walker = document.createTreeWalker(
@@ -64,86 +58,62 @@ document.addEventListener('DOMContentLoaded', function() {
   }).observe(document.documentElement, { childList: true, subList: true })
   addHandler(document.documentElement)
 });
-</script><script type="application/json" id="tx-state">{{.state}}</script></head>
+`
+
+func render_index(w io.Writer, state string, title string, h1 string, counter int, counterTimes10 int) {
+	w.Write([]byte(`<html><head>
+
+
+
+  <title> `))
+	w.Write([]byte(fmt.Sprint(title)))
+	w.Write([]byte(` </title>
+<script id="tx-runtime">`))
+	w.Write([]byte(runtimeScript))
+	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
+	w.Write([]byte(fmt.Sprint(state)))
+	w.Write([]byte(`</script></head>
 
 <body>
-  <h1> {{.field_2}} </h1>
+  <h1> `))
+	w.Write([]byte(fmt.Sprint(h1)))
+	w.Write([]byte(` </h1>
   
-  <p>counter: {{.field_3}}</p>
+  <p>counter: `))
+	w.Write([]byte(fmt.Sprint(counter)))
+	w.Write([]byte(`</p>
 
-  <button tx-onclick="index-addOne">Add 1</button>
-  <button tx-onclick="index-subOne">Subtract 1</button>
+  <button tx-onclick="index_addOne">Add 1</button>
+  <button tx-onclick="index_subOne">Subtract 1</button>
 
-  <p>counter * 10 = {{.field_4}}</p>
+  <p>counter * 10 = `))
+	w.Write([]byte(fmt.Sprint(counterTimes10)))
+	w.Write([]byte(`</p>
 
   <a href="/second-page">second page</a>
 
 
-</body></html>
-{{end}}
-{{define "/second-page"}}
-<html><head>
-
-
-
-  <title> {{.field_1}} </title>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const state = JSON.parse(this.getElementById("tx-state").innerHTML)
-  const addHandler = (node) => {
-    const walker = document.createTreeWalker(
-      node,
-      NodeFilter.SHOW_ELEMENT,
-      (n) => {
-        for (let attr of n.attributes) {
-          if (attr.name.startsWith('tx-on')) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-        return NodeFilter.FILTER_SKIP
-      }
-    );
-    while (walker.nextNode()) {
-      const cn = walker.currentNode;
-      for (let attr of cn.attributes) {
-        if (attr.name.startsWith('tx-on')) {
-          const eName = attr.name.slice(5);
-          cn.addEventListener(eName, async () => {
-            const states = {}
-
-            for (let key in state) {
-              states[key] = JSON.stringify(state[key])
-            }
-            const res = await fetch("/tx/" + attr.value + "?" + new URLSearchParams(states).toString())
-            res.text().then(html => {
-              document.open()
-              document.write(html)
-              document.close()
-            })
-          })
-        }
-      }
-    }
-  }
-
-  new MutationObserver((records) => {
-    records.forEach((record) => {
-      if (record.type !== 'childList') return
-      records.addedNodes()
-    })
-  }).observe(document.documentElement, { childList: true, subList: true })
-  addHandler(document.documentElement)
-});
-</script><script type="application/json" id="tx-state">{{.state}}</script></head>
+</body></html>`))
+}
+func render_second_d_page(w io.Writer, state string) {
+	w.Write([]byte(`<html><head>
+  <title> `))
+	w.Write([]byte(fmt.Sprint(1 + 2)))
+	w.Write([]byte(` </title>
+<script id="tx-runtime">`))
+	w.Write([]byte(runtimeScript))
+	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
+	w.Write([]byte(fmt.Sprint(state)))
+	w.Write([]byte(`</script></head>
 
 <body>
-  <h1> {{.field_2}} </h1>
+  <h1> `))
+	w.Write([]byte(fmt.Sprint(fmt.Sprintf("a + b = %d", 1+2))))
+	w.Write([]byte(` </h1>
 
 
-</body></html>
-{{end}}
-`))
-
+</body></html>`))
+}
 func Handlers() []TmplxHandler { return tmplxHandlers }
 
 var tmplxHandlers []TmplxHandler = []TmplxHandler{
@@ -157,11 +127,14 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			var counterTimes10 int = counter * 10
 			counterTimes10 = counter * 10
 
-			tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_1": title, "field_2": h1, "field_3": counter, "field_4": counterTimes10, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
+			stateBytes, _ := json.Marshal(map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10})
+			state := string(stateBytes)
+			render_index(w, state, title, h1, counter, counterTimes10)
+
 		},
 	},
 	{
-		Url: "/tx/index-addOne",
+		Url: "/tx/index_addOne",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
 			var title string
@@ -174,11 +147,14 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			counter++
 			counterTimes10 = counter * 10
 
-			tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_1": title, "field_2": h1, "field_3": counter, "field_4": counterTimes10, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
+			stateBytes, _ := json.Marshal(map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10})
+			state := string(stateBytes)
+			render_index(w, state, title, h1, counter, counterTimes10)
+
 		},
 	},
 	{
-		Url: "/tx/index-subOne",
+		Url: "/tx/index_subOne",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
 			var title string
@@ -191,15 +167,20 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			counter--
 			counterTimes10 = counter * 10
 
-			tmpl.ExecuteTemplate(w, "/{$}", map[string]any{"field_1": title, "field_2": h1, "field_3": counter, "field_4": counterTimes10, "state": map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10}})
+			stateBytes, _ := json.Marshal(map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10})
+			state := string(stateBytes)
+			render_index(w, state, title, h1, counter, counterTimes10)
+
 		},
 	},
 	{
 		Url: "/second-page",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			var title string = "Second Page"
-			var h1 string = "Hello, Again!"
 
-			tmpl.ExecuteTemplate(w, "/second-page", map[string]any{"field_1": title, "field_2": h1, "state": map[string]any{"title": title, "h1": h1}})
+			stateBytes, _ := json.Marshal(map[string]any{})
+			state := string(stateBytes)
+			render_second_d_page(w, state)
+
 		},
-	}}
+	},
+}
