@@ -165,8 +165,8 @@ type Page struct {
 	FilePath string
 	RelPath  string
 
-	HtmlNode   *html.Node
-	ScriptNode *html.Node
+	DocumentNode *html.Node
+	ScriptNode   *html.Node
 
 	Imports []*ast.ImportSpec
 
@@ -196,37 +196,41 @@ func (page *Page) parse() error {
 	}
 
 	// 1. Parse the html syntax into script node and tmpl node
-	documentNode, err := html.Parse(file)
+	page.DocumentNode, err = html.Parse(file)
 	if err != nil {
 		return fmt.Errorf("parse html failed (file: %s): %w", page.FilePath, err)
 	}
-	page.HtmlNode = documentNode.FirstChild
 
-	for node := range page.HtmlNode.Descendants() {
+	for node := range page.DocumentNode.Descendants() {
 		if isTmplxScriptNode(node) {
 			page.ScriptNode = node
 			break
 		}
 	}
-	cleanUpTmplxScript(page.HtmlNode)
+	cleanUpTmplxScript(page.DocumentNode)
 
-	page.HtmlNode.FirstChild.AppendChild(&html.Node{
-		Type:     html.ElementNode,
-		DataAtom: atom.Script,
-		Data:     "script",
-		Attr: []html.Attribute{
-			{Key: "id", Val: "tx-runtime"},
-		},
-	})
-	page.HtmlNode.FirstChild.AppendChild(&html.Node{
-		Type:     html.ElementNode,
-		DataAtom: atom.Script,
-		Data:     "script",
-		Attr: []html.Attribute{
-			{Key: "type", Val: "application/json"},
-			{Key: "id", Val: "tx-state"},
-		},
-	})
+	for node := range page.DocumentNode.Descendants() {
+		if node.DataAtom == atom.Head {
+			node.AppendChild(&html.Node{
+				Type:     html.ElementNode,
+				DataAtom: atom.Script,
+				Data:     "script",
+				Attr: []html.Attribute{
+					{Key: "id", Val: "tx-runtime"},
+				},
+			})
+			node.AppendChild(&html.Node{
+				Type:     html.ElementNode,
+				DataAtom: atom.Script,
+				Data:     "script",
+				Attr: []html.Attribute{
+					{Key: "type", Val: "application/json"},
+					{Key: "id", Val: "tx-state"},
+				},
+			})
+			break
+		}
+	}
 
 	// 3. Parse script node
 	page.Imports = []*ast.ImportSpec{}
@@ -367,7 +371,7 @@ func (page *Page) parse() error {
 	}
 
 	// 4. Parse HTML node
-	if err := page.parseTmpl(page.HtmlNode); err != nil {
+	if err := page.parseTmpl(page.DocumentNode); err != nil {
 		return err
 	}
 	page.doneParsingTmpl()
@@ -377,6 +381,14 @@ func (page *Page) parse() error {
 
 func (page *Page) parseTmpl(node *html.Node) error {
 	switch node.Type {
+	case html.DocumentNode:
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			page.parseTmpl(c)
+		}
+	case html.DoctypeNode:
+		page.writeStrLit("<!DOCTYPE ")
+		page.writeStrLit(node.Data)
+		page.writeStrLit(">")
 	case html.TextNode:
 		if node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
 			page.writeStrLit(node.Data)

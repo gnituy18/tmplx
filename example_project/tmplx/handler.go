@@ -65,6 +65,7 @@ func render_index(w io.Writer, state string, title string, h1 string, counter in
 
 
 
+
   <title> `))
 	w.Write([]byte(fmt.Sprint(title)))
 	w.Write([]byte(` </title>
@@ -78,7 +79,7 @@ func render_index(w io.Writer, state string, title string, h1 string, counter in
   <h1> `))
 	w.Write([]byte(fmt.Sprint(h1)))
 	w.Write([]byte(` </h1>
-  
+
   <p>counter: `))
 	w.Write([]byte(fmt.Sprint(counter)))
 	w.Write([]byte(`</p>
@@ -91,6 +92,7 @@ func render_index(w io.Writer, state string, title string, h1 string, counter in
 	w.Write([]byte(`</p>
 
   <a href="/second-page">second page</a>
+
 
 
 </body></html>`))
