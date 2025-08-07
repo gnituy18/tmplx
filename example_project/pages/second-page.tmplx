@@ -1,15 +1,9 @@
-<script type="text/tmplx">
-  var title string = "Second Page"
-  var h1 string = "Hello, Again!"
-
-</script>
-
 <html>
 <head>
-  <title> { title } </title>
+  <title> { 1 + 2} </title>
 </head>
 
 <body>
-  <h1> { h1 } </h1>
+  <h1> { fmt.Sprintf("a + b = %d", 1 + 2) } </h1>
 </body>
 </html>
