@@ -97,12 +97,22 @@ type TmplxHandler struct {
 		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, state string, %s) {\n", page.pageId(), strings.Join(params, ", ")))
 		for _, tmpl := range page.Tmpls {
 			switch tmpl.Type {
-			case TmplTypeStrLit:
-				out.WriteString(fmt.Sprintf("w.Write([]byte(`%s`))\n", string(tmpl.Content)))
-			case TmplTypeExpr:
-				out.WriteString(fmt.Sprintf("w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content)))
 			case TmplTypeGo:
-				out.WriteString(string(tmpl.Content))
+				if _, err := out.WriteString(string(tmpl.Content)); err != nil {
+					log.Fatalln(err)
+				}
+			case TmplTypeStrLit:
+				if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(`%s`))\n", string(tmpl.Content))); err != nil {
+					log.Fatalln(err)
+				}
+			case TmplTypeExpr:
+				if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content))); err != nil {
+					log.Fatalln(err)
+				}
+			case TmplTypeEscapeExpr:
+				if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content))); err != nil {
+					log.Fatalln(err)
+				}
 			}
 		}
 
@@ -390,12 +400,19 @@ func (page *Page) parseTmpl(node *html.Node) error {
 		page.writeStrLit(node.Data)
 		page.writeStrLit(">")
 	case html.TextNode:
-		if node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
-			page.writeStrLit(node.Data)
-			return nil
+		if isChildNodeRawText(node.Parent.Data) {
+			// Disable template in script and style
+			if node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
+				page.writeStrLit(node.Data)
+				return nil
+			}
+
+			if err := page.parseTmplStr(node.Data, false); err != nil {
+				return err
+			}
 		}
 
-		if err := page.parseTmplStr(node.Data); err != nil {
+		if err := page.parseTmplStr(node.Data, true); err != nil {
 			return err
 		}
 	case html.ElementNode:
@@ -506,7 +523,7 @@ func (page *Page) parseTmpl(node *html.Node) error {
 				}
 
 				page.writeStrLit(page.funcId(decl.Name.Name))
-			} else if err := page.parseTmplStr(attr.Val); err != nil {
+			} else if err := page.parseTmplStr(attr.Val, false); err != nil {
 				return err
 			}
 			page.writeStrLit(`"`)
@@ -606,7 +623,7 @@ func (page *Page) parseTmpl(node *html.Node) error {
 	return nil
 }
 
-func (page *Page) parseTmplStr(str string) error {
+func (page *Page) parseTmplStr(str string, escape bool) error {
 	braceStack := 0
 	isInDoubleQuote := false
 	isInSingleQuote := false
@@ -623,7 +640,11 @@ func (page *Page) parseTmplStr(str string) error {
 		}
 
 		if braceStack == 0 && r != '{' {
-			page.writeStrLit(string(r))
+			if escape {
+				page.writeStrLit(html.EscapeString(string(r)))
+			} else {
+				page.writeStrLit(string(r))
+			}
 		}
 
 		switch r {
@@ -653,7 +674,11 @@ func (page *Page) parseTmplStr(str string) error {
 					return fmt.Errorf("parse expression error (file: %s): %s: %w", page.FilePath, string(trimmedCurrExpr), err)
 				}
 
-				page.writeExpr(string(trimmedCurrExpr))
+				if escape {
+					page.writeEscapeExpr(string(trimmedCurrExpr))
+				} else {
+					page.writeExpr(string(trimmedCurrExpr))
+				}
 				expr = []byte{}
 			} else {
 				braceStack--
@@ -835,9 +860,10 @@ func (page *Page) modifiedVars(node ast.Node, md *[]string) {
 type TmplType int
 
 const (
-	TmplTypeStrLit TmplType = iota + 1
-	TmplTypeGo
+	TmplTypeGo TmplType = iota + 1
+	TmplTypeStrLit
 	TmplTypeExpr
+	TmplTypeEscapeExpr
 )
 
 type PageTmpl struct {
@@ -860,16 +886,20 @@ func (page *Page) writeTmpl(t TmplType, content string) {
 	page.CurrTmplContent = append(page.CurrTmplContent, content...)
 }
 
-func (page *Page) writeStrLit(content string) {
-	page.writeTmpl(TmplTypeStrLit, content)
-}
-
 func (page *Page) writeGo(content string) {
 	page.writeTmpl(TmplTypeGo, content)
 }
 
+func (page *Page) writeStrLit(content string) {
+	page.writeTmpl(TmplTypeStrLit, content)
+}
+
 func (page *Page) writeExpr(content string) {
 	page.writeTmpl(TmplTypeExpr, content)
+}
+
+func (page *Page) writeEscapeExpr(content string) {
+	page.writeTmpl(TmplTypeEscapeExpr, content)
 }
 
 func (page *Page) doneParsingTmpl() {
@@ -1186,6 +1216,32 @@ func isVoidElement(name string) bool {
 	case "wbr":
 		return true
 	}
+	return false
+}
+
+// https://html.spec.whatwg.org/#parsing-html-fragments
+func isChildNodeRawText(name string) bool {
+	switch name {
+	case "title":
+		return true
+	case "textarea":
+		return true
+	case "style":
+		return true
+	case "xmp":
+		return true
+	case "iframe":
+		return true
+	case "noembed":
+		return true
+	case "noframes":
+		return true
+	case "script":
+		return true
+	case "noscript":
+		return true
+	}
+
 	return false
 }
 
