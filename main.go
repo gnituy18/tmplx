@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"flag"
@@ -9,7 +10,6 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -26,35 +26,32 @@ import (
 
 const mimeType = "text/tmplx"
 
-var dirPages string
-var dirComponents string
+var pagesDir string
+var componentsDir string
 var output string
 
 func main() {
-	flag.StringVar(&dirPages, "pages", path.Clean("pages"), "pages directory")
-	flag.StringVar(&dirComponents, "components", path.Clean("components"), "components directory")
-	flag.StringVar(&output, "output", "", "output file")
+	flag.StringVar(&pagesDir, "pages", path.Clean("pages"), "pages directory")
+	flag.StringVar(&componentsDir, "components", path.Clean("components"), "components directory")
+	flag.StringVar(&output, "output", path.Clean("./tmplx/handler.go"), "output file")
 	flag.Parse()
-	dirPages = path.Clean(dirPages)
-	dirComponents = path.Clean(dirComponents)
-	if output != "" {
-		output = path.Clean(output)
-	}
+	pagesDir = path.Clean(pagesDir)
+	componentsDir = path.Clean(componentsDir)
+	output = path.Clean(output)
 
 	pages := []*Page{}
-	if err := filepath.WalkDir(dirPages, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(pagesDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("pages directory not found (file: %s): %w", path, err)
+			return fmt.Errorf("error accessing %s: %w", path, err)
 		}
 
-		if d.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 
 		_, filename := filepath.Split(path)
-		ext := filepath.Ext(filename)
-		if ext != ".tmplx" && ext != ".html" {
-			log.Println("skip file without .tmplx or .html (file: %s)" + path)
+		if ext := filepath.Ext(filename); ext != ".tmplx" && ext != ".html" {
+			log.Printf("skip file without .tmplx or .html: %s\n", path)
 			return nil
 		}
 
@@ -64,16 +61,54 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	g := new(errgroup.Group)
+	eg := new(errgroup.Group)
 	for _, page := range pages {
-		g.Go(page.Parse)
+		eg.Go(page.parse)
 	}
-	if err := g.Wait(); err != nil {
+	if err := eg.Wait(); err != nil {
 		log.Fatalln(err)
 	}
 
-	var imports strings.Builder
-	var tmplDefs strings.Builder
+	var out strings.Builder
+	out.WriteString("package tmplx\n")
+	out.WriteString("import(\n")
+
+	for _, page := range pages {
+		for _, im := range page.Imports {
+			if _, err := out.WriteString(astToSource(im) + "\n"); err != nil {
+				log.Fatalln(fmt.Errorf("imports WriteString failed: %w", err))
+			}
+		}
+	}
+	out.WriteString(")\n")
+	out.WriteString(`
+type TmplxHandler struct {
+        Url		string
+	HandlerFunc 	http.HandlerFunc
+}
+`)
+	out.WriteString("var runtimeScript = `" + runtimeScript + "`\n")
+	for _, page := range pages {
+		params := []string{}
+		for _, varName := range page.VarNames {
+			v := page.Vars[varName]
+			params = append(params, fmt.Sprintf("%s %s", v.Name, astToSource(v.TypeExpr)))
+		}
+		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, state string, %s) {\n", page.pageId(), strings.Join(params, ", ")))
+		for _, tmpl := range page.Tmpls {
+			switch tmpl.Type {
+			case TmplTypeStrLit:
+				out.WriteString(fmt.Sprintf("w.Write([]byte(`%s`))\n", string(tmpl.Content)))
+			case TmplTypeExpr:
+				out.WriteString(fmt.Sprintf("w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content)))
+			case TmplTypeGo:
+				out.WriteString(string(tmpl.Content))
+			}
+		}
+
+		out.WriteString("}\n")
+	}
+
 	var tmplHandlers strings.Builder
 	tmplxHandlerTmpl := template.Must(template.New("tmplx_handler").Parse(`
 {
@@ -82,65 +117,48 @@ func main() {
 		{{ .Code }}
 		stateBytes, _ := json.Marshal({{ .State }})
 		state := string(stateBytes)
-		tmpl.ExecuteTemplate(w, "{{ .TmplName }}", {{ .Fields }})
+		{{ .Render }}
 	},
 },`))
 	for _, page := range pages {
-		for _, im := range page.Imports {
-			if _, err := imports.WriteString(astToCode(im) + "\n"); err != nil {
-				log.Fatalln(fmt.Errorf("imports WriteString failed: %w", err))
-			}
-		}
-		if _, err := tmplDefs.WriteString(fmt.Sprintf("{{define \"%s\"}}\n", page.urlPath())); err != nil {
-			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
-		}
-		if err := page.render(&tmplDefs, page.HtmlNode); err != nil {
-			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
-		}
-		if _, err := tmplDefs.WriteString("\n{{end}}\n"); err != nil {
-			log.Fatalln(fmt.Errorf("tmpl defs WriteString failed: %w", err))
-		}
-
 		tmplxHandlerTmpl.Execute(&tmplHandlers, page.pageHandlerFields())
 		for _, fields := range page.funcHandlerFields() {
 			tmplxHandlerTmpl.Execute(&tmplHandlers, fields)
 		}
 	}
 
-	var out strings.Builder
-	out.WriteString("package tmplx\n")
-	out.WriteString(fmt.Sprintf(`
-import (
-%s
-)`, imports.String()))
-
-	out.WriteString(`
-type TmplxHandler struct {
-        Url		string
-	HandlerFunc 	http.HandlerFunc
-}
-`)
-	out.WriteString(fmt.Sprintf("var tmpl = template.Must(template.New(\"tmplx_handlers\").Parse(`%s`))\n", tmplDefs.String()))
 	out.WriteString("func Handlers() []TmplxHandler { return tmplxHandlers }\n\n")
-	out.WriteString(fmt.Sprintf("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n%s}\n", tmplHandlers.String()))
+	out.WriteString(fmt.Sprintf("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n%s\n}\n", tmplHandlers.String()))
 
-	outStr := out.String()
-	formatted, err := goimports.Process("temp.go", []byte(outStr), nil)
+	data := []byte(out.String())
+	formatted, err := goimports.Process(output, data, nil)
 	if err != nil {
+		printSourceWithLineNum(data)
 		log.Fatalln(fmt.Errorf("format output file failed: %w", err))
 	}
 
-	if output != "" {
-		f, err := createFile(output)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		f.Write(formatted)
-		defer f.Close()
+	dir := filepath.Dir(output)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Fatalln(err)
 	}
+	file, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer file.Close()
 
-	os.Stdout.Write(formatted)
+	if _, err := file.Write(formatted); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func printSourceWithLineNum(data []byte) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	lineNum := 1
+	for scanner.Scan() {
+		fmt.Printf("%d: %s\n", lineNum, scanner.Text())
+		lineNum++
+	}
 }
 
 type Page struct {
@@ -150,55 +168,82 @@ type Page struct {
 	HtmlNode   *html.Node
 	ScriptNode *html.Node
 
-	Imports   []*ast.ImportSpec
-	VarNames  []string
-	Vars      map[string]*Var
-	FuncNames []string
-	Funcs     map[string]*Func
+	Imports []*ast.ImportSpec
 
-	FieldExprs map[string]Expr
+	VarNames []string
+	Vars     map[string]*Var
+
+	FuncNameGen *IdGen
+	FuncNames   []string
+	Funcs       map[string]*Func
+
+	CurrTmplType    TmplType
+	CurrTmplContent []byte
+	Tmpls           []PageTmpl
 }
 
-func (page *Page) Parse() error {
-	relPath, err := filepath.Rel(dirPages, page.FilePath)
-	if err != nil {
-		return fmt.Errorf("relative path not found: %w", err)
-	}
-	page.RelPath = relPath
-
-	f, err := os.Open(page.FilePath)
+func (page *Page) parse() error {
+	// 0. Read the page file
+	file, err := os.Open(page.FilePath)
 	if err != nil {
 		return fmt.Errorf("open page file failed: %w", err)
 	}
+	defer file.Close()
 
-	documentNode, err := html.Parse(f)
+	page.RelPath, err = filepath.Rel(pagesDir, page.FilePath)
+	if err != nil {
+		return fmt.Errorf("relative path not found: %w", err)
+	}
+
+	// 1. Parse the html syntax into script node and tmpl node
+	documentNode, err := html.Parse(file)
 	if err != nil {
 		return fmt.Errorf("parse html failed (file: %s): %w", page.FilePath, err)
 	}
 	page.HtmlNode = documentNode.FirstChild
 
-	for n := range page.HtmlNode.Descendants() {
-		if isTmplxScriptNode(n) {
-			page.ScriptNode = n
+	for node := range page.HtmlNode.Descendants() {
+		if isTmplxScriptNode(node) {
+			page.ScriptNode = node
 			break
 		}
 	}
 	cleanUpTmplxScript(page.HtmlNode)
 
+	page.HtmlNode.FirstChild.AppendChild(&html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Script,
+		Data:     "script",
+		Attr: []html.Attribute{
+			{Key: "id", Val: "tx-runtime"},
+		},
+	})
+	page.HtmlNode.FirstChild.AppendChild(&html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Script,
+		Data:     "script",
+		Attr: []html.Attribute{
+			{Key: "type", Val: "application/json"},
+			{Key: "id", Val: "tx-state"},
+		},
+	})
+
+	// 3. Parse script node
 	page.Imports = []*ast.ImportSpec{}
 	page.VarNames = []string{}
 	page.Vars = map[string]*Var{}
 	page.FuncNames = []string{}
 	page.Funcs = map[string]*Func{}
-	funcNameGen := newIdGen("func")
+	page.FuncNameGen = newIdGen("func")
+
 	if page.ScriptNode != nil {
-		f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, "package p\n"+page.ScriptNode.FirstChild.Data, 0)
+		scriptAst, err := parser.ParseFile(token.NewFileSet(), page.FilePath, "package p\n"+page.ScriptNode.FirstChild.Data, 0)
 		if err != nil {
 			return fmt.Errorf("parse script failed (file: %s): %w", page.FilePath, err)
 		}
 
-		// parse imports
-		for _, decl := range f.Decls {
+		// 3.1 Parse imports
+		for _, decl := range scriptAst.Decls {
 			d, ok := decl.(*ast.GenDecl)
 			if !ok {
 				continue
@@ -211,15 +256,15 @@ func (page *Page) Parse() error {
 			for _, spec := range d.Specs {
 				s, ok := spec.(*ast.ImportSpec)
 				if !ok {
-					return fmt.Errorf("not a import spec(file: %s): %s", page.FilePath, astToCode(spec))
+					return fmt.Errorf("not a import spec (file: %s): %s", page.FilePath, astToSource(spec))
 				}
 
 				page.Imports = append(page.Imports, s)
 			}
 		}
 
-		// parse vars
-		for _, decl := range f.Decls {
+		// 3.2 Parse variables
+		for _, decl := range scriptAst.Decls {
 			d, ok := decl.(*ast.GenDecl)
 			if !ok {
 				continue
@@ -232,11 +277,11 @@ func (page *Page) Parse() error {
 			for _, spec := range d.Specs {
 				s, ok := spec.(*ast.ValueSpec)
 				if !ok {
-					return fmt.Errorf("not a value spec (file: %s): %s", page.FilePath, astToCode(spec))
+					return fmt.Errorf("not a value spec (file: %s): %s", page.FilePath, astToSource(spec))
 				}
 
 				if s.Type == nil {
-					return fmt.Errorf("must specify a type in declaration (file: %s): %s", page.FilePath, astToCode(spec))
+					return fmt.Errorf("must specify a type in declaration (file: %s): %s", page.FilePath, astToSource(spec))
 				}
 
 				if len(s.Values) == 0 {
@@ -252,11 +297,11 @@ func (page *Page) Parse() error {
 				}
 
 				if len(s.Values) > len(s.Names) {
-					return fmt.Errorf("extra init exprs (file: %s): %s", page.FilePath, astToCode(spec))
+					return fmt.Errorf("extra init exprs (file: %s): %s", page.FilePath, astToSource(spec))
 				}
 
 				if len(s.Values) < len(s.Names) {
-					return fmt.Errorf("missin init exprs (file: %s): %s", page.FilePath, astToCode(spec))
+					return fmt.Errorf("missin init exprs (file: %s): %s", page.FilePath, astToSource(spec))
 				}
 
 				for i, v := range s.Values {
@@ -292,8 +337,8 @@ func (page *Page) Parse() error {
 			}
 		}
 
-		// parse funcs
-		for _, decl := range f.Decls {
+		// 3.3 Parse functions
+		for _, decl := range scriptAst.Decls {
 			d, ok := decl.(*ast.FuncDecl)
 			if !ok {
 				continue
@@ -321,16 +366,344 @@ func (page *Page) Parse() error {
 		}
 	}
 
-	runtimeScriptNode := &html.Node{
-		Type:     html.ElementNode,
-		DataAtom: atom.Script,
-		Data:     "script",
+	// 4. Parse HTML node
+	if err := page.parseTmpl(page.HtmlNode); err != nil {
+		return err
+	}
+	page.doneParsingTmpl()
+
+	return nil
+}
+
+func (page *Page) parseTmpl(node *html.Node) error {
+	switch node.Type {
+	case html.TextNode:
+		if node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
+			page.writeStrLit(node.Data)
+			return nil
+		}
+
+		if err := page.parseTmplStr(node.Data); err != nil {
+			return err
+		}
+	case html.ElementNode:
+		page.writeStrLit("<")
+		page.writeStrLit(node.Data)
+
+		isTxRuntimeScript := false
+		isTxState := false
+		for _, attr := range node.Attr {
+			if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
+				continue
+			}
+			if attr.Key == "id" && attr.Val == "tx-state" {
+				isTxState = true
+			}
+
+			if attr.Key == "id" && attr.Val == "tx-runtime" {
+				isTxRuntimeScript = true
+			}
+
+			page.writeStrLit(" ")
+			if attr.Namespace != "" {
+				page.writeStrLit(node.Namespace)
+				page.writeStrLit(":")
+			}
+			page.writeStrLit(attr.Key)
+			page.writeStrLit(`="`)
+
+			if strings.HasPrefix(attr.Key, "tx-on") {
+				if expr, err := parser.ParseExpr(attr.Val); err == nil {
+					if callExpr, ok := expr.(*ast.CallExpr); ok {
+						if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+							if fun, ok := page.Funcs[ident.Name]; ok {
+								params := []string{}
+								for _, list := range fun.Decl.Type.Params.List {
+									for _, ident := range list.Names {
+										params = append(params, ident.Name)
+									}
+								}
+
+								if len(params) != len(callExpr.Args) {
+									return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToSource(callExpr))
+								}
+
+								page.writeStrLit(page.funcId(fun.Name))
+								for i, param := range params {
+									foundVar := false
+									ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
+										if foundVar {
+											return false
+										}
+
+										ident, ok := n.(*ast.Ident)
+										if !ok {
+											return true
+										}
+
+										if _, ok := page.Vars[ident.Name]; ok {
+											foundVar = true
+											return false
+										}
+
+										return true
+									})
+
+									if foundVar {
+										return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, callExpr.Args[i])
+									}
+
+									if i == 0 {
+										page.writeStrLit("?" + param + "=")
+									} else {
+										page.writeStrLit("&" + param + "=")
+									}
+
+									arg := astToSource(callExpr.Args[i])
+									page.writeExpr(arg)
+								}
+								page.writeStrLit(`"`)
+								continue
+							}
+						}
+					}
+				}
+
+				funcName := page.FuncNameGen.next()
+				fileAst, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
+				if err != nil {
+					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+				}
+
+				decl, ok := fileAst.Decls[0].(*ast.FuncDecl)
+				if !ok {
+					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+				}
+
+				modifiedDerived := []string{}
+				page.modifiedVars(decl, &modifiedDerived)
+
+				if len(modifiedDerived) > 0 {
+					return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
+				}
+
+				page.FuncNames = append(page.FuncNames, decl.Name.Name)
+				page.Funcs[decl.Name.Name] = &Func{
+					Name: decl.Name.Name,
+					Decl: decl,
+				}
+
+				page.writeStrLit(page.funcId(decl.Name.Name))
+			} else if err := page.parseTmplStr(attr.Val); err != nil {
+				return err
+			}
+			page.writeStrLit(`"`)
+		}
+
+		// https://html.spec.whatwg.org/#void-elements
+		if isVoidElement(node.Data) {
+			if node.FirstChild != nil {
+				return errors.New("invalid void elements: " + node.Data)
+			}
+
+			page.writeStrLit("/>")
+			return nil
+		}
+
+		page.writeStrLit(">")
+
+		// https://html.spec.whatwg.org/multipage/parsing.html
+		if c := node.FirstChild; c != nil && c.Type == html.TextNode && strings.HasPrefix(c.Data, "\n") {
+			switch node.Data {
+			case "pre", "listing", "textarea":
+				page.writeStrLit("\n")
+			}
+		}
+
+		if isTxRuntimeScript {
+			page.writeGo("w.Write([]byte(runtimeScript))\n")
+		} else if isTxState {
+			page.writeExpr("state")
+		} else {
+			// 0: no control flow
+			// 1: if
+			// 2: else-if
+			// 3: else
+			var prevCondState CondState
+			for c := node.FirstChild; c != nil; c = c.NextSibling {
+				hasFor := false
+				if c.Type == html.ElementNode {
+					currCondState, field := condState(c)
+
+					switch prevCondState {
+					case CondStateDefault:
+						if currCondState == CondStateElseIf || currCondState == CondStateElse {
+							return fmt.Errorf("detect tx-else-if or tx-else right after non-cond node (file: %s): %s", page.FilePath, c.Data)
+						}
+					case CondStateIf:
+						if currCondState <= prevCondState {
+							page.writeGo("\n}\n")
+						}
+					case CondStateElseIf:
+						if currCondState < prevCondState {
+							page.writeGo("\n}\n")
+						}
+					case CondStateElse:
+						if currCondState == CondStateElseIf || currCondState == CondStateElse {
+							return fmt.Errorf("detect tx-else-if or tx-else right after tx-else (file: %s): %s", page.FilePath, c.Data)
+						}
+						page.writeGo("\n}\n")
+					}
+
+					switch currCondState {
+					case CondStateDefault:
+					case CondStateIf:
+						page.writeGo("\nif " + field + " {\n")
+					case CondStateElseIf:
+						page.writeGo("\n} else if " + field + " {\n")
+					case CondStateElse:
+						page.writeGo("\n} else {\n")
+					}
+
+					prevCondState = currCondState
+
+					if stmt, ok := hasForAttr(c); ok {
+						hasFor = true
+						page.writeGo("\nfor " + stmt + " {\n")
+					}
+				}
+
+				if err := page.parseTmpl(c); err != nil {
+					return err
+				}
+
+				if hasFor {
+					page.writeGo("\n}\n")
+				}
+
+				if c.NextSibling == nil && (prevCondState == CondStateIf || prevCondState == CondStateElseIf || prevCondState == CondStateElse) {
+					page.writeGo("\n}\n")
+				}
+			}
+		}
+
+		page.writeStrLit("</")
+		page.writeStrLit(node.Data)
+		page.writeStrLit(">")
+	}
+	return nil
+}
+
+func (page *Page) parseTmplStr(str string) error {
+	braceStack := 0
+	isInDoubleQuote := false
+	isInSingleQuote := false
+	isInBackQuote := false
+	skipNext := false
+
+	expr := []byte{}
+	res := []byte{}
+	for _, r := range str {
+		if skipNext {
+			expr = append(expr, []byte(string(r))...)
+			skipNext = false
+			continue
+		}
+
+		if braceStack == 0 && r != '{' {
+			page.writeStrLit(string(r))
+		}
+
+		switch r {
+		case '{':
+			if braceStack == 0 {
+				braceStack++
+			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else {
+				braceStack++
+				expr = append(expr, byte(r))
+			}
+		case '}':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else if braceStack == 1 {
+				braceStack--
+				trimmedCurrExpr := bytes.TrimSpace(expr)
+				if len(trimmedCurrExpr) == 0 {
+					continue
+				}
+
+				_, err := parser.ParseExpr(string(trimmedCurrExpr))
+				if err != nil {
+					return fmt.Errorf("parse expression error (file: %s): %s: %w", page.FilePath, string(trimmedCurrExpr), err)
+				}
+
+				page.writeExpr(string(trimmedCurrExpr))
+				expr = []byte{}
+			} else {
+				braceStack--
+				expr = append(expr, byte(r))
+			}
+		case '"':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInSingleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else {
+				isInDoubleQuote = !isInDoubleQuote
+				expr = append(expr, byte(r))
+			}
+		case '\'':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInBackQuote {
+				expr = append(expr, byte(r))
+			} else {
+				isInSingleQuote = !isInSingleQuote
+				expr = append(expr, byte(r))
+			}
+		case '`':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInSingleQuote {
+				expr = append(expr, byte(r))
+			} else {
+				isInBackQuote = !isInBackQuote
+				expr = append(expr, byte(r))
+			}
+		case '\\':
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else if isInDoubleQuote || isInSingleQuote {
+				skipNext = true
+				expr = append(expr, byte(r))
+			} else {
+				expr = append(expr, byte(r))
+			}
+		default:
+			if braceStack == 0 {
+				res = append(res, byte(r))
+			} else {
+				expr = append(expr, byte(r))
+			}
+		}
+
 	}
 
-	runtimeScriptNode.AppendChild(&html.Node{
-		Type: html.TextNode,
-		Data: `
-document.addEventListener('DOMContentLoaded', function() {
+	if isInDoubleQuote || isInBackQuote || isInSingleQuote {
+		return fmt.Errorf("unclosed quote in expression (file: %s): %s", page.FilePath, str)
+	}
+	if braceStack != 0 {
+		return fmt.Errorf("unclosed brace in expression (file: %s): %s", page.FilePath, str)
+	}
+
+	return nil
+}
+
+var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
   const state = JSON.parse(this.getElementById("tx-state").innerHTML)
   const addHandler = (node) => {
     const walker = document.createTreeWalker(
@@ -376,197 +749,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }).observe(document.documentElement, { childList: true, subList: true })
   addHandler(document.documentElement)
 });
-`,
-	})
-
-	page.HtmlNode.FirstChild.AppendChild(runtimeScriptNode)
-
-	stateNode := &html.Node{
-		Type:     html.ElementNode,
-		DataAtom: atom.Script,
-		Data:     "script",
-		Attr: []html.Attribute{
-			{Key: "type", Val: "application/json"},
-			{Key: "id", Val: "tx-state"},
-		},
-	}
-	stateNode.AppendChild(&html.Node{
-		Type: html.TextNode,
-		Data: "{{.state}}",
-	})
-	page.HtmlNode.FirstChild.AppendChild(stateNode)
-
-	page.FieldExprs = map[string]Expr{}
-	fieldIdGen := newIdGen("field")
-	for node := range page.HtmlNode.Descendants() {
-		switch node.Type {
-		case html.TextNode:
-			if node.Parent.DataAtom == atom.Script || node.Parent.Data == "script" {
-				continue
-			}
-
-			res, err := page.parseTmpl(node.Data, fieldIdGen)
-			if err != nil {
-				return err
-			}
-
-			node.Data = string(res)
-		case html.ElementNode:
-			ignore := false
-			for _, attr := range node.Attr {
-				if attr.Key == "tx-ignore" {
-					ignore = true
-				}
-			}
-
-			if ignore {
-				continue
-			}
-
-			for i, attr := range node.Attr {
-				if attr.Key == "tx-if" || attr.Key == "tx-else-if" {
-					trimmedExpr := strings.TrimSpace("true && " + attr.Val)
-					ast, err := parser.ParseExpr(trimmedExpr)
-					if err != nil {
-						return fmt.Errorf("tx-if not an expression (file: %s): %s", page.FilePath, attr.Val)
-					}
-
-					fieldId := fieldIdGen.next()
-
-					page.FieldExprs[trimmedExpr] = Expr{
-						Ast:     ast,
-						FieldId: fieldId,
-					}
-
-					node.Attr[i] = html.Attribute{
-						Key: attr.Key,
-						Val: "." + fieldId,
-					}
-					continue
-				}
-
-				if attr.Key == "tx-else" {
-					if attr.Val != "" {
-						return fmt.Errorf("tx-else should not have any expr val (file: %s): %s", page.FilePath, attr.Val)
-					}
-					continue
-				}
-
-				if strings.HasPrefix(attr.Key, "tx-on") {
-					expr, err := parser.ParseExpr(attr.Val)
-					if err == nil {
-						switch e := expr.(type) {
-						case *ast.CallExpr:
-
-							ident, isIdent := e.Fun.(*ast.Ident)
-							if !isIdent {
-								continue
-							}
-
-							f, ok := page.Funcs[ident.Name]
-							if !ok {
-								continue
-							}
-
-							params := []string{}
-							for _, list := range f.Decl.Type.Params.List {
-								for _, ident := range list.Names {
-									params = append(params, ident.Name)
-								}
-							}
-
-							if len(params) != len(e.Args) {
-								return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToCode(e))
-							}
-
-							paramsStr := ""
-							if len(params) > 0 {
-								for i, p := range params {
-									foundVar := false
-									ast.Inspect(e.Args[i], func(n ast.Node) bool {
-										if foundVar {
-											return false
-										}
-
-										ident, ok := n.(*ast.Ident)
-										if !ok {
-											return true
-										}
-
-										if _, ok := page.Vars[ident.Name]; ok {
-											foundVar = true
-											return false
-										}
-
-										return true
-									})
-
-									if foundVar {
-										return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, e.Args[i])
-									}
-
-									arg := astToCode(e.Args[i])
-									if i == 0 {
-										paramsStr += fmt.Sprintf("?%s={{$%s}}", p, arg)
-										continue
-									}
-
-									paramsStr += fmt.Sprintf("&%s={{$%s}}", p, arg)
-								}
-							}
-
-							node.Attr[i] = html.Attribute{
-								Key: attr.Key,
-								Val: fmt.Sprintf("%s%s", page.funcId(f.Name), paramsStr),
-							}
-						}
-						continue
-					}
-
-					fName := funcNameGen.next()
-					f, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {"+attr.Val+"}", fName), 0)
-					if err != nil {
-						return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
-					}
-					decl, ok := f.Decls[0].(*ast.FuncDecl)
-					if !ok {
-						return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
-					}
-
-					modifiedDerived := []string{}
-					page.modifiedVars(decl, &modifiedDerived)
-
-					if len(modifiedDerived) > 0 {
-						return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
-					}
-
-					page.FuncNames = append(page.FuncNames, decl.Name.Name)
-					page.Funcs[decl.Name.Name] = &Func{
-						Name: decl.Name.Name,
-						Decl: decl,
-					}
-					node.Attr[i] = html.Attribute{
-						Key: attr.Key,
-						Val: page.funcId(decl.Name.Name),
-					}
-					continue
-				}
-
-				res, err := page.parseTmpl(attr.Val, fieldIdGen)
-				if err != nil {
-					return err
-				}
-
-				node.Attr[i] = html.Attribute{
-					Key: attr.Key,
-					Val: string(res),
-				}
-			}
-		}
-	}
-
-	return nil
-}
+`
 
 // The first identifier appearing on the LHS of an assignment statement or in an inc/dec statement is a modified variable.
 func (page *Page) modifiedVars(node ast.Node, md *[]string) {
@@ -637,284 +820,67 @@ func (page *Page) modifiedVars(node ast.Node, md *[]string) {
 	})
 }
 
-func (page *Page) parseTmpl(str string, idGen *IdGen) ([]byte, error) {
-	braceStack := 0
-	isInDoubleQuote := false
-	isInSingleQuote := false
-	isInBackQuote := false
-	skipNext := false
-
-	expr := []byte{}
-	res := []byte{}
-	for _, r := range str {
-		if skipNext {
-			expr = append(expr, byte(r))
-			skipNext = false
-			continue
-		}
-
-		switch r {
-		case '{':
-			if braceStack == 0 {
-				braceStack++
-			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
-				expr = append(expr, byte(r))
-			} else {
-				braceStack++
-				expr = append(expr, byte(r))
-			}
-		case '}':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
-				expr = append(expr, byte(r))
-			} else if braceStack == 1 {
-				braceStack--
-				trimmedCurrExpr := bytes.TrimSpace(expr)
-				if len(trimmedCurrExpr) == 0 {
-					continue
-				}
-
-				if expr, found := page.FieldExprs[string(trimmedCurrExpr)]; found {
-					res = append(res, []byte(fmt.Sprintf("{{.%s}}", expr.FieldId))...)
-					continue
-				}
-
-				fieldId := idGen.next()
-				exprAst, err := parser.ParseExpr(string(trimmedCurrExpr))
-				if err != nil {
-					return nil, fmt.Errorf("parse expression error (file: %s): %s: %w", page.FilePath, string(trimmedCurrExpr), err)
-				}
-				page.FieldExprs[string(trimmedCurrExpr)] = Expr{
-					Ast:     exprAst,
-					FieldId: fieldId,
-				}
-				res = append(res, []byte(fmt.Sprintf("{{.%s}}", fieldId))...)
-				expr = []byte{}
-			} else {
-				braceStack--
-				expr = append(expr, byte(r))
-			}
-		case '"':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInSingleQuote || isInBackQuote {
-				expr = append(expr, byte(r))
-			} else {
-				isInDoubleQuote = !isInDoubleQuote
-				expr = append(expr, byte(r))
-			}
-		case '\'':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInBackQuote {
-				expr = append(expr, byte(r))
-			} else {
-				isInSingleQuote = !isInSingleQuote
-				expr = append(expr, byte(r))
-			}
-		case '`':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInSingleQuote {
-				expr = append(expr, byte(r))
-			} else {
-				isInBackQuote = !isInBackQuote
-				expr = append(expr, byte(r))
-			}
-		case '\\':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInSingleQuote {
-				skipNext = true
-				expr = append(expr, byte(r))
-			} else {
-				expr = append(expr, byte(r))
-			}
-		default:
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else {
-				expr = append(expr, byte(r))
-			}
-		}
-
-	}
-
-	if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-		return nil, fmt.Errorf("unclosed quote in expression (file: %s): %s", page.FilePath, str)
-	}
-	if braceStack != 0 {
-		return nil, fmt.Errorf("unclosed brace in expression (file: %s): %s", page.FilePath, str)
-	}
-
-	return res, nil
-}
-
-func (page *Page) render(w io.StringWriter, node *html.Node) error {
-	switch node.Type {
-	case html.TextNode:
-		if _, err := w.WriteString(html.EscapeString(node.Data)); err != nil {
-			return err
-		}
-
-	case html.ElementNode:
-		if _, err := w.WriteString("<"); err != nil {
-			return err
-		}
-		if _, err := w.WriteString(node.Data); err != nil {
-			return err
-		}
-
-		for _, attr := range node.Attr {
-			if _, err := w.WriteString(" "); err != nil {
-				return err
-			}
-			if attr.Namespace != "" {
-				if _, err := w.WriteString(node.Namespace); err != nil {
-					return err
-				}
-				if _, err := w.WriteString(":"); err != nil {
-					return err
-				}
-			}
-			if _, err := w.WriteString(attr.Key); err != nil {
-				return err
-			}
-			if _, err := w.WriteString(`="`); err != nil {
-				return err
-			}
-			if _, err := w.WriteString(html.EscapeString(attr.Val)); err != nil {
-				return err
-			}
-			if _, err := w.WriteString(`"`); err != nil {
-				return err
-			}
-		}
-
-		// https://html.spec.whatwg.org/#void-elements
-		if isVoidElement(node.Data) {
-			if node.FirstChild != nil {
-				return errors.New("invalid void elements: " + node.Data)
-			}
-			if _, err := w.WriteString("/>"); err != nil {
-				return err
-			}
-			return nil
-		}
-
-		if _, err := w.WriteString(">"); err != nil {
-			return err
-		}
-
-		// https://html.spec.whatwg.org/multipage/parsing.html
-		if c := node.FirstChild; c != nil && c.Type == html.TextNode && strings.HasPrefix(c.Data, "\n") {
-			switch node.Data {
-			case "pre", "listing", "textarea":
-				if _, err := w.WriteString("\n"); err != nil {
-					return err
-				}
-			}
-		}
-
-		// 0 -> 1 (if) -> 2(else-if) -> 3(else) -> 0
-		prevCondState := CondStateDefault
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			// check if {{end}} needed
-			if c.Type == html.ElementNode {
-				currCondState, field := condState(c)
-				switch prevCondState {
-				case CondStateDefault:
-					if currCondState == CondStateElseIf || currCondState == CondStateElse {
-						return fmt.Errorf("detect tx-else-if or tx-else right after non-cond node (file: %s): %s", page.FilePath, c.Data)
-					}
-				case CondStateIf:
-					if currCondState <= prevCondState {
-						if _, err := w.WriteString("{{ end }}\n"); err != nil {
-							return err
-						}
-					}
-				case CondStateElseIf:
-					if currCondState < prevCondState {
-						if _, err := w.WriteString("{{ end }}\n"); err != nil {
-							return err
-						}
-					}
-				case CondStateElse:
-					if currCondState == CondStateElseIf || currCondState == CondStateElse {
-						return fmt.Errorf("detect tx-else-if or tx-else right after tx-else (file: %s): %s", page.FilePath, c.Data)
-					}
-
-					if _, err := w.WriteString("{{ end }}\n"); err != nil {
-						return err
-					}
-				}
-
-				switch currCondState {
-				case CondStateDefault:
-				case CondStateIf:
-					if _, err := w.WriteString("{{if " + field + "}}\n"); err != nil {
-						return err
-					}
-				case CondStateElseIf:
-					if _, err := w.WriteString("{{else if " + field + "}}\n"); err != nil {
-						return err
-					}
-				case CondStateElse:
-					if _, err := w.WriteString("{{else}}\n"); err != nil {
-						return err
-					}
-				}
-
-				prevCondState = currCondState
-			}
-			if c.NextSibling == nil && (prevCondState == CondStateIf || prevCondState == CondStateElseIf || prevCondState == CondStateElse) {
-				if _, err := w.WriteString("{{ end }}\n"); err != nil {
-					return err
-				}
-			}
-
-			// https://html.spec.whatwg.org/#parsing-html-fragments
-			if isChildNodeRawText(node.Data) {
-				if c.Type != html.TextNode {
-					continue
-				}
-
-				if _, err := w.WriteString(c.Data); err != nil {
-					return err
-				}
-			} else {
-				if err := page.render(w, c); err != nil {
-					return err
-				}
-			}
-		}
-
-		if _, err := w.WriteString("</"); err != nil {
-			return err
-		}
-		if _, err := w.WriteString(node.Data); err != nil {
-			return err
-		}
-		if _, err := w.WriteString(">"); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return nil
-}
-
-type CondStateType int
+type TmplType int
 
 const (
-	CondStateDefault CondStateType = iota
+	TmplTypeStrLit TmplType = iota + 1
+	TmplTypeGo
+	TmplTypeExpr
+)
+
+type PageTmpl struct {
+	Type    TmplType
+	Content []byte
+}
+
+func (page *Page) writeTmpl(t TmplType, content string) {
+	if page.CurrTmplType != t {
+		if len(page.CurrTmplContent) != 0 {
+			page.Tmpls = append(page.Tmpls, PageTmpl{
+				Type:    page.CurrTmplType,
+				Content: page.CurrTmplContent,
+			})
+		}
+		page.CurrTmplType = t
+		page.CurrTmplContent = []byte{}
+	}
+
+	page.CurrTmplContent = append(page.CurrTmplContent, content...)
+}
+
+func (page *Page) writeStrLit(content string) {
+	page.writeTmpl(TmplTypeStrLit, content)
+}
+
+func (page *Page) writeGo(content string) {
+	page.writeTmpl(TmplTypeGo, content)
+}
+
+func (page *Page) writeExpr(content string) {
+	page.writeTmpl(TmplTypeExpr, content)
+}
+
+func (page *Page) doneParsingTmpl() {
+	if len(page.CurrTmplContent) == 0 {
+		return
+	}
+
+	page.Tmpls = append(page.Tmpls, PageTmpl{
+		Type:    page.CurrTmplType,
+		Content: page.CurrTmplContent,
+	})
+}
+
+type CondState int
+
+const (
+	CondStateDefault CondState = iota
 	CondStateIf
 	CondStateElseIf
 	CondStateElse
 )
 
-func condState(n *html.Node) (CondStateType, string) {
+func condState(n *html.Node) (CondState, string) {
 	for _, attr := range n.Attr {
 		if attr.Key == "tx-if" {
 			return CondStateIf, attr.Val
@@ -929,6 +895,16 @@ func condState(n *html.Node) (CondStateType, string) {
 		}
 	}
 	return CondStateDefault, ""
+}
+
+func hasForAttr(n *html.Node) (string, bool) {
+	for _, attr := range n.Attr {
+		if attr.Key == "tx-for" {
+			return attr.Val, true
+		}
+	}
+
+	return "", false
 }
 
 func (page *Page) urlPath() string {
@@ -947,11 +923,10 @@ func (page *Page) urlPath() string {
 }
 
 type HandlerFields struct {
-	Url      string
-	Code     string
-	State    string
-	Fields   string
-	TmplName string
+	Url    string
+	Code   string
+	State  string
+	Render string
 }
 
 func (page *Page) pageHandlerFields() HandlerFields {
@@ -971,27 +946,29 @@ func (page *Page) pageHandlerFields() HandlerFields {
 			Specs: []ast.Spec{spec},
 		}
 
-		code.WriteString(astToCode(decl) + "\n")
+		code.WriteString(astToSource(decl) + "\n")
 	}
 	if f, ok := page.Funcs["init"]; ok {
 		for _, stmt := range f.Decl.Body.List {
-			code.WriteString(astToCode(stmt) + "\n")
+			code.WriteString(astToSource(stmt) + "\n")
 		}
 	}
 	page.writeDerivedAst(&code)
 
-	var fields strings.Builder
-	page.writeFieldsAst(&fields)
-
 	var state strings.Builder
 	page.writeStateFieldsAst(&state)
 
+	params := []string{}
+	for _, v := range page.VarNames {
+		params = append(params, v)
+	}
+	render := fmt.Sprintf("render_%s(w, state, %s)\n", page.pageId(), strings.Join(params, ", "))
+
 	return HandlerFields{
-		Url:      page.urlPath(),
-		Code:     code.String(),
-		State:    state.String(),
-		TmplName: page.urlPath(),
-		Fields:   fields.String(),
+		Url:    page.urlPath(),
+		Code:   code.String(),
+		State:  state.String(),
+		Render: render,
 	}
 }
 
@@ -1041,18 +1018,20 @@ func (page *Page) funcHandlerFields() []HandlerFields {
 
 		code.WriteString(codeDerived.String())
 
-		var fields strings.Builder
-		page.writeFieldsAst(&fields)
-
 		var state strings.Builder
 		page.writeStateFieldsAst(&state)
 
+		params := []string{}
+		for _, varName := range page.VarNames {
+			params = append(params, varName)
+		}
+		render := fmt.Sprintf("render_%s(w, state, %s)\n", page.pageId(), strings.Join(params, ", "))
+
 		handlers = append(handlers, HandlerFields{
-			Url:      "/tx/" + page.funcId(funcName),
-			Code:     code.String(),
-			State:    state.String(),
-			Fields:   fields.String(),
-			TmplName: page.urlPath(),
+			Url:    "/tx/" + page.funcId(funcName),
+			Code:   code.String(),
+			State:  state.String(),
+			Render: render,
 		})
 	}
 
@@ -1075,30 +1054,7 @@ func (page *Page) writeStateFieldsAst(sb *strings.Builder) {
 		})
 	}
 
-	sb.WriteString(astToCode(stateAst))
-}
-
-func (page *Page) writeFieldsAst(sb *strings.Builder) {
-	fieldsAst := &ast.CompositeLit{
-		Type: &ast.MapType{
-			Key:   &ast.Ident{Name: "string"},
-			Value: &ast.Ident{Name: "any"},
-		},
-	}
-
-	for _, expr := range page.FieldExprs {
-		fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
-			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + expr.FieldId + `"`},
-			Value: expr.Ast,
-		})
-	}
-
-	fieldsAst.Elts = append(fieldsAst.Elts, &ast.KeyValueExpr{
-		Key:   &ast.BasicLit{Kind: token.STRING, Value: `"state"`},
-		Value: &ast.Ident{Name: "state"},
-	})
-
-	sb.WriteString(astToCode(fieldsAst))
+	sb.WriteString(astToSource(stateAst))
 }
 
 func (page *Page) writeDerivedAst(sb *strings.Builder) {
@@ -1119,19 +1075,23 @@ func (page *Page) writeDerivedAst(sb *strings.Builder) {
 	}
 }
 
-func (page *Page) funcId(funcName string) string {
+func (page *Page) pageId() string {
 	p, _ := strings.CutSuffix(page.RelPath, filepath.Ext(page.RelPath))
-	p = strings.ReplaceAll(p, "/", "-")
-	p = strings.ReplaceAll(p, "{", "")
-	p = strings.ReplaceAll(p, "}", "")
-	p += "-" + funcName
+	p = strings.ReplaceAll(p, "/", "_")
+	p = strings.ReplaceAll(p, "-", "_d_")
+	p = strings.ReplaceAll(p, "{", "_lb_")
+	p = strings.ReplaceAll(p, "}", "_rb_")
 	return p
+}
+
+func (page *Page) funcId(funcName string) string {
+	return page.pageId() + "_" + funcName
 }
 
 type VarType int
 
 const (
-	VarTypeState = iota
+	VarTypeState = iota + 1
 	VarTypeDerived
 )
 
@@ -1178,26 +1138,10 @@ func cleanUpTmplxScript(node *html.Node) {
 	}
 }
 
-func astToCode(a ast.Node) string {
+func astToSource(a ast.Node) string {
 	var buf strings.Builder
 	printer.Fprint(&buf, token.NewFileSet(), a)
 	return buf.String()
-}
-
-type IdGen struct {
-	Curr   int
-	Prefix string
-}
-
-func (id *IdGen) next() string {
-	id.Curr++
-	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
-}
-
-func newIdGen(prefix string) *IdGen {
-	return &IdGen{
-		Prefix: prefix,
-	}
 }
 
 // https://html.spec.whatwg.org/#void-elements
@@ -1233,40 +1177,18 @@ func isVoidElement(name string) bool {
 	return false
 }
 
-// https://html.spec.whatwg.org/#parsing-html-fragments
-func isChildNodeRawText(name string) bool {
-	switch name {
-	case "title":
-		return true
-	case "textarea":
-		return true
-	case "style":
-		return true
-	case "xmp":
-		return true
-	case "iframe":
-		return true
-	case "noembed":
-		return true
-	case "noframes":
-		return true
-	case "script":
-		return true
-	case "noscript":
-		return true
-	}
-
-	return false
+type IdGen struct {
+	Curr   int
+	Prefix string
 }
 
-func createFile(path string) (*os.File, error) {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, err
+func (id *IdGen) next() string {
+	id.Curr++
+	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
+}
+
+func newIdGen(prefix string) *IdGen {
+	return &IdGen{
+		Prefix: prefix,
 	}
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return nil, err
-	}
-	return file, nil
 }
