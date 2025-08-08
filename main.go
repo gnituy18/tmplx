@@ -221,26 +221,28 @@ func (page *Page) parse() error {
 	}
 	cleanUpTmplxScript(page.DocumentNode)
 
-	for node := range page.DocumentNode.Descendants() {
-		if node.DataAtom == atom.Head {
-			node.AppendChild(&html.Node{
-				Type:     html.ElementNode,
-				DataAtom: atom.Script,
-				Data:     "script",
-				Attr: []html.Attribute{
-					{Key: "id", Val: "tx-runtime"},
-				},
-			})
-			node.AppendChild(&html.Node{
-				Type:     html.ElementNode,
-				DataAtom: atom.Script,
-				Data:     "script",
-				Attr: []html.Attribute{
-					{Key: "type", Val: "application/json"},
-					{Key: "id", Val: "tx-state"},
-				},
-			})
-			break
+	if page.ScriptNode != nil {
+		for node := range page.DocumentNode.Descendants() {
+			if node.DataAtom == atom.Head {
+				node.AppendChild(&html.Node{
+					Type:     html.ElementNode,
+					DataAtom: atom.Script,
+					Data:     "script",
+					Attr: []html.Attribute{
+						{Key: "id", Val: "tx-runtime"},
+					},
+				})
+				node.AppendChild(&html.Node{
+					Type:     html.ElementNode,
+					DataAtom: atom.Script,
+					Data:     "script",
+					Attr: []html.Attribute{
+						{Key: "type", Val: "application/json"},
+						{Key: "id", Val: "tx-state"},
+					},
+				})
+				break
+			}
 		}
 	}
 
@@ -529,6 +531,10 @@ func (page *Page) modifiedVars(node ast.Node, md *[]string) {
 
 func (page *Page) parseTmpl(node *html.Node) error {
 	switch node.Type {
+	case html.CommentNode:
+		page.writeStrLit("<!--")
+		page.writeStrLit(html.EscapeString(node.Data))
+		page.writeStrLit("-->")
 	case html.DocumentNode:
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
 			page.parseTmpl(c)
