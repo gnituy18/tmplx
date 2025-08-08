@@ -402,21 +402,17 @@ func (page *Page) parseTmpl(node *html.Node) error {
 		page.writeStrLit(node.Data)
 		page.writeStrLit(">")
 	case html.TextNode:
+		fmt.Println(node.Data)
 		if isChildNodeRawText(node.Parent.Data) {
 			// Disable template in script and style
 			if node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
 				page.writeStrLit(node.Data)
 				return nil
 			}
-
-			if err := page.parseTmplStr(node.Data, false); err != nil {
-				return err
-			}
+			return page.parseTmplStr(node.Data, false)
 		}
 
-		if err := page.parseTmplStr(node.Data, true); err != nil {
-			return err
-		}
+		return page.parseTmplStr(node.Data, true)
 	case html.ElementNode:
 		page.writeStrLit("<")
 		page.writeStrLit(node.Data)
