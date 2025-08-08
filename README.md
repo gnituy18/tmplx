@@ -1,12 +1,10 @@
 # tmplx
 
-tmplx is a compiler that transforms hybrid HTML/Go templates into a fully dynamic hypermedia web application.
+tmplx is a compile-time framework for building state-driven web apps.
+
+Embed Go code in HTML to define states and event handlers, which compiles into Go handlers that update state, rerender specific UI sections, and return HTML snippets. This embraces hypermedia by having the server drive UI updates via direct HTML responses.
+
 Check out [Example Project](https://github.com/gnituy18/tmplx/tree/main/example_project) to see what it can do.
-
-tmplx tries to bring state-driven UI development to the hypermedia world.
-Paired with Go, my language of choice, it offers a seamless experience for building web apps.
-
-HTMX is a powerful tool that enhances the current state of HTML. However, it lacks a robust framework for our minds to manage the complexity of larger web apps.
 
 > [!WARNING]
 > The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
@@ -36,10 +34,15 @@ touch pages/index.tmplx # or index.html
 Edit `pages/index.tmplx`
 ```html
 <script type="text/tmplx">
-  var title string = "My project"
-  var h1Text string = "Hello, Tmplx!"
-  var counter int = 0
+  // name is declared as a state
+  var name string = "tmplx"
+  // greeting is declared as a derived
+  var greeting string = fmt.Sprintf("Hello ,%s!", name)
 
+  var counter int = 0
+  var counterTimes10 int = counter * 10
+
+  // addOne event handler
   func addOne() {
     counter++
   }
@@ -47,13 +50,23 @@ Edit `pages/index.tmplx`
 
 <html>
 <head>
-  <title> { title } </title>
+  <title> { name } </title>
 </head>
-
 <body>
-  <h1> { h1Text } </h1>
-  <p>counter: { counter}</p>
+  <h1> { greeting } </h1>
+
+  <p>counter: { counter }</p>
+  <p>counter * 10 = { counterTimes10 }</p>
+
   <button tx-onclick="addOne()">Add 1</button>
+  <button tx-onclick="counter--">Subtract 1</button>
+
+  <p tx-if="counter % 2 == 0"> counter is even </p>
+  <p tx-else> counter is odd </p>
+
+  <p tx-for="i := 0; i < 10; i++"> { i } </p>
+
+  <a href="/second-page">second page</a>
 </body>
 </html>
 ```
