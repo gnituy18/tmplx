@@ -1,36 +1,39 @@
 <script type="text/tmplx">
-  var title string = "Tmplx"
-  var h1 string = "Hello, Tmplx!"
+  // name is declared as a state
+  var name string = "tmplx"
+  // greeting is declared as a derived
+  var greeting string = fmt.Sprintf("Hello ,%s!", name)
 
   var counter int = 0
-  var counterTimes10 int = counter*10
 
+  // addOne event handler
   func addOne() {
     counter++
-  }
-
-  func subOne() {
-    counter--
   }
 </script>
 
 <html>
 
 <head>
-  <title> { title } </title>
+  <title> { name } </title>
 </head>
 
 <body>
-  <h1> { h1 } </h1>
+  <h1> { greeting } </h1>
 
-  <p>counter: { counter}</p>
-
-  <button tx-onclick="addOne()">Add 1</button>
-  <button tx-onclick="subOne()">Subtract 1</button>
-
+  <p>counter: { counter }</p>
   <p>counter * 10 = { counterTimes10 }</p>
 
+  <button tx-onclick="addOne()">Add 1</button>
+  <button tx-onclick="counter--">Subtract 1</button>
+
+  <p tx-if="i % 2 == 0"> counter is even </p>
+  <p tx-else> counter is odd </p>
+
+  <p tx-for="i := 0; i < 10; i++"> { i } </p>
+
   <a href="/second-page">second page</a>
+
 </body>
 
 </html>

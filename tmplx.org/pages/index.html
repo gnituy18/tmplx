@@ -22,7 +22,7 @@
     main {
       margin-left: auto;
       margin-right: auto;
-      width: 32rem;
+      width: 40rem;
     }
 
     h1 {
@@ -47,9 +47,49 @@
       Embed Go code in HTML to define states and
       event handlers, which compiles into Go handlers that update state, rerender specific UI sections, and return HTML
       snippets. This embraces hypermedia by having the server drive UI updates via direct HTML responses.</p>
-    <pre><code class="language-html">
+    <pre>
+      <code tx-ignore class="language-html">
+&lt;script type=&quot;text/tmplx&quot;&gt;
+  // name is declared as a state
+  var name string = &quot;tmplx&quot;
+  // greeting is declared as a derived
+  var greeting string = fmt.Sprintf(&quot;Hello ,%s!&quot;, name)
 
-      </code></pre>
+  var counter int = 0
+
+  // addOne event handler
+  func addOne() {
+    counter++
+  }
+&lt;/script&gt;
+
+&lt;html&gt;
+
+&lt;head&gt;
+  &lt;title&gt; { name } &lt;/title&gt;
+&lt;/head&gt;
+
+&lt;body&gt;
+  &lt;h1&gt; { greeting } &lt;/h1&gt;
+
+  &lt;p&gt;counter: { counter }&lt;/p&gt;
+  &lt;p&gt;counter * 10 = { counterTimes10 }&lt;/p&gt;
+
+  &lt;button tx-onclick=&quot;addOne()&quot;&gt;Add 1&lt;/button&gt;
+  &lt;button tx-onclick=&quot;counter--&quot;&gt;Subtract 1&lt;/button&gt;
+
+  &lt;p tx-if=&quot;i % 2 == 0&quot;&gt; counter is even &lt;/p&gt;
+  &lt;p tx-else&gt; counter is odd &lt;/p&gt;
+
+  &lt;p tx-for=&quot;i := 0; i &lt; 10; i++&quot;&gt; { i } &lt;/p&gt;
+
+  &lt;a href=&quot;/second-page&quot;&gt;second page&lt;/a&gt;
+
+&lt;/body&gt;
+
+&lt;/html&gt;
+      </code>
+    </pre>
   </main>
 </body>
 
