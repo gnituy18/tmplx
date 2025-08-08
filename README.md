@@ -1,37 +1,31 @@
 # tmplx
 
-tmplx is a compile-time framework for building state-driven web apps.
-
-Embed Go code in HTML to define states and event handlers, which compiles into Go handlers that update state, rerender specific UI sections, and return HTML snippets. This embraces hypermedia by having the server drive UI updates via direct HTML responses.
-
-Check out [Example Project](https://github.com/gnituy18/tmplx/tree/main/example_project) to see what it can do.
+tmplx is a compile-time framework using Go for building state-driven web apps. Embed Go code in HTML to define states and event handlers. Compiles into Go handlers that update state, rerender UI sections, and return HTML snippets.
 
 > [!WARNING]
 > The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
 
 ## Installing
-Right now, you have to compile the compiler yourself.
-
 ```sh
-git clone https://github.com/gnituy18/tmplx.git
-cd tmplx
-go build
-```
-After compiling tmplx, move the executable to a directory in your PATH (e.g., /usr/local/bin).
-```sh
-mv tmplx /usr/local/bin
+go install github.com/gnituy18/tmplx@latest
 ```
 
 ## Quick Start
-Create a new project
+### 1. Set up a new project directory
 ```sh
-mkdir my_project
-cd my_project
-
+mkdir proj && cd proj
 mkdir pages
-touch pages/index.tmplx # or index.html
+touch pages/index.html
+touch main.go
+go mod init proj
 ```
-Edit `pages/index.tmplx`
+> [!NOTE]  
+> The `pages` directory defines the app's routes based on file structure.
+> 
+> 1. `pages/index.tmplx` → URL: `/`
+> 1. `pages/this/is/a/path.html` → URL: `/this/is/a/path`
+
+### 2. Edit `pages/index.tmplx`
 ```html
 <script type="text/tmplx">
   // name is declared as a state
@@ -41,11 +35,6 @@ Edit `pages/index.tmplx`
 
   var counter int = 0
   var counterTimes10 int = counter * 10
-
-  // addOne event handler
-  func addOne() {
-    counter++
-  }
 </script>
 
 <html>
@@ -58,25 +47,12 @@ Edit `pages/index.tmplx`
   <p>counter: { counter }</p>
   <p>counter * 10 = { counterTimes10 }</p>
 
-  <button tx-onclick="addOne()">Add 1</button>
-  <button tx-onclick="counter--">Subtract 1</button>
-
-  <p tx-if="counter % 2 == 0"> counter is even </p>
-  <p tx-else> counter is odd </p>
-
-  <p tx-for="i := 0; i < 10; i++"> { i } </p>
-
-  <a href="/second-page">second page</a>
+  <button tx-onclick="counter++">Add 1</button>
 </body>
 </html>
 ```
-compile
-```sh
-# Run from my_project directory
-tmplx
-```
-you will then see a new file generated: `tmplx/handler.go`.
-To run the app, create a `main.go`
+
+### 3. Edit `main.go`
 ```go
 package main
 
@@ -84,7 +60,7 @@ import (
 	"log"
 	"net/http"
 
-	"my_project/tmplx"
+	"proj/tmplx"
 )
 
 func main() {
@@ -95,11 +71,13 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```
-You can run your server code and go to http://localhost:8080/.
-Now, you have a hypermedia app.
+
+### 4. Compile and Run the App
+```sh
+# From the proj directory
+tmplx && go run .
 ```
-go run .
-```
+Visit http://localhost:8080/ to see your web app in action
 
 ## Features
 ### Go Expression
