@@ -391,6 +391,142 @@ func (page *Page) parse() error {
 	return nil
 }
 
+type VarType int
+
+const (
+	VarTypeState = iota + 1
+	VarTypeDerived
+)
+
+type Var struct {
+	Name     string
+	Type     VarType
+	TypeExpr ast.Expr
+	InitExpr ast.Expr
+}
+
+type Func struct {
+	Name string
+	Decl *ast.FuncDecl
+}
+
+var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
+  const state = JSON.parse(this.getElementById("tx-state").innerHTML)
+  const addHandler = (node) => {
+    const walker = document.createTreeWalker(
+      node,
+      NodeFilter.SHOW_ELEMENT,
+      (n) => {
+        for (let attr of n.attributes) {
+          if (attr.name.startsWith('tx-on')) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+        return NodeFilter.FILTER_SKIP
+      }
+    );
+    while (walker.nextNode()) {
+      const cn = walker.currentNode;
+      for (let attr of cn.attributes) {
+        if (attr.name.startsWith('tx-on')) {
+          const eName = attr.name.slice(5);
+          cn.addEventListener(eName, async () => {
+            const states = {}
+
+            for (let key in state) {
+              states[key] = JSON.stringify(state[key])
+            }
+            const res = await fetch("/tx/" + attr.value + "?" + new URLSearchParams(states).toString())
+            res.text().then(html => {
+              document.open()
+              document.write(html)
+              document.close()
+            })
+          })
+        }
+      }
+    }
+  }
+
+  new MutationObserver((records) => {
+    records.forEach((record) => {
+      if (record.type !== 'childList') return
+      records.addedNodes()
+    })
+  }).observe(document.documentElement, { childList: true, subList: true })
+  addHandler(document.documentElement)
+});
+`
+
+// The first identifier appearing on the LHS of an assignment statement or in an inc/dec statement is a modified variable.
+func (page *Page) modifiedVars(node ast.Node, md *[]string) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch stmt := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range stmt.Lhs {
+				found := false
+				ast.Inspect(lhs, func(n ast.Node) bool {
+					if found {
+						return false
+					}
+
+					ident, ok := n.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					found = true
+
+					v, ok := page.Vars[ident.Name]
+					if !ok {
+						return false
+					}
+
+					if v.Type != VarTypeDerived {
+						return false
+					}
+
+					(*md) = append((*md), v.Name)
+					return false
+				})
+			}
+
+			for _, rhs := range stmt.Rhs {
+				page.modifiedVars(rhs, md)
+			}
+
+			return false
+		case *ast.IncDecStmt:
+			found := false
+			ast.Inspect(stmt.X, func(n ast.Node) bool {
+				if found {
+					return false
+				}
+
+				ident, ok := n.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				found = true
+
+				v, ok := page.Vars[ident.Name]
+				if !ok {
+					return false
+				}
+
+				if v.Type != VarTypeDerived {
+					return false
+				}
+
+				(*md) = append((*md), v.Name)
+				return false
+			})
+			return false
+		}
+
+		return true
+	})
+}
+
 func (page *Page) parseTmpl(node *html.Node) error {
 	switch node.Type {
 	case html.DocumentNode:
@@ -402,14 +538,18 @@ func (page *Page) parseTmpl(node *html.Node) error {
 		page.writeStrLit(node.Data)
 		page.writeStrLit(">")
 	case html.TextNode:
-		fmt.Println(node.Data)
 		if isChildNodeRawText(node.Parent.Data) {
 			// Disable template in script and style
-			if node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
+			if hasTxIgnoreAttr(node.Parent) || node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
 				page.writeStrLit(node.Data)
 				return nil
 			}
 			return page.parseTmplStr(node.Data, false)
+		}
+
+		if hasTxIgnoreAttr(node.Parent) {
+			page.writeStrLit(html.EscapeString(node.Data))
+			return nil
 		}
 
 		return page.parseTmplStr(node.Data, true)
@@ -738,123 +878,6 @@ func (page *Page) parseTmplStr(str string, escape bool) error {
 	return nil
 }
 
-var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
-  const state = JSON.parse(this.getElementById("tx-state").innerHTML)
-  const addHandler = (node) => {
-    const walker = document.createTreeWalker(
-      node,
-      NodeFilter.SHOW_ELEMENT,
-      (n) => {
-        for (let attr of n.attributes) {
-          if (attr.name.startsWith('tx-on')) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-        return NodeFilter.FILTER_SKIP
-      }
-    );
-    while (walker.nextNode()) {
-      const cn = walker.currentNode;
-      for (let attr of cn.attributes) {
-        if (attr.name.startsWith('tx-on')) {
-          const eName = attr.name.slice(5);
-          cn.addEventListener(eName, async () => {
-            const states = {}
-
-            for (let key in state) {
-              states[key] = JSON.stringify(state[key])
-            }
-            const res = await fetch("/tx/" + attr.value + "?" + new URLSearchParams(states).toString())
-            res.text().then(html => {
-              document.open()
-              document.write(html)
-              document.close()
-            })
-          })
-        }
-      }
-    }
-  }
-
-  new MutationObserver((records) => {
-    records.forEach((record) => {
-      if (record.type !== 'childList') return
-      records.addedNodes()
-    })
-  }).observe(document.documentElement, { childList: true, subList: true })
-  addHandler(document.documentElement)
-});
-`
-
-// The first identifier appearing on the LHS of an assignment statement or in an inc/dec statement is a modified variable.
-func (page *Page) modifiedVars(node ast.Node, md *[]string) {
-	ast.Inspect(node, func(n ast.Node) bool {
-		switch stmt := n.(type) {
-		case *ast.AssignStmt:
-			for _, lhs := range stmt.Lhs {
-				found := false
-				ast.Inspect(lhs, func(n ast.Node) bool {
-					if found {
-						return false
-					}
-
-					ident, ok := n.(*ast.Ident)
-					if !ok {
-						return true
-					}
-					found = true
-
-					v, ok := page.Vars[ident.Name]
-					if !ok {
-						return false
-					}
-
-					if v.Type != VarTypeDerived {
-						return false
-					}
-
-					(*md) = append((*md), v.Name)
-					return false
-				})
-			}
-
-			for _, rhs := range stmt.Rhs {
-				page.modifiedVars(rhs, md)
-			}
-
-			return false
-		case *ast.IncDecStmt:
-			found := false
-			ast.Inspect(stmt.X, func(n ast.Node) bool {
-				if found {
-					return false
-				}
-
-				ident, ok := n.(*ast.Ident)
-				if !ok {
-					return true
-				}
-				found = true
-
-				v, ok := page.Vars[ident.Name]
-				if !ok {
-					return false
-				}
-
-				if v.Type != VarTypeDerived {
-					return false
-				}
-
-				(*md) = append((*md), v.Name)
-				return false
-			})
-			return false
-		}
-
-		return true
-	})
-}
-
 type TmplType int
 
 const (
@@ -945,6 +968,16 @@ func hasForAttr(n *html.Node) (string, bool) {
 	}
 
 	return "", false
+}
+
+func hasTxIgnoreAttr(n *html.Node) bool {
+	for _, attr := range n.Attr {
+		if attr.Key == "tx-ignore" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (page *Page) urlPath() string {
@@ -1126,30 +1159,6 @@ func (page *Page) pageId() string {
 
 func (page *Page) funcId(funcName string) string {
 	return page.pageId() + "_" + funcName
-}
-
-type VarType int
-
-const (
-	VarTypeState = iota + 1
-	VarTypeDerived
-)
-
-type Var struct {
-	Name     string
-	Type     VarType
-	TypeExpr ast.Expr
-	InitExpr ast.Expr
-}
-
-type Func struct {
-	Name string
-	Decl *ast.FuncDecl
-}
-
-type Expr struct {
-	Ast     ast.Expr
-	FieldId string
 }
 
 func isTmplxScriptNode(node *html.Node) bool {
