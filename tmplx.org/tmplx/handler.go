@@ -62,7 +62,7 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
 
 func render_index(w io.Writer, state string) {
 	w.Write([]byte(`<!DOCTYPE html><html lang="en"><head>
-  <title>a tmplx a tmplx </title>
+  <title>a tmplx </title>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css"/>
@@ -80,7 +80,7 @@ func render_index(w io.Writer, state string) {
     main {
       margin-left: auto;
       margin-right: auto;
-      width: 32rem;
+      width: 40rem;
     }
 
     h1 {
@@ -109,9 +109,48 @@ func render_index(w io.Writer, state string) {
       Embed Go code in HTML to define states and
       event handlers, which compiles into Go handlers that update state, rerender specific UI sections, and return HTML
       snippets. This embraces hypermedia by having the server drive UI updates via direct HTML responses.</p>
-    <pre><code class="language-html">
+    <pre>      <code tx-ignore="" class="language-html">
+&lt;script type=&#34;text/tmplx&#34;&gt;
+  // name is declared as a state
+  var name string = &#34;tmplx&#34;
+  // greeting is declared as a derived
+  var greeting string = fmt.Sprintf(&#34;Hello ,%s!&#34;, name)
 
-      </code></pre>
+  var counter int = 0
+
+  // addOne event handler
+  func addOne() {
+    counter++
+  }
+&lt;/script&gt;
+
+&lt;html&gt;
+
+&lt;head&gt;
+  &lt;title&gt; { name } &lt;/title&gt;
+&lt;/head&gt;
+
+&lt;body&gt;
+  &lt;h1&gt; { greeting } &lt;/h1&gt;
+
+  &lt;p&gt;counter: { counter }&lt;/p&gt;
+  &lt;p&gt;counter * 10 = { counterTimes10 }&lt;/p&gt;
+
+  &lt;button tx-onclick=&#34;addOne()&#34;&gt;Add 1&lt;/button&gt;
+  &lt;button tx-onclick=&#34;counter--&#34;&gt;Subtract 1&lt;/button&gt;
+
+  &lt;p tx-if=&#34;i % 2 == 0&#34;&gt; counter is even &lt;/p&gt;
+  &lt;p tx-else&gt; counter is odd &lt;/p&gt;
+
+  &lt;p tx-for=&#34;i := 0; i &lt; 10; i++&#34;&gt; { i } &lt;/p&gt;
+
+  &lt;a href=&#34;/second-page&#34;&gt;second page&lt;/a&gt;
+
+&lt;/body&gt;
+
+&lt;/html&gt;
+      </code>
+    </pre>
   </main>
 
 
