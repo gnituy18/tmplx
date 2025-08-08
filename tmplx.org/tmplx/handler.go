@@ -61,18 +61,60 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
 `
 
 func render_index(w io.Writer, state string) {
-	w.Write([]byte(`<!DOCTYPE html><html><head>
+	w.Write([]byte(`<!DOCTYPE html><html lang="en"><head>
+  <title>a tmplx a tmplx </title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/themes/prism.min.css" integrity="sha256-ko4j5rn874LF8dHwW29/xabhh8YBleWfvxb8nQce4Fc=" crossorigin="anonymous"/>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/prism.min.js"></script>
+  <style>
+    body {
+      color: #16161d;
+      background: #efeff3;
+      display: flex;
+      font-size: 1rem;
+      line-height: 1.5rem;
+    }
 
+    main {
+      margin-left: auto;
+      margin-right: auto;
+      width: 32rem;
+    }
 
-  
-  <script id="tx-runtime">`))
+    h1 {
+      margin-top: 8rem;
+      font-family: Verdana;
+      font-size: 4rem;
+    }
+
+    mark {
+      background: Cornsilk;
+    }
+  </style>
+<script id="tx-runtime">`))
 	w.Write([]byte(runtimeScript))
 	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
 	w.Write([]byte(fmt.Sprint(state)))
 	w.Write([]byte(`</script></head>
-  <body>
-    <h1> gg </h1>
-  
+
+
+<body>
+  <main>
+    <h1 style="text-align:center"> &lt;tmplx&gt; </h1>
+    <p> <mark>tmplx is a compile-time framework for building state-driven web apps. </mark>
+    </p>
+    <p>
+      Embed Go code in HTML to define states and
+      event handlers, which compiles into Go handlers that update state, rerender specific UI sections, and return HTML
+      snippets. This embraces hypermedia by having the server drive UI updates via direct HTML responses.</p>
+    <pre><code class="language-html">
+
+      </code></pre>
+  </main>
+
+
 
 </body></html>`))
 }
