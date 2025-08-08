@@ -29,11 +29,13 @@ const mimeType = "text/tmplx"
 var pagesDir string
 var componentsDir string
 var output string
+var outputPackageName string
 
 func main() {
 	flag.StringVar(&pagesDir, "pages", path.Clean("pages"), "pages directory")
 	flag.StringVar(&componentsDir, "components", path.Clean("components"), "components directory")
 	flag.StringVar(&output, "output", path.Clean("./tmplx/handler.go"), "output file")
+	flag.StringVar(&outputPackageName, "package", "tmplx", "output package name")
 	flag.Parse()
 	pagesDir = path.Clean(pagesDir)
 	componentsDir = path.Clean(componentsDir)
@@ -70,7 +72,7 @@ func main() {
 	}
 
 	var out strings.Builder
-	out.WriteString("package tmplx\n")
+	out.WriteString("package " + outputPackageName + "\n")
 	out.WriteString("import(\n")
 
 	for _, page := range pages {
