@@ -52,8 +52,8 @@ func main() {
 		}
 
 		_, filename := filepath.Split(path)
-		if ext := filepath.Ext(filename); ext != ".tmplx" && ext != ".html" {
-			log.Printf("skip file without .tmplx or .html: %s\n", path)
+		if ext := filepath.Ext(filename); ext != ".html" {
+			log.Printf("skipping non-HTML file: %s\n", path)
 			return nil
 		}
 
