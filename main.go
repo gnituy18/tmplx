@@ -168,7 +168,7 @@ func printSourceWithLineNum(data []byte) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	lineNum := 1
 	for scanner.Scan() {
-		fmt.Printf("%d: %s\n", lineNum, scanner.Text())
+		log.Printf("%d: %s\n", lineNum, scanner.Text())
 		lineNum++
 	}
 }
@@ -560,130 +560,132 @@ func (page *Page) parseTmpl(node *html.Node) error {
 
 		return page.parseTmplStr(node.Data, true)
 	case html.ElementNode:
-		page.writeStrLit("<")
-		page.writeStrLit(node.Data)
-
 		isTxRuntimeScript := false
 		isTxState := false
-		for _, attr := range node.Attr {
-			if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
-				continue
-			}
-			if attr.Key == "id" && attr.Val == "tx-state" {
-				isTxState = true
-			}
+		if node.DataAtom != atom.Template {
+			page.writeStrLit("<")
+			page.writeStrLit(node.Data)
 
-			if attr.Key == "id" && attr.Val == "tx-runtime" {
-				isTxRuntimeScript = true
-			}
+			for _, attr := range node.Attr {
+				if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
+					continue
+				}
+				if attr.Key == "id" && attr.Val == "tx-state" {
+					isTxState = true
+				}
 
-			page.writeStrLit(" ")
-			if attr.Namespace != "" {
-				page.writeStrLit(node.Namespace)
-				page.writeStrLit(":")
-			}
-			page.writeStrLit(attr.Key)
-			page.writeStrLit(`="`)
+				if attr.Key == "id" && attr.Val == "tx-runtime" {
+					isTxRuntimeScript = true
+				}
 
-			if strings.HasPrefix(attr.Key, "tx-on") {
-				if expr, err := parser.ParseExpr(attr.Val); err == nil {
-					if callExpr, ok := expr.(*ast.CallExpr); ok {
-						if ident, ok := callExpr.Fun.(*ast.Ident); ok {
-							if fun, ok := page.Funcs[ident.Name]; ok {
-								params := []string{}
-								for _, list := range fun.Decl.Type.Params.List {
-									for _, ident := range list.Names {
-										params = append(params, ident.Name)
-									}
-								}
+				page.writeStrLit(" ")
+				if attr.Namespace != "" {
+					page.writeStrLit(node.Namespace)
+					page.writeStrLit(":")
+				}
+				page.writeStrLit(attr.Key)
+				page.writeStrLit(`="`)
 
-								if len(params) != len(callExpr.Args) {
-									return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToSource(callExpr))
-								}
-
-								page.writeStrLit(page.funcId(fun.Name))
-								for i, param := range params {
-									foundVar := false
-									ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
-										if foundVar {
-											return false
+				if strings.HasPrefix(attr.Key, "tx-on") {
+					if expr, err := parser.ParseExpr(attr.Val); err == nil {
+						if callExpr, ok := expr.(*ast.CallExpr); ok {
+							if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+								if fun, ok := page.Funcs[ident.Name]; ok {
+									params := []string{}
+									for _, list := range fun.Decl.Type.Params.List {
+										for _, ident := range list.Names {
+											params = append(params, ident.Name)
 										}
+									}
 
-										ident, ok := n.(*ast.Ident)
-										if !ok {
+									if len(params) != len(callExpr.Args) {
+										return fmt.Errorf("params length not match (file: %s): %s", page.FilePath, astToSource(callExpr))
+									}
+
+									page.writeStrLit(page.funcId(fun.Name))
+									for i, param := range params {
+										foundVar := false
+										ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
+											if foundVar {
+												return false
+											}
+
+											ident, ok := n.(*ast.Ident)
+											if !ok {
+												return true
+											}
+
+											if _, ok := page.Vars[ident.Name]; ok {
+												foundVar = true
+												return false
+											}
+
 											return true
+										})
+
+										if foundVar {
+											return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, callExpr.Args[i])
 										}
 
-										if _, ok := page.Vars[ident.Name]; ok {
-											foundVar = true
-											return false
+										if i == 0 {
+											page.writeStrLit("?" + param + "=")
+										} else {
+											page.writeStrLit("&" + param + "=")
 										}
 
-										return true
-									})
-
-									if foundVar {
-										return fmt.Errorf("state and derived variables cannot be used as function parameters (file: %s): %s", page.FilePath, callExpr.Args[i])
+										arg := astToSource(callExpr.Args[i])
+										page.writeExpr(arg)
 									}
-
-									if i == 0 {
-										page.writeStrLit("?" + param + "=")
-									} else {
-										page.writeStrLit("&" + param + "=")
-									}
-
-									arg := astToSource(callExpr.Args[i])
-									page.writeExpr(arg)
+									page.writeStrLit(`"`)
+									continue
 								}
-								page.writeStrLit(`"`)
-								continue
 							}
 						}
 					}
+
+					funcName := page.FuncNameGen.next()
+					fileAst, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
+					if err != nil {
+						return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+					}
+
+					decl, ok := fileAst.Decls[0].(*ast.FuncDecl)
+					if !ok {
+						return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
+					}
+
+					modifiedDerived := []string{}
+					page.modifiedVars(decl, &modifiedDerived)
+
+					if len(modifiedDerived) > 0 {
+						return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
+					}
+
+					page.FuncNames = append(page.FuncNames, decl.Name.Name)
+					page.Funcs[decl.Name.Name] = &Func{
+						Name: decl.Name.Name,
+						Decl: decl,
+					}
+
+					page.writeStrLit(page.funcId(decl.Name.Name))
+				} else if err := page.parseTmplStr(attr.Val, false); err != nil {
+					return err
 				}
-
-				funcName := page.FuncNameGen.next()
-				fileAst, err := parser.ParseFile(token.NewFileSet(), page.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
-				if err != nil {
-					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
-				}
-
-				decl, ok := fileAst.Decls[0].(*ast.FuncDecl)
-				if !ok {
-					return fmt.Errorf("parse inline statement failed (file: %s): %s", page.FilePath, attr.Val)
-				}
-
-				modifiedDerived := []string{}
-				page.modifiedVars(decl, &modifiedDerived)
-
-				if len(modifiedDerived) > 0 {
-					return fmt.Errorf("derived can not be modified (file: %s): %v", page.FilePath, modifiedDerived)
-				}
-
-				page.FuncNames = append(page.FuncNames, decl.Name.Name)
-				page.Funcs[decl.Name.Name] = &Func{
-					Name: decl.Name.Name,
-					Decl: decl,
-				}
-
-				page.writeStrLit(page.funcId(decl.Name.Name))
-			} else if err := page.parseTmplStr(attr.Val, false); err != nil {
-				return err
-			}
-			page.writeStrLit(`"`)
-		}
-
-		// https://html.spec.whatwg.org/#void-elements
-		if isVoidElement(node.Data) {
-			if node.FirstChild != nil {
-				return errors.New("invalid void elements: " + node.Data)
+				page.writeStrLit(`"`)
 			}
 
-			page.writeStrLit("/>")
-			return nil
-		}
+			// https://html.spec.whatwg.org/#void-elements
+			if isVoidElement(node.Data) {
+				if node.FirstChild != nil {
+					return errors.New("invalid void elements: " + node.Data)
+				}
 
-		page.writeStrLit(">")
+				page.writeStrLit("/>")
+				return nil
+			}
+
+			page.writeStrLit(">")
+		}
 
 		// https://html.spec.whatwg.org/multipage/parsing.html
 		if c := node.FirstChild; c != nil && c.Type == html.TextNode && strings.HasPrefix(c.Data, "\n") {
@@ -760,9 +762,11 @@ func (page *Page) parseTmpl(node *html.Node) error {
 			}
 		}
 
-		page.writeStrLit("</")
-		page.writeStrLit(node.Data)
-		page.writeStrLit(">")
+		if node.DataAtom != atom.Template {
+			page.writeStrLit("</")
+			page.writeStrLit(node.Data)
+			page.writeStrLit(">")
+		}
 	}
 	return nil
 }
