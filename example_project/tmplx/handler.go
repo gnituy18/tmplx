@@ -3,6 +3,7 @@ package tmplx
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 )
@@ -60,39 +61,56 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
 });
 `
 
-func render_index(w io.Writer, state string, title string, h1 string, counter int, counterTimes10 int) {
+func render_index(w io.Writer, state string, name string, greeting string, counter int, counterTimes10 int) {
 	w.Write([]byte(`<html><head>
 
 
 
-
   <title> `))
-	w.Write([]byte(fmt.Sprint(title)))
+	w.Write([]byte(fmt.Sprint(name)))
 	w.Write([]byte(` </title>
 <script id="tx-runtime">`))
 	w.Write([]byte(runtimeScript))
 	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
 	w.Write([]byte(fmt.Sprint(state)))
 	w.Write([]byte(`</script></head>
-
 <body>
   <h1> `))
-	w.Write([]byte(fmt.Sprint(h1)))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(greeting))))
 	w.Write([]byte(` </h1>
 
   <p>counter: `))
-	w.Write([]byte(fmt.Sprint(counter)))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(counter))))
+	w.Write([]byte(`</p>
+  <p>counter * 10 = `))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(counterTimes10))))
 	w.Write([]byte(`</p>
 
   <button tx-onclick="index_addOne">Add 1</button>
-  <button tx-onclick="index_subOne">Subtract 1</button>
+  <button tx-onclick="index_func_1">Subtract 1</button>
 
-  <p>counter * 10 = `))
-	w.Write([]byte(fmt.Sprint(counterTimes10)))
-	w.Write([]byte(`</p>
+  `))
+
+	if counter%2 == 0 {
+		w.Write([]byte(`<p> counter is even </p>
+  `))
+
+	} else {
+		w.Write([]byte(`<p> counter is odd </p>
+
+  `))
+
+	}
+
+	for i := 0; i < 10; i++ {
+		w.Write([]byte(`<p> `))
+		w.Write([]byte(html.EscapeString(fmt.Sprint(i))))
+		w.Write([]byte(` </p>`))
+
+	}
+	w.Write([]byte(`
 
   <a href="/second-page">second page</a>
-
 
 
 </body></html>`))
@@ -110,7 +128,7 @@ func render_second_d_page(w io.Writer, state string) {
 
 <body>
   <h1> `))
-	w.Write([]byte(fmt.Sprint(fmt.Sprintf("a + b = %d", 1+2))))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(fmt.Sprintf("a + b = %d", 1+2)))))
 	w.Write([]byte(` </h1>
 
 
@@ -123,15 +141,16 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	{
 		Url: "/{$}",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			var title string = "Tmplx"
-			var h1 string = "Hello, Tmplx!"
+			var name string = "tmplx"
+			var greeting string = fmt.Sprintf("Hello ,%s!", name)
 			var counter int = 0
 			var counterTimes10 int = counter * 10
+			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 
-			stateBytes, _ := json.Marshal(map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10})
+			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10})
 			state := string(stateBytes)
-			render_index(w, state, title, h1, counter, counterTimes10)
+			render_index(w, state, name, greeting, counter, counterTimes10)
 
 		},
 	},
@@ -139,39 +158,39 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 		Url: "/tx/index_addOne",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
-			var title string
-			json.Unmarshal([]byte(query.Get("title")), &title)
-			var h1 string
-			json.Unmarshal([]byte(query.Get("h1")), &h1)
+			var name string
+			json.Unmarshal([]byte(query.Get("name")), &name)
+			var greeting string = fmt.Sprintf("Hello ,%s!", name)
 			var counter int
 			json.Unmarshal([]byte(query.Get("counter")), &counter)
 			var counterTimes10 int = counter * 10
 			counter++
+			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 
-			stateBytes, _ := json.Marshal(map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10})
+			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10})
 			state := string(stateBytes)
-			render_index(w, state, title, h1, counter, counterTimes10)
+			render_index(w, state, name, greeting, counter, counterTimes10)
 
 		},
 	},
 	{
-		Url: "/tx/index_subOne",
+		Url: "/tx/index_func_1",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
-			var title string
-			json.Unmarshal([]byte(query.Get("title")), &title)
-			var h1 string
-			json.Unmarshal([]byte(query.Get("h1")), &h1)
+			var name string
+			json.Unmarshal([]byte(query.Get("name")), &name)
+			var greeting string = fmt.Sprintf("Hello ,%s!", name)
 			var counter int
 			json.Unmarshal([]byte(query.Get("counter")), &counter)
 			var counterTimes10 int = counter * 10
 			counter--
+			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 
-			stateBytes, _ := json.Marshal(map[string]any{"title": title, "h1": h1, "counter": counter, "counterTimes10": counterTimes10})
+			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10})
 			state := string(stateBytes)
-			render_index(w, state, title, h1, counter, counterTimes10)
+			render_index(w, state, name, greeting, counter, counterTimes10)
 
 		},
 	},

@@ -117,6 +117,7 @@ func render_index(w io.Writer, state string) {
   var greeting string = fmt.Sprintf(&#34;Hello ,%s!&#34;, name)
 
   var counter int = 0
+  var counterTimes10 int = counter * 10
 
   // addOne event handler
   func addOne() {
@@ -125,11 +126,9 @@ func render_index(w io.Writer, state string) {
 &lt;/script&gt;
 
 &lt;html&gt;
-
 &lt;head&gt;
   &lt;title&gt; { name } &lt;/title&gt;
 &lt;/head&gt;
-
 &lt;body&gt;
   &lt;h1&gt; { greeting } &lt;/h1&gt;
 
@@ -139,15 +138,13 @@ func render_index(w io.Writer, state string) {
   &lt;button tx-onclick=&#34;addOne()&#34;&gt;Add 1&lt;/button&gt;
   &lt;button tx-onclick=&#34;counter--&#34;&gt;Subtract 1&lt;/button&gt;
 
-  &lt;p tx-if=&#34;i % 2 == 0&#34;&gt; counter is even &lt;/p&gt;
+  &lt;p tx-if=&#34;counter % 2 == 0&#34;&gt; counter is even &lt;/p&gt;
   &lt;p tx-else&gt; counter is odd &lt;/p&gt;
 
   &lt;p tx-for=&#34;i := 0; i &lt; 10; i++&#34;&gt; { i } &lt;/p&gt;
 
   &lt;a href=&#34;/second-page&#34;&gt;second page&lt;/a&gt;
-
 &lt;/body&gt;
-
 &lt;/html&gt;
       </code>
     </pre>

@@ -56,6 +56,7 @@
   var greeting string = fmt.Sprintf(&quot;Hello ,%s!&quot;, name)
 
   var counter int = 0
+  var counterTimes10 int = counter * 10
 
   // addOne event handler
   func addOne() {
@@ -64,11 +65,9 @@
 &lt;/script&gt;
 
 &lt;html&gt;
-
 &lt;head&gt;
   &lt;title&gt; { name } &lt;/title&gt;
 &lt;/head&gt;
-
 &lt;body&gt;
   &lt;h1&gt; { greeting } &lt;/h1&gt;
 
@@ -78,15 +77,13 @@
   &lt;button tx-onclick=&quot;addOne()&quot;&gt;Add 1&lt;/button&gt;
   &lt;button tx-onclick=&quot;counter--&quot;&gt;Subtract 1&lt;/button&gt;
 
-  &lt;p tx-if=&quot;i % 2 == 0&quot;&gt; counter is even &lt;/p&gt;
+  &lt;p tx-if=&quot;counter % 2 == 0&quot;&gt; counter is even &lt;/p&gt;
   &lt;p tx-else&gt; counter is odd &lt;/p&gt;
 
   &lt;p tx-for=&quot;i := 0; i &lt; 10; i++&quot;&gt; { i } &lt;/p&gt;
 
   &lt;a href=&quot;/second-page&quot;&gt;second page&lt;/a&gt;
-
 &lt;/body&gt;
-
 &lt;/html&gt;
       </code>
     </pre>
