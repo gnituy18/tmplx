@@ -1,6 +1,6 @@
 # tmplx
 
-tmplx is a compile-time framework using Go for building state-driven web apps. Embed Go code in HTML to define states and event handlers. Compiles into Go handlers that update state, rerender UI sections, and return HTML snippets.
+tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity, purely in Go, without JavaScript. Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI. This creates seamless integration, eliminating the mental context switch between backend and frontend development. This embraces hypermedia by letting the server drive UI updates via HTML responses. It compiles into Go handlers that update state, rerender UI sections, and return HTML snippets.
 
 > [!WARNING]
 > The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
