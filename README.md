@@ -22,10 +22,10 @@ go mod init proj
 > [!NOTE]  
 > The `pages` directory defines the app's routes based on file structure.
 > 
-> 1. `pages/index.tmplx` → URL: `/`
+> 1. `pages/index.html` → URL: `/`
 > 1. `pages/this/is/a/path.html` → URL: `/this/is/a/path`
 
-### 2. Edit `pages/index.tmplx`
+### 2. Edit `pages/index.html`
 ```html
 <script type="text/tmplx">
   var name string = "tmplx" // name is declared as a state
