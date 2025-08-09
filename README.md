@@ -95,8 +95,8 @@ Your web app begins by creating an HTML file in the [pages](#pages-directory) di
 Additionally, there's no need to invent a new file type to deliver all the features tmplx provides, as HTML already includes [built-in customizability](https://html.spec.whatwg.org/#extensibility) in its design.
 
 You can access and modify every part of the HTML file, such as:
-- adding attributes to the <html> tag
-- customizing the <body> style
+- adding attributes to the `<html>` tag
+- customizing the `<body>` style
 - adding a comment
 
 This is often not obvious in modern frameworks. You can do whatever you want as long as it's valid HTML.
