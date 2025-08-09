@@ -87,7 +87,34 @@ tmplx && go run .
 ```
 Visit http://localhost:8080/ to see your web app in action
 
-## Features
+## Guide
+
+### `.html`
+Your web app begins by creating an HTML file in the [pages](#pages-directory) directory. We chose HTML because—duh!—HTML is standardized and ensures backward compatibility across all browsers! This means you can build your app today, and even 10 years from now, tmplx will still be able to parse and handle it without issues.
+
+Additionally, there's no need to invent a new file type to deliver all the features tmplx provides, as HTML already includes [built-in customizability](https://html.spec.whatwg.org/#extensibility) in its design.
+
+You can access and modify every part of the HTML file, such as:
+- adding attributes to the <html> tag
+- customizing the <body> style
+- adding a comment
+
+This is often not obvious in modern frameworks. You can do whatever you want as long as it's valid HTML.
+```html
+<!-- /pages/index.html -->
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <title> ... </title>
+    ...
+  </head>
+  <body style="...">
+  ...
+  </body>
+</html>
+```
+
 ### Go Expression
 ```
 ...
@@ -107,7 +134,7 @@ Visit http://localhost:8080/ to see your web app in action
 <p> { m["key"] } </p>
 ```
 
-### Derived
+### Derived State
 ```html
 <script type="text/tmplx">
   var num1 int = 100
@@ -157,6 +184,21 @@ Visit http://localhost:8080/ to see your web app in action
 ...
 <p tx-for="i := 0; i < 10; i++"> { i } </p>
 ```
+
+### `tmplx` cmd
+The tmplx compiler scans `pages` and `components` directories for `.html` files, generates a `handler.go` file to include in your project.
+```
+```
+you can custimize the pages's path or components' or the output path using -pages, -components -output flags
+
+#### `pages` directory
+#### `components` directory
+#### `handler.go`
+
+
+Your web app lives under a go project. all you html file should live under the pages folder. it support subfolder.
+tmplx cli compiles multiple html file into a go package. the package exports a list of the handler and url. you can then import the package serve the handler to activate the app.
+
 ### Components (Unimplemented)
 ### Styles and Classes (Unimplemented)
 ### ...
