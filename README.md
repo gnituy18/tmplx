@@ -124,7 +124,8 @@ Embed Go expressions in HTML using `{ }` for dynamic content. You can only place
 For text nodes, output is HTML-escaped; for attribute values, it is not escaped.
 
 Expressions are wrapped in `fmt.Sprint()` in the output file.
-
+script
+You can add `tx-ignore`  to disable Go expression interpolation
 ```html
 <!-- /pages/index.html -->
 <p class='{ strings.Join([]string{"c1", "c2"}, " ") }'>
@@ -202,6 +203,21 @@ State declaration is simply Go's variable declaration with a few rules. Since tm
 ```
 
 ### Derived State
+
+A derived state is a variable whose value is computed from other states or derived states.
+
+It is declared as a standard Go variable. If the right-hand side (RHS) of the declaration references existing states or derived states, it is considered a derived state.
+
+Derived states follow similar rules to regular states, with some differences:
+
+#### Rules:
+1. **Use `var` keyword; no `:=`.**
+1. **Must define a type.**
+1. **Initialization is optional. If initializing, the number of variables on the left must match the expressions on the right.**
+1. **You cannot update derived states directly in [event handlers](#event-handler), but referencing them is allowed.**
+
+Derived states do not require the type to be JSON marshalable/unmarshalable because they exist only on the backend.
+
 ```html
 <script type="text/tmplx">
   var num1 int = 100
@@ -209,7 +225,16 @@ State declaration is simply Go's variable declaration with a few rules. Since tm
 </script>
 
 ...
-<p> { num2 } is 200 </p>
+<p> { num1 } * 2 = { num2 } </p>
+```
+```html
+<script type="text/tmplx">
+  var classes []string = []string{"c1", "c2", "c3"}
+  var class string = strings.Join(classes, " ") // derived from state 'classes'
+</script>
+
+...
+<p class="{class}"> ... </p>
 ```
 
 ### Event Handler
