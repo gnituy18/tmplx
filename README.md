@@ -1,6 +1,6 @@
 # tmplx
 
-tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity, purely in Go, without JavaScript. Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI. This creates seamless integration, eliminating the mental context switch between backend and frontend development. This embraces hypermedia by letting the server drive UI updates via HTML responses. It compiles into Go handlers that update state, rerender UI sections, and return HTML snippets.
+tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity purely in Go. Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI, all in one file. This creates a seamless integration, eliminating the mental context switch between backend and frontend development.
 
 > [!WARNING]
 > The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
@@ -13,9 +13,12 @@ go install github.com/gnituy18/tmplx@latest
 ## Quick Start
 ### 1. Set up a new project directory
 ```sh
-mkdir proj && cd proj
+mkdir proj
+cd proj
+
 mkdir pages
 touch pages/index.html
+
 touch main.go
 go mod init proj
 ```
@@ -28,7 +31,7 @@ go mod init proj
 ### 2. Edit `pages/index.html`
 ```html
 <script type="text/tmplx">
-  var name string = "tmplx" // name is declared as a state
+  var name string = "tmplx"
   var greeting string = fmt.Sprintf("Hello ,%s!", name) // greeting is declared as a derived
 
   var counter int = 0
@@ -114,6 +117,28 @@ This is often not obvious in modern frameworks. You can do whatever you want as 
   </body>
 </html>
 ```
+### `<script type="text/tmplx">`
+tmplx extends HTML by embedding Go code within `<script>` tags. Set `type="text/tmplx"` to differentiate it from JavaScript or other languages.
+
+The `<script>` contains valid Go code. tmplx uses a subset of Go syntax for declarative UI, including [state](#state), [derived state](#derived-state), and [event handler](#event-handler).
+```diff
+<!-- /pages/index.html -->
+<!DOCTYPE html>
+
++ <script type="text/tmplx">
++ ...
++ </script>
+
+<html lang="en">
+  <head>
+    <title> ... </title>
+    ...
+  </head>
+  <body style="...">
+  ...
+  </body>
+</html>
+```
 
 ### Go Expression
 ```
@@ -145,7 +170,7 @@ This is often not obvious in modern frameworks. You can do whatever you want as 
 <p> { num2 } is 200 </p>
 ```
 
-### Actions (`tx-on*`)
+### Event Handler
 ```html
 <script type="text/tmplx">
   var str string = "A"
