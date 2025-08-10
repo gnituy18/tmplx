@@ -2,7 +2,6 @@ package tmplx
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 )
@@ -93,11 +92,7 @@ func render_index(w io.Writer, state string) {
       background: Cornsilk;
     }
   </style>
-<script id="tx-runtime">`))
-	w.Write([]byte(runtimeScript))
-	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
-	w.Write([]byte(fmt.Sprint(state)))
-	w.Write([]byte(`</script></head>
+</head>
 
 
 <body>
