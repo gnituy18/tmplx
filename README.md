@@ -128,7 +128,7 @@ Expressions are wrapped in `fmt.Sprint()` in the output file.
 ```html
 <!-- /pages/index.html -->
 <p class='{ strings.Join([]string{"c1", "c2"}, " ") }'>
- Hello, { "tmplx!" }
+ Hello, { user.GetNameById("id") }!
 </p>
 
 <!-- output -->
@@ -161,14 +161,43 @@ The `<script>` contains valid Go code. tmplx uses a subset of Go syntax for decl
 ```
 
 ### State
+State is the core of declarative UI development. It means that whenever a state changes, other UI parts react automatically.
+
+State declaration is simply Go's variable declaration with a few rules. Since tmplx is a compiler, no special keyword is needed. Nothing new to learn.
+
+#### Rules:
+1. **Use `var` keyword; no `:=`.**
+1. **Must define a type; it must be JSON marshalable and unmarshalable.**
+1. **Initialization is optional. If initializing, the number of variables on the left must match expressions on the right.**
+
+##### ❌ invalid state declarations
+```html
+...
+<script type="text/tmplx">
+  // no type
+  var str = ""
+
+  // no :=
+  num := 1
+
+  // f, w are not JSON marshalable and unmarshalable.
+  var f func(int) = func(i int) {...} 
+  var w io.Writer
+
+  // the number of variables on the left must match expressions on the right.
+  var a, b int = f() 
+</script>
+...
+```
+##### ✅ valid state declarations 
 ```html
 <script type="text/tmplx">
-  var str string = "Hello,"
+  var name string = user.GetNameById("id")
   var m map[string]int = map[string]int{ "key": 100 }
 </script>
 
 ...
-<p> { str } World! </p>
+<p> Hi, { name }! </p>
 <p> { m["key"] } </p>
 ```
 
