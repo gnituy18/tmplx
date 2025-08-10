@@ -2,6 +2,23 @@
 
 tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity purely in Go. Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI, all in one file. This creates a seamless integration, eliminating the mental context switch between backend and frontend development.
 
+- [Installing](#installing)
+- [Quick Start](#quick-start)
+- [Guide](#guide)
+  - [`.html`](#html)
+  - [Go expression interpolation](#go-expression-interpolation)
+  - [`<script type="text/tmplx">`](#script-typetexttmplx)
+  - [State](#state)
+  - [Derived State](#derived-state)
+  - [Event Handler](#event-handler)
+  - [Control Flow](#control-flow)
+    - [`tx-if`](#tx-if)
+    - [`tx-for`](#tx-for)
+  - [`tmplx` cmd](#tmplx-cmd)
+    - [pages directory](#pages-directory)
+    - [components directory](#components-directory)
+    - [output](#output)
+
 > [!WARNING]
 > The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
 
@@ -238,6 +255,7 @@ Derived states do not require the type to be JSON marshalable/unmarshalable beca
 ```
 
 ### Event Handler
+You could've guess now. An event handler is just a regular Go function declaration. 
 ```html
 <script type="text/tmplx">
   var str string = "A"
@@ -251,7 +269,7 @@ Derived states do not require the type to be JSON marshalable/unmarshalable beca
 <p>{ str }</p>
 <button tx-onclick="appendA()">Append A</button>
 ```
-### inline statements
+#### inline statements
 ```html
 <script type="text/tmplx">
   var num int = 1
@@ -260,7 +278,9 @@ Derived states do not require the type to be JSON marshalable/unmarshalable beca
 ...
 <button tx-onclick="num++">Append A</button>
 ```
-### `tx-if`
+### Control Flow
+
+#### `tx-if`
 ```html
 <script type="text/tmplx">
   var num int = 1
@@ -271,7 +291,7 @@ Derived states do not require the type to be JSON marshalable/unmarshalable beca
 <p tx-if="counter % 2 == 1"> odd </p>
 <p tx-else > even </p>
 ```
-### `tx-for`
+#### `tx-for`
 ```html
 ...
 <p tx-for="i := 0; i < 10; i++"> { i } </p>
@@ -285,7 +305,7 @@ you can custimize the pages's path or components' or the output path using -page
 
 #### `pages` directory
 #### `components` directory
-#### `handler.go`
+#### output
 
 
 Your web app lives under a go project. all you html file should live under the pages folder. it support subfolder.
