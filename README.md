@@ -117,6 +117,26 @@ This is often not obvious in modern frameworks. You can do whatever you want as 
   </body>
 </html>
 ```
+
+### Go expression interpolation
+Embed Go expressions in HTML using `{ }` for dynamic content. You can only place Go expressions as `text nodes` or `attribute values`; other placements cause parsing errors.
+
+For text nodes, output is HTML-escaped; for attribute values, it is not escaped.
+
+Expressions are wrapped in `fmt.Sprint()` in the output file.
+
+```html
+<!-- /pages/index.html -->
+<p class='{ strings.Join([]string{"c1", "c2"}, " ") }'>
+ Hello, { "tmplx!" }
+</p>
+
+<!-- output -->
+<p class="c1 c2">
+ Hello, tmplx!
+</p>
+```
+
 ### `<script type="text/tmplx">`
 tmplx extends HTML by embedding Go code within `<script>` tags. Set `type="text/tmplx"` to differentiate it from JavaScript or other languages.
 
@@ -138,13 +158,6 @@ The `<script>` contains valid Go code. tmplx uses a subset of Go syntax for decl
   ...
   </body>
 </html>
-```
-
-### Go Expression
-```
-...
-<p> { "Hello, " + "Tmplx!" } </p>
-<p> { 100 / 2 - 3 } is 47 </p>
 ```
 
 ### State
