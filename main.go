@@ -577,6 +577,8 @@ func (page *Page) parseTmpl(node *html.Node) error {
 			page.writeStrLit("<")
 			page.writeStrLit(node.Data)
 
+			isIgnore := hasTxIgnoreAttr(node)
+
 			for _, attr := range node.Attr {
 				if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
 					continue
@@ -679,6 +681,8 @@ func (page *Page) parseTmpl(node *html.Node) error {
 					}
 
 					page.writeStrLit(page.funcId(decl.Name.Name))
+				} else if isIgnore {
+					page.writeStrLit(attr.Val)
 				} else if err := page.parseTmplStr(attr.Val, false); err != nil {
 					return err
 				}
