@@ -111,8 +111,12 @@ type TmplxHandler struct {
 				if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content))); err != nil {
 					log.Fatalln(err)
 				}
-			case TmplTypeEscapeExpr:
+			case TmplTypeHtmlEscapeExpr:
 				if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content))); err != nil {
+					log.Fatalln(err)
+				}
+			case TmplTypeUrlEscapeExpr:
+				if _, err := out.WriteString(fmt.Sprintf("if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\nw.Write([]byte(url.QueryEscape(string(param))))}\n", string(tmpl.Content))); err != nil {
 					log.Fatalln(err)
 				}
 			}
@@ -368,6 +372,13 @@ func (page *Page) parse() error {
 			if d.Type.Results != nil {
 				return fmt.Errorf("functions must not have return values (file: %s)", page.FilePath)
 			}
+			for _, field := range d.Type.Params.List {
+				for _, name := range field.Names {
+					if page.Vars[name.Name] != nil {
+						return fmt.Errorf("You cannot use state names as handler parameter names (file: %s): %v", page.FilePath, name)
+					}
+				}
+			}
 
 			modifiedDerived := []string{}
 			page.modifiedVars(d, &modifiedDerived)
@@ -431,14 +442,14 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
       const cn = walker.currentNode;
       for (let attr of cn.attributes) {
         if (attr.name.startsWith('tx-on')) {
-          const eName = attr.name.slice(5);
-          cn.addEventListener(eName, async () => {
-            const states = {}
-
+          const [fun, params] = attr.value.split("?")
+          const searchParams = new URLSearchParams(params)
+          const eventName = attr.name.slice(5);
+          cn.addEventListener(eventName, async () => {
             for (let key in state) {
-              states[key] = JSON.stringify(state[key])
+              searchParams.append(key, JSON.stringify(state[key]))
             }
-            const res = await fetch("/tx/" + attr.value + "?" + new URLSearchParams(states).toString())
+            const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
             res.text().then(html => {
               document.open()
               document.write(html)
@@ -634,7 +645,7 @@ func (page *Page) parseTmpl(node *html.Node) error {
 										}
 
 										arg := astToSource(callExpr.Args[i])
-										page.writeExpr(arg)
+										page.writeUrlEscapeExpr(arg)
 									}
 									page.writeStrLit(`"`)
 									continue
@@ -823,7 +834,7 @@ func (page *Page) parseTmplStr(str string, escape bool) error {
 				}
 
 				if escape {
-					page.writeEscapeExpr(string(trimmedCurrExpr))
+					page.writeHtmlEscapeExpr(string(trimmedCurrExpr))
 				} else {
 					page.writeExpr(string(trimmedCurrExpr))
 				}
@@ -894,7 +905,8 @@ const (
 	TmplTypeGo TmplType = iota + 1
 	TmplTypeStrLit
 	TmplTypeExpr
-	TmplTypeEscapeExpr
+	TmplTypeHtmlEscapeExpr
+	TmplTypeUrlEscapeExpr
 )
 
 type PageTmpl struct {
@@ -929,8 +941,12 @@ func (page *Page) writeExpr(content string) {
 	page.writeTmpl(TmplTypeExpr, content)
 }
 
-func (page *Page) writeEscapeExpr(content string) {
-	page.writeTmpl(TmplTypeEscapeExpr, content)
+func (page *Page) writeHtmlEscapeExpr(content string) {
+	page.writeTmpl(TmplTypeHtmlEscapeExpr, content)
+}
+
+func (page *Page) writeUrlEscapeExpr(content string) {
+	page.writeTmpl(TmplTypeUrlEscapeExpr, content)
 }
 
 func (page *Page) doneParsingTmpl() {
@@ -1093,8 +1109,25 @@ func (page *Page) funcHandlerFields() []HandlerFields {
 		var code strings.Builder
 		code.WriteString(codeVar.String())
 
-		f := page.Funcs[funcName]
-		for _, stmt := range f.Decl.Body.List {
+		fun := page.Funcs[funcName]
+
+		for _, params := range fun.Decl.Type.Params.List {
+			for _, name := range params.Names {
+				spec := &ast.ValueSpec{
+					Names: []*ast.Ident{{Name: name.Name}},
+					Type:  params.Type,
+				}
+				decl := &ast.GenDecl{
+					Tok:   token.VAR,
+					Specs: []ast.Spec{spec},
+				}
+				printer.Fprint(&code, token.NewFileSet(), decl)
+				code.WriteString("\n")
+				code.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", name, name))
+			}
+		}
+
+		for _, stmt := range fun.Decl.Body.List {
 			printer.Fprint(&code, token.NewFileSet(), stmt)
 			code.WriteString("\n")
 		}
