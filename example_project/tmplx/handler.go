@@ -120,11 +120,7 @@ func render_second_d_page(w io.Writer, state string) {
   <title> `))
 	w.Write([]byte(fmt.Sprint(1 + 2)))
 	w.Write([]byte(` </title>
-<script id="tx-runtime">`))
-	w.Write([]byte(runtimeScript))
-	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
-	w.Write([]byte(fmt.Sprint(state)))
-	w.Write([]byte(`</script></head>
+</head>
 
 <body>
   <h1> `))
