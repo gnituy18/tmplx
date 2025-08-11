@@ -1,26 +1,30 @@
 # tmplx
 
-tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity purely in Go. Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI, all in one file. This creates a seamless integration, eliminating the mental context switch between backend and frontend development.
+tmplx is a compile-time framework using **Go** for building **state-driven** web apps. It allows you to build UIs with React-like reactivity purely in Go. Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI, all in one file. This creates a seamless integration, eliminating the mental context switch between backend and frontend development.
 
 - [Installing](#installing)
 - [Quick Start](#quick-start)
 - [Guide](#guide)
-  - [`.html`](#html)
+  - [.html](#html)
   - [Go expression interpolation](#go-expression-interpolation)
-  - [`<script type="text/tmplx">`](#script-typetexttmplx)
+  - [<script type="text/tmplx">](#script-typetexttmplx)
   - [State](#state)
   - [Derived State](#derived-state)
   - [Event Handler](#event-handler)
+    - [Arguments](#arguments)
+    - [Inline Statements](#inline-statements)
+  - [init()](#init)
   - [Control Flow](#control-flow)
-    - [`tx-if`](#tx-if)
-    - [`tx-for`](#tx-for)
-  - [`tmplx` cmd](#tmplx-cmd)
+    - [tx-if / tx-else-if / tx-else](#tx-if-tx-else-if-tx-else)
+    - [tx-for](#tx-for)
+  - [<template>](#template)
+  - [tmplx cmd](#tmplx-cmd)
     - [pages directory](#pages-directory)
     - [components directory](#components-directory)
     - [output](#output)
 
 > [!WARNING]
-> The project is in active development, with most of the features incomplete, and bugs or undefined behavior may occur. 
+> The project is in active development, with some of the features incomplete, and bugs or undefined behavior may occur.
 
 ## Installing
 ```sh
@@ -39,21 +43,17 @@ touch pages/index.html
 touch main.go
 go mod init proj
 ```
-> [!NOTE]  
-> The `pages` directory defines the app's routes based on file structure.
-> 
-> 1. `pages/index.html` → URL: `/`
-> 1. `pages/this/is/a/path.html` → URL: `/this/is/a/path`
 
 ### 2. Edit `pages/index.html`
 ```html
 <script type="text/tmplx">
-  var name string = "tmplx"
-  var greeting string = fmt.Sprintf("Hello ,%s!", name) // greeting is declared as a derived
+  var name string = "tmplx" // name is a state
+  var greeting string = fmt.Sprintf("Hello ,%s!", name) // greeting is a derived state
 
-  var counter int = 0
-  var counterTimes10 int = counter * 10
+  var counter int = 0 // counter is a state
+  var counterTimes10 int = counter * 10 // counterTimes10 is reactive and change
 
+  // 
   func addOne() {
     counter++
   }
@@ -69,16 +69,12 @@ go mod init proj
   <p>counter: { counter }</p>
   <p>counter * 10 = { counterTimes10 }</p>
 
+  <!-- update counter by calling event handler -->
   <button tx-onclick="addOne()">Add 1</button>
 </body>
 </html>
 
 ```
-> [!NOTE]  
-> 1. `<script>` tags with `type="text/tmplx"` are parsed and transformed into output code. Everything inside is valid Go code; no new concepts to learn for building the app.
-> 2. Variable declarations are **states**; changing them via `tx-on*` events triggers UI updates. States must be JSON stringifiable.
-> 3. If a variable declaration's right-hand side references other states, it's a **derived** **state** that updates automatically when the referenced states change. Derived states cannot be modified; attempts cause compile errors.
-> 4. Since it's compiled into Go code, you can perform server-side operations like: `var user = db.GetUser(userId)`
 
 ### 3. Edit `main.go`
 ```go
@@ -105,14 +101,14 @@ func main() {
 # From the proj directory
 tmplx && go run .
 ```
-Visit http://localhost:8080/ to see your web app in action
+Visit http://localhost:8080/ to see your web app in action.
 
 ## Guide
 
 ### `.html`
 Your web app begins by creating an HTML file in the [pages](#pages-directory) directory. We chose HTML because—duh!—HTML is standardized and ensures backward compatibility across all browsers! This means you can build your app today, and even 10 years from now, tmplx will still be able to parse and handle it without issues.
 
-Additionally, there's no need to invent a new file type to deliver all the features tmplx provides, as HTML already includes [built-in customizability](https://html.spec.whatwg.org/#extensibility) in its design.
+Additionally, there's no need to invent a new file type to deliver all the features tmplx provides, as HTML already includes [extensibility](https://html.spec.whatwg.org/#extensibility) in its design.
 
 You can access and modify every part of the HTML file, such as:
 - adding attributes to the `<html>` tag
@@ -135,14 +131,15 @@ This is often not obvious in modern frameworks. You can do whatever you want as 
 </html>
 ```
 
-### Go expression interpolation
-Embed Go expressions in HTML using `{ }` for dynamic content. You can only place Go expressions as `text nodes` or `attribute values`; other placements cause parsing errors.
+### Go Expression Interpolation
 
-For text nodes, output is HTML-escaped; for attribute values, it is not escaped.
+Embed Go expressions in HTML using `{}` for dynamic content. You can only place Go expressions in **text nodes** or **attribute values**; other placements cause parsing errors.
 
-Expressions are wrapped in `fmt.Sprint()` in the output file.
-script
-You can add `tx-ignore`  to disable Go expression interpolation
+For text nodes, the output is HTML-escaped; for attribute values, it is not escaped.
+
+Expressions are wrapped in `fmt.Sprint()` in the [output Go file](#output).
+
+You can add `tx-ignore` to disable Go expression interpolation for that specific node's attribute values and its text children, but not the element children.
 ```html
 <!-- /pages/index.html -->
 <p class='{ strings.Join([]string{"c1", "c2"}, " ") }'>
@@ -255,42 +252,112 @@ Derived states do not require the type to be JSON marshalable/unmarshalable beca
 ```
 
 ### Event Handler
-You could've guess now. An event handler is just a regular Go function declaration. 
+You could have guessed by now: An event handler is simply a regular Go function. Event handlers mutate states or perform actions in response to user events.
+
+Rules:
+1. **Triggered via attributes with the `tx-on` prefix.**
+2. **No return values. You don't need them.**
+
+You can bind multiple events to one element: `<div tx-onmouseleave="show = false" tx-onmouseenter="show = true">`
 ```html
 <script type="text/tmplx">
-  var str string = "A"
+  var counter int = 0
 
-  func appendA() {
-    str = append(str, 'A')
+  func add1() {
+    counter += 1
   }
 </script>
-
 ...
-<p>{ str }</p>
-<button tx-onclick="appendA()">Append A</button>
+<p>{ counter }</p>
+<button tx-onclick="add1()">Add 2</button>
 ```
-#### inline statements
+
+#### Arguments
+Event handlers can accept arguments, following these rules:
+
+1. **Argument names cannot match state or derived state names.**
+2. **Argument types must be JSON marshalable and unmarshalable.**
+
+```html
+<script type="text/tmplx">
+  var counter int = 0
+
+  func addNum(num int) {
+    counter += num
+  }
+</script>
+...
+<p>{ counter }</p>
+<button tx-for="i := 0; i < 10 i++" tx-onclick="addNum(i)">
+  Add { i }
+</button>
+```
+
+#### Inline Statements
+For simple actions, embed Go statements directly in `tx-on*` attributes to mutate states, avoiding the need for separate handler functions.
+
+Use ';' to separate multiple statements.
 ```html
 <script type="text/tmplx">
   var num int = 1
 </script>
-
 ...
-<button tx-onclick="num++">Append A</button>
+<p> { num } </p>
+<button tx-onclick="num++;num++">Add 2</button>
 ```
+
+### `init()`
+
+The `init()` function is special; you can declare a function similar to Go's `init()`: It runs once when the page loads.
+
+It won't be compiled into an HTTP request, so you cannot call it using `tx-on*` attributes.
+```html
+<script type="text/tmplx">
+  var user User
+
+  func init() {
+    user := user.Get("user_id")
+  }
+</script>
+```
+
+Another use case is when you want to initialize a state from another state but don't want it to become a derived state.
+```html
+<script type="text/tmplx">
+  var a int = 100
+  var b int
+
+  func init() {
+    b = a * 2 // b is still a state
+  }
+</script>
+...
+```
+
 ### Control Flow
 
-#### `tx-if`
+#### `tx-if`, `tx-else-if`, `tx-else`
+
+You can use any valid expression in the value of `tx-if` that fits Go's if statement condition. New variables created in the expression will also be accessible to the children of the node. It works just like Go's conditional statements, intuitively.
+
 ```html
 <script type="text/tmplx">
   var num int = 1
 </script>
-
 ...
 <button tx-onclick="num++">Append A</button>
 <p tx-if="counter % 2 == 1"> odd </p>
-<p tx-else > even </p>
+<p tx-else> even </p>
 ```
+
+```html
+<p tx-if="user, err := user.GetUser(); err != nil">
+  <p tx-if="err == ErrNotFound"> User not found</p>
+</p>
+<p tx-else-if='user.Name == ""'> user.Name not set </p>
+<p tx-else > Hi!, { user.Name } </p>
+```
+
 #### `tx-for`
 ```html
 ...
@@ -298,21 +365,6 @@ You could've guess now. An event handler is just a regular Go function declarati
 ```
 
 ### `tmplx` cmd
-The tmplx compiler scans `pages` and `components` directories for `.html` files, generates a `handler.go` file to include in your project.
-```
-```
-you can custimize the pages's path or components' or the output path using -pages, -components -output flags
-
 #### `pages` directory
 #### `components` directory
 #### output
-
-
-Your web app lives under a go project. all you html file should live under the pages folder. it support subfolder.
-tmplx cli compiles multiple html file into a go package. the package exports a list of the handler and url. you can then import the package serve the handler to activate the app.
-
-### Components (Unimplemented)
-### Styles and Classes (Unimplemented)
-### ...
-
-
