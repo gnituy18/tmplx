@@ -1,22 +1,30 @@
 <script type="text/tmplx">
-  // name is declared as a state
   var name string = "tmplx"
-  // greeting is declared as a derived
   var greeting string = fmt.Sprintf("Hello ,%s!", name)
+
+  // addOne event handler
+
 
   var counter int = 0
   var counterTimes10 int = counter * 10
 
-  // addOne event handler
   func addOne() {
     counter++
   }
+
+  var str string = ""
+  func appendS(s string) {
+    str += s
+  }
+
 </script>
 
 <html>
+
 <head>
   <title> { name } </title>
 </head>
+
 <body>
   <h1> { greeting } </h1>
 
@@ -29,8 +37,12 @@
   <p tx-if="counter % 2 == 0"> counter is even </p>
   <p tx-else> counter is odd </p>
 
+  <button tx-onclick='appendS("str")'>append str</button>
+  <p>{ str }</p>
+
   <p tx-for="i := 0; i < 10; i++"> { i } </p>
 
   <a href="/second-page">second page</a>
 </body>
+
 </html>
