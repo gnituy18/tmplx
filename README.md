@@ -18,6 +18,8 @@ tmplx is a compile-time framework using **Go** for building **state-driven** web
     - [tx-if / tx-else-if / tx-else](#tx-if-tx-else-if-tx-else)
     - [tx-for](#tx-for)
   - [`<template>`](#template)
+  - [Components (WIP)](#components-wip)
+  - [Morphing (WIP)](#morphing-wip)
   - [tmplx cmd](#tmplx-cmd)
     - [pages directory](#pages-directory)
     - [components directory](#components-directory)
@@ -48,10 +50,10 @@ go mod init proj
 ```html
 <script type="text/tmplx">
   var name string = "tmplx" // name is a state
-  var greeting string = fmt.Sprintf("Hello ,%s!", name) // greeting is a derived state
+  var greeting string = fmt.Sprintf("Hello, %s!", name) // greeting is a derived state
 
   var counter int = 0 // counter is a state
-  var counterTimes10 int = counter * 10 // counterTimes10 is reactive and change
+  var counterTimes10 int = counter * 10 // counterTimes10 is automatically changed if counter modified.
 
   // declare a event handler in Go!
   func addOne() {
@@ -269,7 +271,7 @@ You can bind multiple events to one element: `<div tx-onmouseleave="show = false
 </script>
 ...
 <p>{ counter }</p>
-<button tx-onclick="add1()">Add 2</button>
+<button tx-onclick="add1()">Add 1</button>
 ```
 
 #### Arguments
@@ -310,13 +312,13 @@ Use ';' to separate multiple statements.
 
 You can declare a function named `init()`, similar to Go's `init()` function. It runs once when the page loads.
 
-It won't be compiled into an HTTP request, so you cannot call it using `tx-on*` attributes.2.4秒
+It won't be compiled into an HTTP request, so you cannot call it using `tx-on*` attributes.
 ```html
 <script type="text/tmplx">
   var user User
 
   func init() {
-    user := user.Get("user_id")
+    user = user.Get("user_id")
   }
 </script>
 ```
@@ -345,7 +347,7 @@ You can use any valid expression in the value of `tx-if`, `tx-else-if` that fits
   var num int = 1
 </script>
 ...
-<button tx-onclick="num++">Append A</button>
+<button tx-onclick="num++">Add 1</button>
 <p tx-if="counter % 2 == 1"> odd </p>
 <p tx-else> even </p>
 ```
