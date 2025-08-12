@@ -17,7 +17,7 @@ tmplx is a compile-time framework using **Go** for building **state-driven** web
   - [Control Flow](#control-flow)
     - [tx-if / tx-else-if / tx-else](#tx-if-tx-else-if-tx-else)
     - [tx-for](#tx-for)
-  - [<template>](#template)
+  - [`<template>`](#template)
   - [tmplx cmd](#tmplx-cmd)
     - [pages directory](#pages-directory)
     - [components directory](#components-directory)
@@ -53,7 +53,7 @@ go mod init proj
   var counter int = 0 // counter is a state
   var counterTimes10 int = counter * 10 // counterTimes10 is reactive and change
 
-  // 
+  // declare a event handler in Go!
   func addOne() {
     counter++
   }
@@ -308,9 +308,9 @@ Use ';' to separate multiple statements.
 
 ### `init()`
 
-The `init()` function is special; you can declare a function similar to Go's `init()`: It runs once when the page loads.
+You can declare a function named `init()`, similar to Go's `init()` function. It runs once when the page loads.
 
-It won't be compiled into an HTTP request, so you cannot call it using `tx-on*` attributes.
+It won't be compiled into an HTTP request, so you cannot call it using `tx-on*` attributes.2.4秒
 ```html
 <script type="text/tmplx">
   var user User
@@ -338,7 +338,7 @@ Another use case is when you want to initialize a state from another state but d
 
 #### `tx-if`, `tx-else-if`, `tx-else`
 
-You can use any valid expression in the value of `tx-if` that fits Go's if statement condition. New variables created in the expression will also be accessible to the children of the node. It works just like Go's conditional statements, intuitively.
+You can use any valid expression in the value of `tx-if`, `tx-else-if` that fits Go's if statement condition. The `tx-else` attribute does not require any value. New variables created in the expression will also be accessible to the children of the node. It works just like Go's conditional statements.
 
 ```html
 <script type="text/tmplx">
@@ -352,18 +352,31 @@ You can use any valid expression in the value of `tx-if` that fits Go's if state
 
 ```html
 <p tx-if="user, err := user.GetUser(); err != nil">
-  <p tx-if="err == ErrNotFound"> User not found</p>
+  <span tx-if="err == ErrNotFound"> User not found</span>
 </p>
 <p tx-else-if='user.Name == ""'> user.Name not set </p>
 <p tx-else > Hi!, { user.Name } </p>
 ```
 
 #### `tx-for`
+You can put every thing that fit Go's `for` statement.
 ```html
 ...
-<p tx-for="i := 0; i < 10; i++"> { i } </p>
+<div tx-for="_, user := range users">
+  { user.Id }: { user.Name }
+</div>
 ```
-
+```html
+...
+<div tx-for="i := 0; i < 10; i++">
+  <div tx-for="j := 0; j < 10; j++">
+    { i } * { j } = { i * j }
+  </div>
+</div>
+```
+### `<template>`
+### components (WIP)
+### morphing (WIP)
 ### `tmplx` cmd
 #### `pages` directory
 #### `components` directory
