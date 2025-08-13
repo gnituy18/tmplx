@@ -41,6 +41,31 @@ func main() {
 	componentsDir = path.Clean(componentsDir)
 	output = path.Clean(output)
 
+	components := []*Component{}
+	if err := filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("error accessing %s: %w", path, err)
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		_, filename := filepath.Split(path)
+		if ext := filepath.Ext(filename); ext != ".html" {
+			log.Printf("skipping non-HTML file: %s\n", path)
+			return nil
+		}
+
+		components = append(components, &Component{
+			FilePath: path,
+		})
+
+		return nil
+	}); err != nil {
+		log.Fatalln(err)
+	}
+
 	pages := []*Page{}
 	if err := filepath.WalkDir(pagesDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -175,6 +200,15 @@ func printSourceWithLineNum(data []byte) {
 		log.Printf("%d: %s\n", lineNum, scanner.Text())
 		lineNum++
 	}
+}
+
+type Component struct {
+	FilePath string
+	RelPath  string
+
+	ScriptNode   *html.Node
+	TemplateNode *html.Node
+	StyleNode    *html.Node
 }
 
 type Page struct {
