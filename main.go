@@ -41,7 +41,8 @@ func main() {
 	componentsDir = path.Clean(componentsDir)
 	output = path.Clean(output)
 
-	components := []*Component{}
+	componentNames := []string{}
+	components := map[string]*Component{}
 	if err := filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("error accessing %s: %w", path, err)
@@ -57,12 +58,29 @@ func main() {
 			return nil
 		}
 
-		components = append(components, &Component{
+		relPath, err := filepath.Rel(componentsDir, path)
+		if err != nil {
+			return fmt.Errorf("relative path not found: %w", err)
+		}
+
+		name := "tx-" + strings.ToLower(strings.ReplaceAll(relPath, "/", "-"))
+
+		componentNames = append(componentNames, name)
+		components[name] = &Component{
 			FilePath: path,
-		})
+			Name:     name,
+		}
 
 		return nil
 	}); err != nil {
+		log.Fatalln(err)
+	}
+
+	eg := new(errgroup.Group)
+	for _, name := range componentNames {
+		eg.Go(components[name].parse)
+	}
+	if err := eg.Wait(); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -88,7 +106,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	eg := new(errgroup.Group)
+	eg = new(errgroup.Group)
 	for _, page := range pages {
 		eg.Go(page.parse)
 	}
@@ -204,11 +222,64 @@ func printSourceWithLineNum(data []byte) {
 
 type Component struct {
 	FilePath string
-	RelPath  string
+	Name     string
 
 	ScriptNode   *html.Node
 	TemplateNode *html.Node
 	StyleNode    *html.Node
+}
+
+func (comp *Component) parse() error {
+	file, err := os.Open(comp.FilePath)
+	if err != nil {
+		return fmt.Errorf("open component file failed: %w", err)
+	}
+	defer file.Close()
+
+	nodes, err := html.ParseFragment(file, &html.Node{
+		Data:     "body",
+		DataAtom: atom.Body,
+		Type:     html.ElementNode,
+	})
+	if err != nil {
+		return fmt.Errorf("parse component html failed (file: %s): %w", comp.FilePath, err)
+	}
+
+	for _, node := range nodes {
+		if node.Type != html.ElementNode {
+			continue
+		}
+		switch node.DataAtom {
+		case atom.Script:
+			if comp.ScriptNode != nil {
+				return fmt.Errorf("multiple <script> node found (file: %s)", comp.FilePath)
+			}
+			if val, found := hasAttr(node, "type"); !found || val != mimeType {
+				return fmt.Errorf("you must have type=\"%s\" in <script> (file: %s)", mimeType, comp.FilePath)
+			}
+
+			comp.ScriptNode = node
+		case atom.Template:
+			if comp.TemplateNode != nil {
+				return fmt.Errorf("multiple <template> node found (file: %s)", comp.FilePath)
+			}
+			comp.TemplateNode = node
+		case atom.Style:
+			if comp.StyleNode != nil {
+				return fmt.Errorf("multiple <style> node found (file: %s)", comp.FilePath)
+			}
+			comp.StyleNode = node
+		default:
+			return fmt.Errorf("component must start with <script type=\"%s\"> or <template> or <style> node (file: %s)", mimeType, comp.FilePath)
+		}
+	}
+	if comp.TemplateNode == nil {
+		return fmt.Errorf("component <template> node not found (file: %s)", comp.FilePath)
+	}
+
+	fmt.Println(comp)
+
+	return nil
 }
 
 type Page struct {
@@ -1022,6 +1093,16 @@ func condState(n *html.Node) (CondState, string) {
 		}
 	}
 	return CondStateDefault, ""
+}
+
+func hasAttr(n *html.Node, str string) (string, bool) {
+	for _, attr := range n.Attr {
+		if attr.Key == str {
+			return attr.Val, true
+		}
+	}
+
+	return "", false
 }
 
 func hasForAttr(n *html.Node) (string, bool) {
