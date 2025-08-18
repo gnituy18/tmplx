@@ -227,6 +227,15 @@ type Component struct {
 	ScriptNode   *html.Node
 	TemplateNode *html.Node
 	StyleNode    *html.Node
+
+	Imports []*ast.ImportSpec
+
+	VarNames []string
+	Vars     map[string]*Var
+
+	FuncNameGen *IdGen
+	FuncNames   []string
+	Funcs       map[string]*Func
 }
 
 func (comp *Component) parse() error {
@@ -277,9 +286,216 @@ func (comp *Component) parse() error {
 		return fmt.Errorf("component <template> node not found (file: %s)", comp.FilePath)
 	}
 
-	fmt.Println(comp)
+	comp.Imports = []*ast.ImportSpec{}
+	comp.VarNames = []string{}
+	comp.Vars = map[string]*Var{}
+
+	if comp.ScriptNode != nil {
+		scriptAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, "package p\n"+comp.ScriptNode.FirstChild.Data, 0)
+		if err != nil {
+			return fmt.Errorf("parse script failed (file: %s): %w", comp.FilePath, err)
+		}
+
+		for _, decl := range scriptAst.Decls {
+			d, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+
+			if d.Tok != token.IMPORT {
+				continue
+			}
+
+			for _, spec := range d.Specs {
+				s, ok := spec.(*ast.ImportSpec)
+				if !ok {
+					return fmt.Errorf("not a import spec (file: %s): %s", comp.FilePath, astToSource(spec))
+				}
+
+				comp.Imports = append(comp.Imports, s)
+			}
+		}
+
+		for _, decl := range scriptAst.Decls {
+			d, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+
+			if d.Tok != token.VAR {
+				continue
+			}
+
+			for _, spec := range d.Specs {
+				s, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					return fmt.Errorf("not a value spec (file: %s): %s", comp.FilePath, astToSource(spec))
+				}
+
+				if s.Type == nil {
+					return fmt.Errorf("must specify a type in declaration (file: %s): %s", comp.FilePath, astToSource(spec))
+				}
+
+				if len(s.Values) == 0 {
+					for _, ident := range s.Names {
+						comp.VarNames = append(comp.VarNames, ident.Name)
+						comp.Vars[ident.Name] = &Var{
+							Name:     ident.Name,
+							Type:     VarTypeState,
+							TypeExpr: s.Type,
+						}
+					}
+					continue
+				}
+
+				if len(s.Values) > len(s.Names) {
+					return fmt.Errorf("extra init exprs (file: %s): %s", comp.FilePath, astToSource(spec))
+				}
+
+				if len(s.Values) < len(s.Names) {
+					return fmt.Errorf("missin init exprs (file: %s): %s", comp.FilePath, astToSource(spec))
+				}
+
+				for i, v := range s.Values {
+					found := false
+					t := VarTypeState
+					ast.Inspect(v, func(n ast.Node) bool {
+						if found {
+							return false
+						}
+
+						ident, ok := n.(*ast.Ident)
+						if !ok {
+							return true
+						}
+
+						if _, ok := comp.Vars[ident.Name]; ok {
+							found = true
+							t = VarTypeDerived
+							return false
+						}
+
+						return true
+					})
+					name := s.Names[i].Name
+					comp.VarNames = append(comp.VarNames, name)
+					comp.Vars[name] = &Var{
+						Name:     name,
+						Type:     VarType(t),
+						TypeExpr: s.Type,
+						InitExpr: v,
+					}
+				}
+			}
+		}
+
+		for _, decl := range scriptAst.Decls {
+			d, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+
+			if d.Recv != nil {
+				return fmt.Errorf("no method declaration (file: %s)", comp.FilePath)
+			}
+			if d.Type.Results != nil {
+				return fmt.Errorf("functions must not have return values (file: %s)", comp.FilePath)
+			}
+
+			for _, field := range d.Type.Params.List {
+				for _, name := range field.Names {
+					if comp.Vars[name.Name] != nil {
+						return fmt.Errorf("You cannot use state names as handler parameter names (file: %s): %v", comp.FilePath, name)
+					}
+				}
+			}
+
+			modifiedDerived := []string{}
+			comp.modifiedVars(d, &modifiedDerived)
+
+			if len(modifiedDerived) > 0 {
+				return fmt.Errorf("derived can not be modified (file: %s): %v", comp.FilePath, modifiedDerived)
+			}
+
+			comp.FuncNames = append(comp.FuncNames, d.Name.Name)
+			comp.Funcs[d.Name.Name] = &Func{
+				Name: d.Name.Name,
+				Decl: d,
+			}
+		}
+
+	}
 
 	return nil
+}
+
+// The first identifier appearing on the LHS of an assignment statement or in an inc/dec statement is a modified variable.
+func (comp *Component) modifiedVars(node ast.Node, md *[]string) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch stmt := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range stmt.Lhs {
+				found := false
+				ast.Inspect(lhs, func(n ast.Node) bool {
+					if found {
+						return false
+					}
+
+					ident, ok := n.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					found = true
+
+					v, ok := comp.Vars[ident.Name]
+					if !ok {
+						return false
+					}
+
+					if v.Type != VarTypeDerived {
+						return false
+					}
+
+					(*md) = append((*md), v.Name)
+					return false
+				})
+			}
+
+			for _, rhs := range stmt.Rhs {
+				comp.modifiedVars(rhs, md)
+			}
+
+			return false
+		case *ast.IncDecStmt:
+			found := false
+			ast.Inspect(stmt.X, func(n ast.Node) bool {
+				if found {
+					return false
+				}
+
+				ident, ok := n.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				found = true
+
+				v, ok := comp.Vars[ident.Name]
+				if !ok {
+					return false
+				}
+
+				if v.Type != VarTypeDerived {
+					return false
+				}
+
+				(*md) = append((*md), v.Name)
+				return false
+			})
+			return false
+		}
+
+		return true
+	})
 }
 
 type Page struct {
@@ -476,6 +692,9 @@ func (page *Page) parse() error {
 			}
 			if d.Type.Results != nil {
 				return fmt.Errorf("functions must not have return values (file: %s)", page.FilePath)
+			}
+			if d.Body == nil {
+				return fmt.Errorf("functions in page must have func body (file: %s)", page.FilePath)
 			}
 			for _, field := range d.Type.Params.List {
 				for _, name := range field.Names {
