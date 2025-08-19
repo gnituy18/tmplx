@@ -21,25 +21,29 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"golang.org/x/sync/errgroup"
-	goimports "golang.org/x/tools/imports"
+	"golang.org/x/tools/imports"
 )
 
 const mimeType = "text/tmplx"
 
 var pagesDir string
 var componentsDir string
-var output string
+var outputFilePath string
 var outputPackageName string
 
 func main() {
-	flag.StringVar(&pagesDir, "pages", path.Clean("pages"), "pages directory")
-	flag.StringVar(&componentsDir, "components", path.Clean("components"), "components directory")
-	flag.StringVar(&output, "output", path.Clean("./tmplx/handler.go"), "output file")
-	flag.StringVar(&outputPackageName, "package", "tmplx", "output package name")
+	flag.StringVar(&pagesDir, "pages", "pages", "pages directory")
+	flag.StringVar(&componentsDir, "components", "components", "components directory")
+	flag.StringVar(&outputFilePath, "output-file-path", "tmplx/handler.go", "output file path")
+	flag.StringVar(&outputPackageName, "output-package-name", "tmplx", "output package name")
 	flag.Parse()
 	pagesDir = path.Clean(pagesDir)
 	componentsDir = path.Clean(componentsDir)
-	output = path.Clean(output)
+	outputFilePath = path.Clean(outputFilePath)
+
+	if outputPackageName == "" {
+		log.Fatalln("output package name can not be empty string")
+	}
 
 	componentNames := []string{}
 	components := map[string]*Component{}
@@ -52,8 +56,8 @@ func main() {
 			return nil
 		}
 
-		_, filename := filepath.Split(path)
-		if ext := filepath.Ext(filename); ext != ".html" {
+		ext := filepath.Ext(path)
+		if ext != ".html" {
 			log.Printf("skipping non-HTML file: %s\n", path)
 			return nil
 		}
@@ -63,7 +67,10 @@ func main() {
 			return fmt.Errorf("relative path not found: %w", err)
 		}
 
-		name := "tx-" + strings.ToLower(strings.ReplaceAll(relPath, "/", "-"))
+		before, _ := strings.CutSuffix(relPath, ext)
+
+		// https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name
+		name := "tx-" + strings.ToLower(strings.ReplaceAll(before, "/", "-"))
 
 		componentNames = append(componentNames, name)
 		components[name] = &Component{
@@ -190,17 +197,17 @@ type TmplxHandler struct {
 	out.WriteString(fmt.Sprintf("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n%s\n}\n", tmplHandlers.String()))
 
 	data := []byte(out.String())
-	formatted, err := goimports.Process(output, data, nil)
+	formatted, err := imports.Process(outputFilePath, data, nil)
 	if err != nil {
 		printSourceWithLineNum(data)
 		log.Fatalln(fmt.Errorf("format output file failed: %w", err))
 	}
 
-	dir := filepath.Dir(output)
+	dir := filepath.Dir(outputFilePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Fatalln(err)
 	}
-	file, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(outputFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -289,6 +296,8 @@ func (comp *Component) parse() error {
 	comp.Imports = []*ast.ImportSpec{}
 	comp.VarNames = []string{}
 	comp.Vars = map[string]*Var{}
+	comp.FuncNames = []string{}
+	comp.Funcs = map[string]*Func{}
 
 	if comp.ScriptNode != nil {
 		scriptAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, "package p\n"+comp.ScriptNode.FirstChild.Data, 0)
@@ -423,6 +432,20 @@ func (comp *Component) parse() error {
 				Decl: d,
 			}
 		}
+
+	}
+
+	return nil
+}
+func (comp *Component) parseTmpl(node *html.Node) error {
+	switch node.Type {
+	case html.CommentNode:
+	case html.DocumentNode:
+		return fmt.Errorf("no document node in template (file: %s)", comp.FilePath)
+	case html.DoctypeNode:
+		return fmt.Errorf("no doctype in template (file: %s)", comp.FilePath)
+	case html.TextNode:
+	case html.ElementNode:
 
 	}
 
@@ -1235,6 +1258,7 @@ const (
 	TmplTypeExpr
 	TmplTypeHtmlEscapeExpr
 	TmplTypeUrlEscapeExpr
+	TmplTypeComp
 )
 
 type PageTmpl struct {
