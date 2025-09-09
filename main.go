@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	mimeType    = "text/tmplx"
-	txIgnoreKey = "tx-ignore"
-	txForKey    = "tx-for"
-	txKeyKey    = "tx-key"
-	txIfKey     = "tx-if"
-	txElseIfKey = "tx-else-if"
-	txElseKey   = "tx-else"
+	mimeType     = "text/tmplx"
+	txIgnoreKey  = "tx-ignore"
+	txForKey     = "tx-for"
+	txKeyKey     = "tx-key"
+	txIfKey      = "tx-if"
+	txElseIfKey  = "tx-else-if"
+	txElseKey    = "tx-else"
+	txRuntimeVal = "tx-runtime"
 )
 
 var (
@@ -243,28 +244,35 @@ func main() {
 			}
 			cleanUpTmplxScript(page.TemplateNode)
 
-			if page.TmplxScriptNode != nil {
-				for node := range page.TemplateNode.Descendants() {
-					if node.DataAtom == atom.Head {
+			txStateNode := &html.Node{
+				Type:     html.ElementNode,
+				DataAtom: atom.Script,
+				Data:     "script",
+				Attr: []html.Attribute{
+					{Key: "type", Val: "application/json"},
+					{Key: "id", Val: "tx-state"},
+				},
+			}
+
+			txStateNode.AppendChild(&html.Node{
+				Type: html.TextNode,
+				Data: "TX_STATE_JSON",
+			})
+
+			for node := range page.TemplateNode.Descendants() {
+				if node.DataAtom == atom.Head {
+					if page.TmplxScriptNode != nil {
 						node.AppendChild(&html.Node{
 							Type:     html.ElementNode,
 							DataAtom: atom.Script,
 							Data:     "script",
 							Attr: []html.Attribute{
-								{Key: "id", Val: "tx-runtime"},
+								{Key: "id", Val: txRuntimeVal},
 							},
 						})
-						node.AppendChild(&html.Node{
-							Type:     html.ElementNode,
-							DataAtom: atom.Script,
-							Data:     "script",
-							Attr: []html.Attribute{
-								{Key: "type", Val: "application/json"},
-								{Key: "id", Val: "tx-state"},
-							},
-						})
-						break
 					}
+					node.AppendChild(txStateNode)
+					break
 				}
 			}
 
@@ -403,11 +411,14 @@ type TmplxHandler struct {
 		out.WriteString("newStates := map[string]string{}\n")
 		out.WriteString("txStateBytes, _ := json.Marshal(state)\n")
 		out.WriteString("newStates[\"\"] = string(txStateBytes)\n")
-		out.WriteString(fmt.Sprintf("render_%s(w, \"\", map[string]string{}, newStates", page.Id()))
+		out.WriteString("var buf bytes.Buffer\n")
+		out.WriteString(fmt.Sprintf("render_%s(&buf, \"\", map[string]string{}, newStates", page.Id()))
 		for _, name := range page.VarNames {
 			out.WriteString(fmt.Sprintf(", %s", name))
 		}
 		out.WriteString(")\n")
+		out.WriteString("stateStr, _ := json.Marshal(newStates)\n")
+		out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateStr, 1))\n")
 		out.WriteString("},\n")
 		out.WriteString("},\n")
 	}
@@ -973,72 +984,77 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 		// 1: if
 		// 2: else-if
 		// 3: else
-		var prevCondState CondState
-		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			hasFor := false
-			forKey := ""
-			if c.Type == html.ElementNode {
-				currCondState, field := condState(c)
+		if val, found := hasAttr(node, "id"); node.DataAtom == atom.Script && found && val == txRuntimeVal {
+			comp.writeGo("w.Write([]byte(runtimeScript))\n")
+		} else {
 
-				switch prevCondState {
-				case CondStateDefault:
-					if currCondState == CondStateElseIf || currCondState == CondStateElse {
-						errs.append(comp.errf("detect tx-else-if or tx-else right after non-cond node: %s", c.Data))
-					}
-				case CondStateIf:
-					if currCondState <= prevCondState {
+			var prevCondState CondState
+			for c := node.FirstChild; c != nil; c = c.NextSibling {
+				hasFor := false
+				forKey := ""
+				if c.Type == html.ElementNode {
+					currCondState, field := condState(c)
+
+					switch prevCondState {
+					case CondStateDefault:
+						if currCondState == CondStateElseIf || currCondState == CondStateElse {
+							errs.append(comp.errf("detect tx-else-if or tx-else right after non-cond node: %s", c.Data))
+						}
+					case CondStateIf:
+						if currCondState <= prevCondState {
+							comp.writeGo("\n}\n")
+						}
+					case CondStateElseIf:
+						if currCondState < prevCondState {
+							comp.writeGo("\n}\n")
+						}
+					case CondStateElse:
+						if currCondState == CondStateElseIf || currCondState == CondStateElse {
+							errs.append(comp.errf("detect tx-else-if or tx-else right after tx-else: %s", c.Data))
+						}
 						comp.writeGo("\n}\n")
 					}
-				case CondStateElseIf:
-					if currCondState < prevCondState {
-						comp.writeGo("\n}\n")
+
+					switch currCondState {
+					case CondStateDefault:
+					case CondStateIf:
+						comp.writeGo("\nif " + field + " {\n")
+					case CondStateElseIf:
+						comp.writeGo("\n} else if " + field + " {\n")
+					case CondStateElse:
+						comp.writeGo("\n} else {\n")
 					}
-				case CondStateElse:
-					if currCondState == CondStateElseIf || currCondState == CondStateElse {
-						errs.append(comp.errf("detect tx-else-if or tx-else right after tx-else: %s", c.Data))
+
+					prevCondState = currCondState
+
+					if stmt, ok := hasAttr(c, txForKey); ok {
+						val, found := hasAttr(c, txKeyKey)
+						if !found {
+							errs.append(comp.errf("tx-for loop must have tx-key attr"))
+						} else {
+							hasFor = true
+							forKey = val
+							comp.writeGo("\nfor " + stmt + " {\n")
+						}
 					}
+				}
+
+				childForKeys := forKeys
+				if hasFor {
+					childForKeys = append(forKeys, forKey)
+				}
+
+				if childErrs := comp.parseTmpl(c, childForKeys); childErrs != nil {
+					errs.append(childErrs.Errs...)
+				}
+
+				if hasFor {
 					comp.writeGo("\n}\n")
 				}
 
-				switch currCondState {
-				case CondStateDefault:
-				case CondStateIf:
-					comp.writeGo("\nif " + field + " {\n")
-				case CondStateElseIf:
-					comp.writeGo("\n} else if " + field + " {\n")
-				case CondStateElse:
-					comp.writeGo("\n} else {\n")
+				if c.NextSibling == nil && (prevCondState == CondStateIf || prevCondState == CondStateElseIf || prevCondState == CondStateElse) {
+					comp.writeGo("\n}\n")
 				}
-
-				prevCondState = currCondState
-
-				if stmt, ok := hasAttr(c, txForKey); ok {
-					val, found := hasAttr(c, txKeyKey)
-					if !found {
-						errs.append(comp.errf("tx-for loop must have tx-key attr"))
-					} else {
-						hasFor = true
-						forKey = val
-						comp.writeGo("\nfor " + stmt + " {\n")
-					}
-				}
-			}
-
-			childForKeys := forKeys
-			if hasFor {
-				childForKeys = append(forKeys, forKey)
-			}
-
-			if childErrs := comp.parseTmpl(c, childForKeys); childErrs != nil {
-				errs.append(childErrs.Errs...)
-			}
-
-			if hasFor {
-				comp.writeGo("\n}\n")
-			}
-
-			if c.NextSibling == nil && (prevCondState == CondStateIf || prevCondState == CondStateElseIf || prevCondState == CondStateElse) {
-				comp.writeGo("\n}\n")
 			}
 		}
 
