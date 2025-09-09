@@ -114,10 +114,12 @@ func main() {
 			return fmt.Errorf("relative path not found: %w", err)
 		}
 
+		basePath, _ := strings.CutSuffix(relPath, ext)
+
 		pages = append(pages, &Component{
 			FilePath: path,
 			RelPath:  relPath,
-			Name:     relPath,
+			Name:     basePath,
 		})
 		return nil
 	}); err != nil {
@@ -324,7 +326,7 @@ type TmplxHandler struct {
 		out.WriteString(fmt.Sprintf("type state_%s struct {\n", comp.Id()))
 		for _, varName := range comp.VarNames {
 			v := comp.Vars[varName]
-			out.WriteString(fmt.Sprintf("%s %s\n", v.Name, astToSource(v.TypeExpr)))
+			out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
 		}
 		out.WriteString("}\n")
 
@@ -518,8 +520,9 @@ func (comp *Component) parseTmplxScript() *Errors {
 						for _, ident := range s.Names {
 							comp.VarNames = append(comp.VarNames, ident.Name)
 							comp.Vars[ident.Name] = &Var{
-								Name:     ident.Name,
-								TypeExpr: s.Type,
+								Name:        ident.Name,
+								StructField: "S_" + ident.Name,
+								TypeExpr:    s.Type,
 							}
 						}
 
@@ -727,14 +730,15 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				}
 				comp.writeGo("\n")
 			}
+			comp.writeGo(fmt.Sprintf("ckey := key + \"%s\"\n", id))
 			comp.writeGo(fmt.Sprintf("state := &state_%s{}\n", childComp.Id()))
-			comp.writeGo("if _, ok := states[key]; ok {\n")
-			comp.writeGo("json.Unmarshal([]byte(states[key]), state)\n")
-			comp.writeGo("newStates[key] = states[key]")
+			comp.writeGo("if _, ok := states[ckey]; ok {\n")
+			comp.writeGo("json.Unmarshal([]byte(states[ckey]), state)\n")
+			comp.writeGo("newStates[ckey] = states[ckey]")
 			comp.writeGo("} else {\n")
 			for _, varName := range childComp.VarNames {
 				v := childComp.Vars[varName]
-				comp.writeGo(fmt.Sprintf("state.%s", v.Name))
+				comp.writeGo(fmt.Sprintf("state.%s", v.StructField))
 				if val, found := hasAttr(node, varName); found {
 					comp.writeGo(fmt.Sprintf(" = %s\n", val))
 				} else if v.InitExpr != nil {
@@ -744,51 +748,56 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				}
 			}
 			comp.writeGo("txStateBytes, _ := json.Marshal(state)\n")
-			comp.writeGo("newStates[key] = string(txStateBytes)\n")
+			comp.writeGo("newStates[ckey] = string(txStateBytes)\n")
 			comp.writeGo("}\n")
 			states := []string{}
 			for _, varName := range childComp.VarNames {
-				states = append(states, "state."+varName)
+				states = append(states, "state."+childComp.Vars[varName].StructField)
 			}
-			comp.writeGo(fmt.Sprintf("render_%s(w, key + \"%s\", states, newStates, %s", childComp.Id(), id, strings.Join(states, ",")))
+			comp.writeGo(fmt.Sprintf("render_%s(w, ckey, states, newStates, %s", childComp.Id(), strings.Join(states, ",")))
 
-			slotNodes := map[string]*html.Node{
-				"": {
-					Type:     html.ElementNode,
-					DataAtom: atom.Template,
-					Data:     "template",
-				},
-			}
+			slotNodes := map[string]*html.Node{}
 
 			for c := node.FirstChild; c != nil; c = c.NextSibling {
 				if slotName, found := hasAttr(c, "slot"); found {
 					slotNodes[slotName] = c
 					continue
+				} else {
+					if slotNodes[""] == nil {
+
+						slotNodes[""] = &html.Node{
+							Type:     html.ElementNode,
+							DataAtom: atom.Template,
+							Data:     "template",
+						}
+					}
+
+					slotNodes[""].AppendChild(&html.Node{
+						FirstChild: c.FirstChild,
+						LastChild:  c.LastChild,
+
+						Type:      c.Type,
+						DataAtom:  c.DataAtom,
+						Data:      c.Data,
+						Namespace: c.Namespace,
+						Attr:      c.Attr,
+					})
 				}
-
-				slotNodes[""].AppendChild(&html.Node{
-					FirstChild: c.FirstChild,
-					LastChild:  c.LastChild,
-
-					Type:      c.Type,
-					DataAtom:  c.DataAtom,
-					Data:      c.Data,
-					Namespace: c.Namespace,
-					Attr:      c.Attr,
-				})
 			}
 
 			if len(childComp.SlotNames) > 0 {
 				comp.writeGo(",\n")
 			}
 			for _, slotName := range childComp.SlotNames {
-				comp.writeGo("func() {\n")
-				if n, ok := slotNodes[slotName]; ok {
+				n, ok := slotNodes[slotName]
+				if ok {
+					comp.writeGo("func() {\n")
 					ptErrs := comp.parseTmpl(n, forKeys)
 					errs.append(ptErrs.Errs...)
+					comp.writeGo("\n},\n")
+				} else {
+					comp.writeGo("nil,\n")
 				}
-
-				comp.writeGo("\n},\n")
 			}
 			comp.writeGo(")\n")
 			comp.writeGo("}\n")
@@ -804,27 +813,31 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 			comp.writeGo(fmt.Sprintf("if %s != nil {\n", renderSlotFuncName))
 			comp.writeGo(fmt.Sprintf("%s()\n", renderSlotFuncName))
 			comp.writeGo("} else {\n")
-			children := &html.Node{
-				Type:     html.ElementNode,
-				DataAtom: atom.Template,
-				Data:     "template",
+
+			if node.FirstChild != nil {
+				children := &html.Node{
+					Type:     html.ElementNode,
+					DataAtom: atom.Template,
+					Data:     "template",
+				}
+				for c := node.FirstChild; c != nil; c = c.NextSibling {
+					children.AppendChild(&html.Node{
+						FirstChild: c.FirstChild,
+						LastChild:  c.LastChild,
+
+						Type:      c.Type,
+						DataAtom:  c.DataAtom,
+						Namespace: c.Namespace,
+						Data:      c.Data,
+						Attr:      c.Attr,
+					})
+				}
+				ptErrs := comp.parseTmpl(children, forKeys)
+				errs.append(ptErrs.Errs...)
+			} else {
+				comp.writeStrLit(" ")
 			}
 
-			for c := node.FirstChild; c != nil; c = c.NextSibling {
-				children.AppendChild(&html.Node{
-					FirstChild: c.FirstChild,
-					LastChild:  c.LastChild,
-
-					Type:      c.Type,
-					DataAtom:  c.DataAtom,
-					Namespace: c.Namespace,
-					Data:      c.Data,
-					Attr:      c.Attr,
-				})
-			}
-
-			ptErrs := comp.parseTmpl(children, forKeys)
-			errs.append(ptErrs.Errs...)
 			comp.writeGo("\n}\n")
 			return errs
 		}
@@ -1042,7 +1055,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 }
 
 func (comp *Component) parseTmplStr(str string, escape bool) error {
-	str = strings.TrimSpace(str) + " "
+	str = strings.TrimSpace(str)
+	if len(str) == 0 {
+		str = " "
+	}
 	braceStack := 0
 	isInDoubleQuote := false
 	isInSingleQuote := false
@@ -1231,10 +1247,11 @@ const (
 )
 
 type Var struct {
-	Name     string
-	Type     VarType
-	TypeExpr ast.Expr
-	InitExpr ast.Expr
+	Name        string
+	StructField string
+	Type        VarType
+	TypeExpr    ast.Expr
+	InitExpr    ast.Expr
 }
 
 type Func struct {
@@ -1411,49 +1428,6 @@ type HandlerFields struct {
 	Code   string
 	State  string
 	Render string
-}
-
-func (comp *Component) pageHandlerFields() HandlerFields {
-	var code strings.Builder
-	for _, name := range comp.VarNames {
-		v := comp.Vars[name]
-		spec := &ast.ValueSpec{
-			Names: []*ast.Ident{{Name: name}},
-			Type:  v.TypeExpr,
-		}
-		if v.InitExpr != nil {
-			spec.Values = []ast.Expr{v.InitExpr}
-		}
-
-		decl := &ast.GenDecl{
-			Tok:   token.VAR,
-			Specs: []ast.Spec{spec},
-		}
-
-		code.WriteString(astToSource(decl) + "\n")
-	}
-	if f, ok := comp.Funcs["init"]; ok {
-		for _, stmt := range f.Decl.Body.List {
-			code.WriteString(astToSource(stmt) + "\n")
-		}
-	}
-	comp.writeDerivedAst(&code)
-
-	var state strings.Builder
-	comp.writeStateFieldsAst(&state)
-
-	params := []string{}
-	for _, v := range comp.VarNames {
-		params = append(params, v)
-	}
-	render := fmt.Sprintf("render_%s(w, state, %s)\n", comp.Id(), strings.Join(params, ", "))
-
-	return HandlerFields{
-		Url:    comp.urlPath(),
-		Code:   code.String(),
-		State:  state.String(),
-		Render: render,
-	}
 }
 
 func (comp *Component) funcHandlerFields() []HandlerFields {
