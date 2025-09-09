@@ -353,7 +353,7 @@ type TmplxHandler struct {
 			}
 		}
 
-		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states, newStates map[string]string %s) {\n", comp.Id(), paramsStr))
+		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any  %s) {\n", comp.Id(), paramsStr))
 		comp.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -371,7 +371,7 @@ type TmplxHandler struct {
 			v := page.Vars[varName]
 			params = append(params, fmt.Sprintf("%s %s", v.Name, astToSource(v.TypeExpr)))
 		}
-		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states, newStates map[string]string, %s) {\n", page.Id(), strings.Join(params, ", ")))
+		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any, %s) {\n", page.Id(), strings.Join(params, ", ")))
 		page.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -408,17 +408,16 @@ type TmplxHandler struct {
 			out.WriteString(fmt.Sprintf("%s: %s,\n", name, name))
 		}
 		out.WriteString("}\n")
-		out.WriteString("newStates := map[string]string{}\n")
-		out.WriteString("txStateBytes, _ := json.Marshal(state)\n")
-		out.WriteString("newStates[\"\"] = string(txStateBytes)\n")
+		out.WriteString("newStates := map[string]any{}\n")
+		out.WriteString("newStates[\"\"] = state\n")
 		out.WriteString("var buf bytes.Buffer\n")
 		out.WriteString(fmt.Sprintf("render_%s(&buf, \"\", map[string]string{}, newStates", page.Id()))
 		for _, name := range page.VarNames {
 			out.WriteString(fmt.Sprintf(", %s", name))
 		}
 		out.WriteString(")\n")
-		out.WriteString("stateStr, _ := json.Marshal(newStates)\n")
-		out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateStr, 1))\n")
+		out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
+		out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateBytes, 1))\n")
 		out.WriteString("},\n")
 		out.WriteString("},\n")
 	}
@@ -745,7 +744,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 			comp.writeGo(fmt.Sprintf("state := &state_%s{}\n", childComp.Id()))
 			comp.writeGo("if _, ok := states[ckey]; ok {\n")
 			comp.writeGo("json.Unmarshal([]byte(states[ckey]), state)\n")
-			comp.writeGo("newStates[ckey] = states[ckey]")
+			comp.writeGo("newStates[ckey] = state")
 			comp.writeGo("} else {\n")
 			for _, varName := range childComp.VarNames {
 				v := childComp.Vars[varName]
@@ -758,8 +757,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 					comp.writeGo("\n")
 				}
 			}
-			comp.writeGo("txStateBytes, _ := json.Marshal(state)\n")
-			comp.writeGo("newStates[ckey] = string(txStateBytes)\n")
+			comp.writeGo("newStates[ckey] = state\n")
 			comp.writeGo("}\n")
 			states := []string{}
 			for _, varName := range childComp.VarNames {
