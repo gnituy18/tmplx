@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	mimeType     = "text/tmplx"
+	mimeType = "text/tmplx"
+
 	txIgnoreKey  = "tx-ignore"
 	txForKey     = "tx-for"
 	txKeyKey     = "tx-key"
@@ -39,8 +40,14 @@ var (
 	outputFilePath    string
 	outputPackageName string
 
-	componentNames   = []string{}
-	componentsByName = map[string]*Component{}
+	componentNameCharSet = map[rune]struct{}{
+		'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {}, 'g': {}, 'h': {}, 'i': {}, 'j': {},
+		'k': {}, 'l': {}, 'm': {}, 'n': {}, 'o': {}, 'p': {}, 'q': {}, 'r': {}, 's': {}, 't': {},
+		'u': {}, 'v': {}, 'w': {}, 'x': {}, 'y': {}, 'z': {}, '0': {}, '1': {}, '2': {}, '3': {},
+		'4': {}, '5': {}, '6': {}, '7': {}, '8': {}, '9': {}, ':': {}, '-': {}, '.': {}, '_': {},
+	}
+	componentNames = []string{}
+	components     = map[string]*Component{}
 )
 
 func main() {
@@ -57,9 +64,11 @@ func main() {
 		log.Fatalln("output package name cannot be empty string")
 	}
 
-	if err := filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
+	errs := newErrors()
+	filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("error accessing %s: %w", path, err)
+			errs.append(fmt.Errorf("error accessing %s: %w", path, err))
+			return nil
 		}
 
 		if entry.IsDir() {
@@ -74,30 +83,41 @@ func main() {
 
 		relPath, err := filepath.Rel(componentsDir, path)
 		if err != nil {
-			return fmt.Errorf("relative path not found: %w", err)
+			errs.append(fmt.Errorf("relative path not found: %w", err))
+			return nil
 		}
 
 		basePath, _ := strings.CutSuffix(relPath, ext)
 
-		// https://html.spec.whatwg.org/multipage/custom-elements.html#valid-custom-element-name
 		name := "tx-" + strings.ToLower(strings.ReplaceAll(basePath, "/", "-"))
 
+		for _, r := range name {
+			if _, found := componentNameCharSet[r]; !found {
+				errs.append(fmt.Errorf("invalid char \"%c\" found in <%s>, component name can only contain characters from [a-z], [0-9], [:], [-], [.], [_]", r, name))
+				return nil
+			}
+		}
+
+		if comp, ok := components[name]; ok {
+			errs.append(fmt.Errorf("duplicate component <%s> found: %s, %s", name, comp.RelPath, relPath))
+			return nil
+		}
+
 		componentNames = append(componentNames, name)
-		componentsByName[name] = &Component{
+		components[name] = &Component{
 			FilePath: path,
 			RelPath:  relPath,
 			Name:     name,
+			GoIdent:  goIdent(name),
 		}
 
 		return nil
-	}); err != nil {
-		log.Fatalln(err)
-	}
+	})
 
 	pages := []*Component{}
-	if err := filepath.WalkDir(pagesDir, func(path string, entry fs.DirEntry, err error) error {
+	filepath.WalkDir(pagesDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("error accessing %s: %w", path, err)
+			errs.append(fmt.Errorf("error accessing %s: %w", path, err))
 		}
 
 		if entry.IsDir() {
@@ -112,7 +132,8 @@ func main() {
 
 		relPath, err := filepath.Rel(pagesDir, path)
 		if err != nil {
-			return fmt.Errorf("relative path not found: %w", err)
+			errs.append(fmt.Errorf("relative path not found: %w", err))
+			return nil
 		}
 
 		basePath, _ := strings.CutSuffix(relPath, ext)
@@ -121,18 +142,18 @@ func main() {
 			FilePath: path,
 			RelPath:  relPath,
 			Name:     basePath,
+			GoIdent:  goIdent(basePath),
 		})
 		return nil
-	}); err != nil {
-		log.Fatalln(err)
-	}
+	})
 
-	errs := newErrors()
+	errs.exitOnErrors()
+
 	var wg sync.WaitGroup
 	for _, name := range componentNames {
 		wg.Add(1)
 		go func() {
-			comp := componentsByName[name]
+			comp := components[name]
 			file, err := os.Open(comp.FilePath)
 			if err != nil {
 				errs.append(comp.errf("open file failed: %w", err))
@@ -178,37 +199,40 @@ func main() {
 				}
 			}
 
-			tsErrs := comp.parseTmplxScript()
-			errs.append(tsErrs.Errs...)
+			errs.concat(comp.parseTmplxScript())
 
 			comp.SlotNames = []string{}
 			comp.Slots = map[string]struct{}{}
-			psErrs := comp.parseSlots(comp.TemplateNode, false)
-			errs.append(psErrs.Errs...)
+
+			errs.concat(comp.parseSlots(comp.TemplateNode, false))
 
 			wg.Done()
 		}()
 	}
+
 	wg.Wait()
-	if len(errs.Errs) > 0 {
-		for _, err := range errs.Errs {
-			fmt.Println(err)
-		}
-		os.Exit(1)
-	}
+
+	errs.exitOnErrors()
 
 	for _, name := range componentNames {
 		wg.Add(1)
-		comp := componentsByName[name]
+		comp := components[name]
 		go func() {
 			comp.ChildCompsIdGen = map[string]*IdGen{}
 			for _, name = range componentNames {
 				comp.ChildCompsIdGen[name] = newIdGen(comp.Name + "_" + name)
 			}
 
-			comp.FuncNameGen = newIdGen(comp.Id())
-			ptErrs := comp.parseTmpl(comp.TemplateNode, []string{})
-			errs.append(ptErrs.Errs...)
+			comp.FuncNameGen = newIdGen(comp.GoIdent)
+			comp.writeStrLit("<template id=\"")
+			comp.writeExpr("key")
+			comp.writeStrLit("\">")
+			comp.writeStrLit("</template>")
+			errs.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
+			comp.writeStrLit("<template id=\"")
+			comp.writeExpr("key + \"_e\"")
+			comp.writeStrLit("\">")
+			comp.writeStrLit("</template>")
 
 			if len(comp.CurrRenderFuncContent) > 0 {
 				comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
@@ -261,34 +285,28 @@ func main() {
 
 			for node := range page.TemplateNode.Descendants() {
 				if node.DataAtom == atom.Head {
-					if page.TmplxScriptNode != nil {
-						node.AppendChild(&html.Node{
-							Type:     html.ElementNode,
-							DataAtom: atom.Script,
-							Data:     "script",
-							Attr: []html.Attribute{
-								{Key: "id", Val: txRuntimeVal},
-							},
-						})
-					}
+					node.AppendChild(&html.Node{
+						Type:     html.ElementNode,
+						DataAtom: atom.Script,
+						Data:     "script",
+						Attr: []html.Attribute{
+							{Key: "id", Val: txRuntimeVal},
+						},
+					})
 					node.AppendChild(txStateNode)
 					break
 				}
 			}
 
-			if tsErrs := page.parseTmplxScript(); tsErrs != nil {
-				errs.append(tsErrs.Errs...)
-			}
+			errs.concat(page.parseTmplxScript())
 
 			page.ChildCompsIdGen = map[string]*IdGen{}
 			for _, name := range componentNames {
 				page.ChildCompsIdGen[name] = newIdGen(page.Name + "_" + name)
 			}
 
-			page.FuncNameGen = newIdGen(page.Id())
-			if ptErrs := page.parseTmpl(page.TemplateNode, []string{}); ptErrs != nil {
-				errs.append(ptErrs.Errs...)
-			}
+			page.FuncNameGen = newIdGen(page.GoIdent)
+			errs.concat(page.parseTmpl(page.TemplateNode, []string{}))
 
 			if len(page.CurrRenderFuncContent) > 0 {
 				page.RenderFuncCodes = append(page.RenderFuncCodes, RenderFunc{
@@ -302,12 +320,7 @@ func main() {
 	}
 
 	wg.Wait()
-	if len(errs.Errs) > 0 {
-		for _, err := range errs.Errs {
-			fmt.Println(err)
-		}
-		os.Exit(1)
-	}
+	errs.exitOnErrors()
 
 	var out strings.Builder
 	out.WriteString("package " + outputPackageName + "\n")
@@ -330,8 +343,8 @@ type TmplxHandler struct {
 }
 `)
 	for _, name := range componentNames {
-		comp := componentsByName[name]
-		out.WriteString(fmt.Sprintf("type state_%s struct {\n", comp.Id()))
+		comp := components[name]
+		out.WriteString(fmt.Sprintf("type state_%s struct {\n", comp.GoIdent))
 		for _, varName := range comp.VarNames {
 			v := comp.Vars[varName]
 			out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
@@ -345,6 +358,10 @@ type TmplxHandler struct {
 				paramsStr += fmt.Sprintf(", %s %s", v.Name, astToSource(v.TypeExpr))
 			}
 		}
+		for _, funcName := range comp.FuncNames {
+			f := comp.Funcs[funcName]
+			paramsStr += fmt.Sprintf(", %s, %s string", f.Name, f.Name+"_swap")
+		}
 		for _, slotName := range comp.SlotNames {
 			if slotName != "" {
 				paramsStr += fmt.Sprintf(",render_slot_%s func()", slotName)
@@ -353,16 +370,16 @@ type TmplxHandler struct {
 			}
 		}
 
-		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any  %s) {\n", comp.Id(), paramsStr))
+		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr))
 		comp.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
 
 	for _, page := range pages {
-		out.WriteString(fmt.Sprintf("type state_%s struct {\n", page.Id()))
+		out.WriteString(fmt.Sprintf("type state_%s struct {\n", page.GoIdent))
 		for _, varName := range page.VarNames {
 			v := page.Vars[varName]
-			out.WriteString(fmt.Sprintf("%s %s\n", v.Name, astToSource(v.TypeExpr)))
+			out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
 		}
 		out.WriteString("}\n")
 
@@ -371,7 +388,11 @@ type TmplxHandler struct {
 			v := page.Vars[varName]
 			params = append(params, fmt.Sprintf("%s %s", v.Name, astToSource(v.TypeExpr)))
 		}
-		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any, %s) {\n", page.Id(), strings.Join(params, ", ")))
+		for _, funcName := range page.FuncNames {
+			f := page.Funcs[funcName]
+			params = append(params, fmt.Sprintf("%s, %s string", f.Name, f.Name+"_swap"))
+		}
+		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", ")))
 		page.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -403,23 +424,138 @@ type TmplxHandler struct {
 				out.WriteString(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
 			}
 		}
-		out.WriteString(fmt.Sprintf("state := &state_%s{\n", page.Id()))
+		out.WriteString(fmt.Sprintf("state := &state_%s{\n", page.GoIdent))
 		for _, name := range page.VarNames {
-			out.WriteString(fmt.Sprintf("%s: %s,\n", name, name))
+			v := page.Vars[name]
+			out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
 		}
 		out.WriteString("}\n")
 		out.WriteString("newStates := map[string]any{}\n")
-		out.WriteString("newStates[\"\"] = state\n")
+		out.WriteString("newStates[\"tx_\"] = state\n")
 		out.WriteString("var buf bytes.Buffer\n")
-		out.WriteString(fmt.Sprintf("render_%s(&buf, \"\", map[string]string{}, newStates", page.Id()))
+		out.WriteString(fmt.Sprintf("render_%s(&buf, \"tx_\", map[string]string{}, newStates", page.GoIdent))
 		for _, name := range page.VarNames {
 			out.WriteString(fmt.Sprintf(", %s", name))
+		}
+		for _, name := range page.FuncNames {
+			out.WriteString(fmt.Sprintf(", \"%s\", \"tx_\"", page.funcId(name)))
 		}
 		out.WriteString(")\n")
 		out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
 		out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateBytes, 1))\n")
 		out.WriteString("},\n")
 		out.WriteString("},\n")
+		for _, funcName := range page.FuncNames {
+			if funcName == "init" {
+				continue
+			}
+
+			f := page.Funcs[funcName]
+			out.WriteString("{\n")
+			out.WriteString("Url: \"/tx/" + page.funcId(funcName) + "\",\n")
+			out.WriteString("HandlerFunc: func(w http.ResponseWriter, r *http.Request) {\n")
+			out.WriteString("query := r.URL.Query()\n")
+			out.WriteString("states := map[string]string{}\n")
+			out.WriteString("for k, v := range query {\n")
+			out.WriteString("if strings.HasPrefix(k, \"tx_\") {\n")
+			out.WriteString("states[k] = v[0]\n")
+			out.WriteString("}\n")
+			out.WriteString("}\n")
+			out.WriteString("newStates := map[string]any{}\n")
+			out.WriteString(fmt.Sprintf("state := &state_%s{}\n", page.GoIdent))
+			out.WriteString("json.Unmarshal([]byte(states[\"tx_\"]), &state)\n")
+			for _, name := range page.VarNames {
+				v := page.Vars[name]
+				out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+			}
+			for _, list := range f.Decl.Type.Params.List {
+				for _, ident := range list.Names {
+					out.WriteString(fmt.Sprintf("var %s %s\n", ident.Name, astToSource(list.Type)))
+					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
+				}
+			}
+			for _, stmt := range f.Decl.Body.List {
+				out.WriteString(astToSource(stmt) + "\n")
+			}
+			out.WriteString("var buf bytes.Buffer\n")
+			out.WriteString(fmt.Sprintf("render_%s(&buf, \"tx_\", states, newStates", page.GoIdent))
+			for _, name := range page.VarNames {
+				out.WriteString(fmt.Sprintf(", %s", name))
+			}
+			for _, name := range page.FuncNames {
+				out.WriteString(fmt.Sprintf(", \"%s\", \"tx_\"", page.funcId(name)))
+			}
+			out.WriteString(")\n")
+			out.WriteString(fmt.Sprintf("newStates[\"tx_\"] = &state_%s{\n", page.GoIdent))
+			for _, name := range page.VarNames {
+				v := page.Vars[name]
+				out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
+			}
+			out.WriteString("}\n")
+			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
+			out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateBytes, 1))\n")
+			out.WriteString("},\n")
+			out.WriteString("},\n")
+		}
+	}
+	for _, name := range componentNames {
+		comp := components[name]
+		for _, funcName := range comp.FuncNames {
+			if funcName == "init" {
+				continue
+			}
+
+			f := comp.Funcs[funcName]
+			if f.Decl.Body == nil {
+				continue
+			}
+
+			out.WriteString("{\n")
+			out.WriteString("Url: \"/tx/" + comp.funcId(funcName) + "\",\n")
+			out.WriteString("HandlerFunc: func(w http.ResponseWriter, r *http.Request) {\n")
+			out.WriteString("w.Header().Set(\"Content-Type\", \"text/html\")\n")
+			out.WriteString("query := r.URL.Query()\n")
+			out.WriteString("txSwap := query.Get(\"tx-swap\")\n")
+			out.WriteString("states := map[string]string{}\n")
+			out.WriteString("for k, v := range query {\n")
+			out.WriteString("if strings.HasPrefix(k, txSwap) {\n")
+			out.WriteString("states[k] = v[0]\n")
+			out.WriteString("}\n")
+			out.WriteString("}\n")
+			out.WriteString("newStates := map[string]any{}\n")
+			out.WriteString(fmt.Sprintf("state := &state_%s{}\n", comp.GoIdent))
+			out.WriteString("json.Unmarshal([]byte(states[txSwap]), &state)\n")
+			for _, name := range comp.VarNames {
+				v := comp.Vars[name]
+				out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+			}
+			for _, list := range f.Decl.Type.Params.List {
+				for _, ident := range list.Names {
+					out.WriteString(fmt.Sprintf("var %s %s\n", ident.Name, astToSource(list.Type)))
+					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
+				}
+			}
+
+			for _, stmt := range f.Decl.Body.List {
+
+				out.WriteString(astToSource(stmt) + "\n")
+			}
+
+			out.WriteString(fmt.Sprintf("render_%s(w, txSwap, states, newStates", comp.GoIdent))
+			for _, name := range comp.VarNames {
+				out.WriteString(fmt.Sprintf(", %s", name))
+			}
+			for _, name := range comp.FuncNames {
+				out.WriteString(fmt.Sprintf(", \"%s\", txSwap", comp.funcId(name)))
+			}
+			out.WriteString(")\n")
+			out.WriteString("w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
+			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
+			out.WriteString("w.Write(stateBytes)\n")
+			out.WriteString("w.Write([]byte(\"</script>\"))\n")
+			out.WriteString("},\n")
+			out.WriteString("},\n")
+		}
 	}
 	out.WriteString("}\n")
 
@@ -456,7 +592,8 @@ type Component struct {
 	FilePath string
 	RelPath  string
 
-	Name string
+	Name    string
+	GoIdent string
 
 	TmplxScriptNode *html.Node
 	Imports         []*ast.ImportSpec
@@ -693,13 +830,13 @@ func (comp *Component) modifiedDerived(node ast.Node, md *[]string) {
 }
 
 func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
+	errs := newErrors()
 	switch node.Type {
 	case html.CommentNode:
 		return nil
 	case html.DocumentNode:
-		errs := newErrors()
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			errs.append(comp.parseTmpl(c, forKeys).Errs...)
+			errs.concat(comp.parseTmpl(c, forKeys))
 		}
 		return errs
 	case html.DoctypeNode:
@@ -726,9 +863,8 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 			}
 		}
 	case html.ElementNode:
-		errs := newErrors()
-		if componentsByName[node.Data] != nil {
-			childComp := componentsByName[node.Data]
+		if components[node.Data] != nil {
+			childComp := components[node.Data]
 
 			id := comp.ChildCompsIdGen[childComp.Name].next()
 
@@ -740,8 +876,8 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				}
 				comp.writeGo("\n")
 			}
-			comp.writeGo(fmt.Sprintf("ckey := key + \"%s\"\n", id))
-			comp.writeGo(fmt.Sprintf("state := &state_%s{}\n", childComp.Id()))
+			comp.writeGo(fmt.Sprintf("ckey := key + \"_%s\"\n", id))
+			comp.writeGo(fmt.Sprintf("state := &state_%s{}\n", childComp.GoIdent))
 			comp.writeGo("if _, ok := states[ckey]; ok {\n")
 			comp.writeGo("json.Unmarshal([]byte(states[ckey]), state)\n")
 			comp.writeGo("newStates[ckey] = state")
@@ -759,11 +895,29 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 			}
 			comp.writeGo("newStates[ckey] = state\n")
 			comp.writeGo("}\n")
-			states := []string{}
+			params := []string{}
 			for _, varName := range childComp.VarNames {
-				states = append(states, "state."+childComp.Vars[varName].StructField)
+				params = append(params, "state."+childComp.Vars[varName].StructField)
 			}
-			comp.writeGo(fmt.Sprintf("render_%s(w, ckey, states, newStates, %s", childComp.Id(), strings.Join(states, ",")))
+
+			for _, funcName := range childComp.FuncNames {
+				if val, found := hasAttr(node, funcName); found {
+					if f, ok := comp.Funcs[val]; ok {
+						params = append(params, f.Name, f.Name+"_swap")
+					} else {
+						errs.append(comp.errf("func not declared: %s", val))
+					}
+				} else {
+					f := childComp.Funcs[funcName]
+					if f.Decl.Body == nil {
+						errs.append(comp.errf("prop func: %s must be assigned in comp: %s", funcName, childComp.Name))
+					} else {
+						params = append(params, fmt.Sprintf("\"%s\"", childComp.funcId(f.Name)), "ckey")
+					}
+				}
+			}
+
+			comp.writeGo(fmt.Sprintf("render_%s(w, ckey, states, newStates, %s", childComp.GoIdent, strings.Join(params, ",")))
 
 			slotNodes := map[string]*html.Node{}
 
@@ -801,8 +955,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				n, ok := slotNodes[slotName]
 				if ok {
 					comp.writeGo("func() {\n")
-					ptErrs := comp.parseTmpl(n, forKeys)
-					errs.append(ptErrs.Errs...)
+					errs.concat(comp.parseTmpl(n, forKeys))
 					comp.writeGo("\n},\n")
 				} else {
 					comp.writeGo("nil,\n")
@@ -841,8 +994,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 						Attr:      c.Attr,
 					})
 				}
-				ptErrs := comp.parseTmpl(children, forKeys)
-				errs.append(ptErrs.Errs...)
+				errs.concat(comp.parseTmpl(children, forKeys))
 			} else {
 				comp.writeStrLit(" ")
 			}
@@ -887,7 +1039,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 										continue
 									}
 
-									comp.writeStrLit(comp.funcId(fun.Name))
+									comp.writeExpr(fun.Name)
 									for i, param := range params {
 										foundVar := false
 										ast.Inspect(callExpr.Args[i], func(n ast.Node) bool {
@@ -922,7 +1074,14 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 										arg := astToSource(callExpr.Args[i])
 										comp.writeUrlEscapeExpr(arg)
 									}
+
 									comp.writeStrLit(`"`)
+									comp.writeGo(fmt.Sprintf("if %s != \"tx_\" {\n", fun.Name+"_swap"))
+									comp.writeStrLit(" tx-swap=\"")
+									comp.writeExpr(fun.Name + "_swap")
+									comp.writeStrLit(`"`)
+									comp.writeGo("}\n")
+
 									continue
 								}
 							}
@@ -1016,11 +1175,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 					switch currCondState {
 					case CondStateDefault:
 					case CondStateIf:
-						comp.writeGo("\nif " + field + " {\n")
+						comp.writeGo("if " + field + " {\n")
 					case CondStateElseIf:
-						comp.writeGo("\n} else if " + field + " {\n")
+						comp.writeGo("} else if " + field + " {\n")
 					case CondStateElse:
-						comp.writeGo("\n} else {\n")
+						comp.writeGo("} else {\n")
 					}
 
 					prevCondState = currCondState
@@ -1042,9 +1201,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 					childForKeys = append(forKeys, forKey)
 				}
 
-				if childErrs := comp.parseTmpl(c, childForKeys); childErrs != nil {
-					errs.append(childErrs.Errs...)
-				}
+				errs.concat(comp.parseTmpl(c, childForKeys))
 
 				if hasFor {
 					comp.writeGo("\n}\n")
@@ -1192,7 +1349,7 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 func (comp *Component) parseSlots(node *html.Node, inSlot bool) *Errors {
 	errs := newErrors()
 	if node.Type != html.ElementNode {
-		return errs
+		return nil
 	}
 
 	isSlot := node.DataAtom == atom.Slot
@@ -1219,8 +1376,7 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *Errors {
 	}
 
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		psErrs := comp.parseSlots(c, isSlot)
-		errs.append(psErrs.Errs...)
+		errs.concat(comp.parseSlots(c, isSlot))
 	}
 
 	return errs
@@ -1273,7 +1429,8 @@ type Func struct {
 	Decl *ast.FuncDecl
 }
 
-var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
+var runtimeScript = `
+document.addEventListener('DOMContentLoaded', function() {
   const state = JSON.parse(this.getElementById("tx-state").innerHTML)
   const addHandler = (node) => {
     const walker = document.createTreeWalker(
@@ -1296,14 +1453,42 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
           const searchParams = new URLSearchParams(params)
           const eventName = attr.name.slice(5);
           cn.addEventListener(eventName, async () => {
-            for (let key in state) {
-              searchParams.append(key, JSON.stringify(state[key]))
+            const txSwap = cn.getAttribute("tx-swap")
+            let pfx = ''
+            if (txSwap) {
+              pfx = txSwap
             }
+            for (let key in state) {
+              if (key.startsWith(pfx)) {
+                searchParams.append(key, JSON.stringify(state[key]))
+              }
+            }
+            searchParams.append("tx-swap", txSwap)
             const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
             res.text().then(html => {
-              document.open()
-              document.write(html)
-              document.close()
+              if (pfx === '') {
+                document.open()
+                document.write(html)
+                document.close()
+                return
+              }
+
+              const comp = document.createElement('body')
+              comp.innerHTML = html
+              const txState = comp.querySelector("#tx-state")
+              const newStates = JSON.parse(txState.textContent)
+              state = { ...state, ...newStates }
+              comp.removeChild(txState)
+              const range = document.createRange()
+              const start = document.getElementById(txSwap)
+              const end = document.getElementById(txSwap + '_e')
+              range.setStartBefore(start);
+              range.setEndAfter(end);
+              range.deleteContents();
+              for (let child of comp.children) {
+                range.insertNode(child.cloneNode(true))
+                range.collapse(false)
+              }
             })
           })
         }
@@ -1314,9 +1499,9 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
   new MutationObserver((records) => {
     records.forEach((record) => {
       if (record.type !== 'childList') return
-      records.addedNodes()
+      record.addedNodes.forEach(addHandler)
     })
-  }).observe(document.documentElement, { childList: true, subList: true })
+  }).observe(document.documentElement, { childList: true, subtree: true })
   addHandler(document.documentElement)
 });
 `
@@ -1373,17 +1558,8 @@ func (comp *Component) writeUrlEscapeExpr(content string) {
 	comp.writeTmpl(RenderFuncTypeUrlEscapeExpr, content)
 }
 
-func (comp *Component) Id() string {
-	p, _ := strings.CutSuffix(comp.Name, filepath.Ext(comp.Name))
-	p = strings.ReplaceAll(p, "/", "_")
-	p = strings.ReplaceAll(p, "-", "_d_")
-	p = strings.ReplaceAll(p, "{", "_lb_")
-	p = strings.ReplaceAll(p, "}", "_rb_")
-	return p
-}
-
 func (comp *Component) funcId(funcName string) string {
-	return comp.Id() + "_" + funcName
+	return comp.GoIdent + "_" + funcName
 }
 
 type CondState int
@@ -1412,6 +1588,17 @@ func condState(n *html.Node) (CondState, string) {
 	return CondStateDefault, ""
 }
 
+func goIdent(str string) string {
+	str = strings.ReplaceAll(str, "_", "_u_")
+	str = strings.ReplaceAll(str, "-", "_h_")
+	str = strings.ReplaceAll(str, ":", "_c_")
+	str = strings.ReplaceAll(str, ".", "_p_")
+	str = strings.ReplaceAll(str, "/", "_s_")
+	str = strings.ReplaceAll(str, "{", "_lb_")
+	str = strings.ReplaceAll(str, "}", "_rb_")
+	return str
+}
+
 func hasAttr(n *html.Node, str string) (string, bool) {
 	for _, attr := range n.Attr {
 		if attr.Key == str {
@@ -1435,133 +1622,6 @@ func (comp *Component) urlPath() string {
 	}
 
 	return p
-}
-
-type HandlerFields struct {
-	Url    string
-	Code   string
-	State  string
-	Render string
-}
-
-func (comp *Component) funcHandlerFields() []HandlerFields {
-	var codeVar strings.Builder
-	codeVar.WriteString("query := r.URL.Query()\n")
-
-	for _, name := range comp.VarNames {
-		v := comp.Vars[name]
-		spec := &ast.ValueSpec{
-			Names: []*ast.Ident{{Name: name}},
-			Type:  v.TypeExpr,
-		}
-
-		if v.Type == VarTypeDerived && v.InitExpr != nil {
-			spec.Values = []ast.Expr{v.InitExpr}
-		}
-
-		decl := &ast.GenDecl{
-			Tok:   token.VAR,
-			Specs: []ast.Spec{spec},
-		}
-
-		printer.Fprint(&codeVar, token.NewFileSet(), decl)
-		codeVar.WriteString("\n")
-
-		if v.Type == VarTypeDerived {
-			continue
-		}
-
-		codeVar.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", name, name))
-	}
-
-	var codeDerived strings.Builder
-	comp.writeDerivedAst(&codeDerived)
-
-	handlers := []HandlerFields{}
-	for _, funcName := range comp.FuncNames {
-		var code strings.Builder
-		code.WriteString(codeVar.String())
-
-		fun := comp.Funcs[funcName]
-
-		for _, params := range fun.Decl.Type.Params.List {
-			for _, name := range params.Names {
-				spec := &ast.ValueSpec{
-					Names: []*ast.Ident{{Name: name.Name}},
-					Type:  params.Type,
-				}
-				decl := &ast.GenDecl{
-					Tok:   token.VAR,
-					Specs: []ast.Spec{spec},
-				}
-				printer.Fprint(&code, token.NewFileSet(), decl)
-				code.WriteString("\n")
-				code.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", name, name))
-			}
-		}
-
-		for _, stmt := range fun.Decl.Body.List {
-			printer.Fprint(&code, token.NewFileSet(), stmt)
-			code.WriteString("\n")
-		}
-
-		code.WriteString(codeDerived.String())
-
-		var state strings.Builder
-		comp.writeStateFieldsAst(&state)
-
-		params := []string{}
-		for _, varName := range comp.VarNames {
-			params = append(params, varName)
-		}
-		render := fmt.Sprintf("render_%s(w, state, %s)\n", comp.Id(), strings.Join(params, ", "))
-
-		handlers = append(handlers, HandlerFields{
-			Url:    "/tx/" + comp.funcId(funcName),
-			Code:   code.String(),
-			State:  state.String(),
-			Render: render,
-		})
-	}
-
-	return handlers
-}
-
-func (comp *Component) writeStateFieldsAst(sb *strings.Builder) {
-	stateAst := &ast.CompositeLit{
-		Type: &ast.MapType{
-			Key:   &ast.Ident{Name: "string"},
-			Value: &ast.Ident{Name: "any"},
-		},
-	}
-
-	for _, varName := range comp.VarNames {
-		name := comp.Vars[varName].Name
-		stateAst.Elts = append(stateAst.Elts, &ast.KeyValueExpr{
-			Key:   &ast.BasicLit{Kind: token.STRING, Value: `"` + name + `"`},
-			Value: &ast.Ident{Name: name},
-		})
-	}
-
-	sb.WriteString(astToSource(stateAst))
-}
-
-func (comp *Component) writeDerivedAst(sb *strings.Builder) {
-	for _, name := range comp.VarNames {
-		v := comp.Vars[name]
-		if v.Type != VarTypeDerived {
-			continue
-		}
-
-		assign := &ast.AssignStmt{
-			Lhs: []ast.Expr{&ast.Ident{Name: name}},
-			Tok: token.ASSIGN,
-			Rhs: []ast.Expr{v.InitExpr},
-		}
-
-		printer.Fprint(sb, token.NewFileSet(), assign)
-		sb.WriteString("\n")
-	}
 }
 
 func isTmplxScriptNode(node *html.Node) bool {
@@ -1669,17 +1729,52 @@ func newErrors(errs ...error) *Errors {
 
 type Errors struct {
 	Errs []error
-	mux  sync.Mutex
+	Mux  sync.Mutex
 }
 
 func (es *Errors) append(errs ...error) {
-	es.mux.Lock()
+	es.Mux.Lock()
 	for _, err := range errs {
 		if err != nil {
 			es.Errs = append(es.Errs, err)
 		}
 	}
-	es.mux.Unlock()
+	es.Mux.Unlock()
+}
+
+func (es *Errors) concat(errs *Errors) {
+	if errs == nil {
+		return
+	}
+
+	if errs.Errs == nil {
+		return
+	}
+
+	es.append(errs.Errs...)
+}
+
+func (es *Errors) hasErrs() bool {
+	return len(es.Errs) > 0
+}
+
+func (es *Errors) logAll() {
+	for _, err := range es.Errs {
+		fmt.Println(err)
+	}
+}
+
+func (es *Errors) exitOnErrors() {
+	if es.hasErrs() {
+		es.logAll()
+		os.Exit(1)
+	}
+}
+
+func newIdGen(prefix string) *IdGen {
+	return &IdGen{
+		Prefix: prefix,
+	}
 }
 
 type IdGen struct {
@@ -1694,10 +1789,4 @@ func (id *IdGen) curr() string {
 func (id *IdGen) next() string {
 	id.Curr++
 	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
-}
-
-func newIdGen(prefix string) *IdGen {
-	return &IdGen{
-		Prefix: prefix,
-	}
 }
