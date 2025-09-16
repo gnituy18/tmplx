@@ -354,9 +354,7 @@ type TmplxHandler struct {
 		paramsStr := ""
 		for _, varName := range comp.VarNames {
 			v := comp.Vars[varName]
-			if v.Type == VarTypeState {
-				paramsStr += fmt.Sprintf(", %s %s", v.Name, astToSource(v.TypeExpr))
-			}
+			paramsStr += fmt.Sprintf(", %s %s", v.Name, astToSource(v.TypeExpr))
 		}
 		for _, funcName := range comp.FuncNames {
 			f := comp.Funcs[funcName]
@@ -427,6 +425,9 @@ type TmplxHandler struct {
 		out.WriteString(fmt.Sprintf("state := &state_%s{\n", page.GoIdent))
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
+			if v.Type == VarTypeDerived {
+				continue
+			}
 			out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
 		}
 		out.WriteString("}\n")
@@ -466,7 +467,11 @@ type TmplxHandler struct {
 			out.WriteString("json.Unmarshal([]byte(states[\"tx_\"]), &state)\n")
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
-				out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+				if v.Type == VarTypeState {
+					out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+				} else if v.Type == VarTypeDerived {
+					out.WriteString(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
+				}
 			}
 			for _, list := range f.Decl.Type.Params.List {
 				for _, ident := range list.Names {
@@ -476,6 +481,12 @@ type TmplxHandler struct {
 			}
 			for _, stmt := range f.Decl.Body.List {
 				out.WriteString(astToSource(stmt) + "\n")
+			}
+			for _, name := range page.VarNames {
+				v := page.Vars[name]
+				if v.Type == VarTypeDerived {
+					out.WriteString(fmt.Sprintf("%s = %s\n", v.Name, astToSource(v.InitExpr)))
+				}
 			}
 			out.WriteString("var buf bytes.Buffer\n")
 			out.WriteString(fmt.Sprintf("render_%s(&buf, \"tx_\", states, newStates", page.GoIdent))
@@ -489,7 +500,9 @@ type TmplxHandler struct {
 			out.WriteString(fmt.Sprintf("newStates[\"tx_\"] = &state_%s{\n", page.GoIdent))
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
-				out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
+				if v.Type == VarTypeState {
+					out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
+				}
 			}
 			out.WriteString("}\n")
 			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
@@ -527,7 +540,11 @@ type TmplxHandler struct {
 			out.WriteString("json.Unmarshal([]byte(states[txSwap]), &state)\n")
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
-				out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+				if v.Type == VarTypeState {
+					out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+				} else if v.Type == VarTypeDerived {
+					out.WriteString(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
+				}
 			}
 			for _, list := range f.Decl.Type.Params.List {
 				for _, ident := range list.Names {
@@ -539,6 +556,12 @@ type TmplxHandler struct {
 			for _, stmt := range f.Decl.Body.List {
 
 				out.WriteString(astToSource(stmt) + "\n")
+			}
+			for _, name := range comp.VarNames {
+				v := comp.Vars[name]
+				if v.Type == VarTypeDerived {
+					out.WriteString(fmt.Sprintf("%s = %s\n", v.Name, astToSource(v.InitExpr)))
+				}
 			}
 
 			out.WriteString(fmt.Sprintf("render_%s(w, txSwap, states, newStates", comp.GoIdent))
@@ -553,7 +576,9 @@ type TmplxHandler struct {
 			out.WriteString(fmt.Sprintf("newStates[txSwap] = &state_%s{\n", comp.GoIdent))
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
-				out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
+				if v.Type == VarTypeState {
+					out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
+				}
 			}
 			out.WriteString("}\n")
 			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
@@ -890,20 +915,43 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 			comp.writeGo("} else {\n")
 			for _, varName := range childComp.VarNames {
 				v := childComp.Vars[varName]
-				comp.writeGo(fmt.Sprintf("state.%s", v.StructField))
-				if val, found := hasAttr(node, varName); found {
-					comp.writeGo(fmt.Sprintf(" = %s\n", val))
-				} else if v.InitExpr != nil {
-					comp.writeGo(fmt.Sprintf(" = %s\n", astToSource(v.InitExpr)))
-				} else {
-					comp.writeGo("\n")
+				if v.Type == VarTypeState {
+					comp.writeGo(fmt.Sprintf("state.%s", v.StructField))
+					if val, found := hasAttr(node, varName); found {
+						comp.writeGo(fmt.Sprintf(" = %s\n", val))
+					} else if v.InitExpr != nil {
+						comp.writeGo(fmt.Sprintf(" = %s\n", astToSource(v.InitExpr)))
+					} else {
+						comp.writeGo("\n")
+					}
 				}
 			}
 			comp.writeGo("newStates[ckey] = state\n")
 			comp.writeGo("}\n")
+			for _, name := range childComp.VarNames {
+				v := childComp.Vars[name]
+				if v.Type == VarTypeState {
+					comp.writeGo(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+				} else if v.Type == VarTypeDerived {
+					comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
+				}
+			}
+			if f, ok := childComp.Funcs["init"]; ok {
+				for _, stmt := range f.Decl.Body.List {
+					comp.writeGo(astToSource(stmt) + "\n")
+				}
+				for _, name := range childComp.VarNames {
+					v := childComp.Vars[name]
+					if v.Type != VarTypeDerived {
+						continue
+					}
+
+					comp.writeGo(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
+				}
+			}
 			params := []string{}
 			for _, varName := range childComp.VarNames {
-				params = append(params, "state."+childComp.Vars[varName].StructField)
+				params = append(params, varName)
 			}
 
 			for _, funcName := range childComp.FuncNames {
@@ -1471,7 +1519,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const txState = comp.querySelector("#tx-state")
             const newStates = JSON.parse(txState.textContent)
             state = { ...state, ...newStates }
-	    console.log(state)
             comp.removeChild(txState)
             const range = document.createRange()
             const start = document.getElementById(txSwap)
