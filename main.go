@@ -550,6 +550,12 @@ type TmplxHandler struct {
 			}
 			out.WriteString(")\n")
 			out.WriteString("w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
+			out.WriteString(fmt.Sprintf("newStates[txSwap] = &state_%s{\n", comp.GoIdent))
+			for _, name := range comp.VarNames {
+				v := comp.Vars[name]
+				out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
+			}
+			out.WriteString("}\n")
 			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
 			out.WriteString("w.Write(stateBytes)\n")
 			out.WriteString("w.Write([]byte(\"</script>\"))\n")
@@ -1431,7 +1437,58 @@ type Func struct {
 
 var runtimeScript = `
 document.addEventListener('DOMContentLoaded', function() {
-  const state = JSON.parse(this.getElementById("tx-state").innerHTML)
+  let state = JSON.parse(this.getElementById("tx-state").innerHTML)
+
+  const init = (cn) => {
+    for (let attr of cn.attributes) {
+      if (attr.name.startsWith('tx-on')) {
+        const [fun, params] = attr.value.split("?")
+        const searchParams = new URLSearchParams(params)
+        const eventName = attr.name.slice(5);
+        cn.addEventListener(eventName, async () => {
+          const txSwap = cn.getAttribute("tx-swap")
+          let pfx = ''
+          if (txSwap) {
+            pfx = txSwap
+          }
+          for (let key in state) {
+            if (key.startsWith(pfx)) {
+              searchParams.append(key, JSON.stringify(state[key]))
+            }
+          }
+          searchParams.append("tx-swap", txSwap)
+          const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
+          res.text().then(html => {
+            if (pfx === '') {
+              document.open()
+              document.write(html)
+              document.close()
+              return
+            }
+
+            const comp = document.createElement('body')
+            comp.innerHTML = html
+            const txState = comp.querySelector("#tx-state")
+            const newStates = JSON.parse(txState.textContent)
+            state = { ...state, ...newStates }
+	    console.log(state)
+            comp.removeChild(txState)
+            const range = document.createRange()
+            const start = document.getElementById(txSwap)
+            const end = document.getElementById(txSwap + '_e')
+            range.setStartBefore(start);
+            range.setEndAfter(end);
+            range.deleteContents();
+            for (let child of comp.children) {
+              range.insertNode(child.cloneNode(true))
+              range.collapse(false)
+            }
+          })
+        })
+      }
+    }
+  }
+
   const addHandler = (node) => {
     const walker = document.createTreeWalker(
       node,
@@ -1445,54 +1502,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return NodeFilter.FILTER_SKIP
       }
     );
-    while (walker.nextNode()) {
-      const cn = walker.currentNode;
-      for (let attr of cn.attributes) {
-        if (attr.name.startsWith('tx-on')) {
-          const [fun, params] = attr.value.split("?")
-          const searchParams = new URLSearchParams(params)
-          const eventName = attr.name.slice(5);
-          cn.addEventListener(eventName, async () => {
-            const txSwap = cn.getAttribute("tx-swap")
-            let pfx = ''
-            if (txSwap) {
-              pfx = txSwap
-            }
-            for (let key in state) {
-              if (key.startsWith(pfx)) {
-                searchParams.append(key, JSON.stringify(state[key]))
-              }
-            }
-            searchParams.append("tx-swap", txSwap)
-            const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
-            res.text().then(html => {
-              if (pfx === '') {
-                document.open()
-                document.write(html)
-                document.close()
-                return
-              }
 
-              const comp = document.createElement('body')
-              comp.innerHTML = html
-              const txState = comp.querySelector("#tx-state")
-              const newStates = JSON.parse(txState.textContent)
-              state = { ...state, ...newStates }
-              comp.removeChild(txState)
-              const range = document.createRange()
-              const start = document.getElementById(txSwap)
-              const end = document.getElementById(txSwap + '_e')
-              range.setStartBefore(start);
-              range.setEndAfter(end);
-              range.deleteContents();
-              for (let child of comp.children) {
-                range.insertNode(child.cloneNode(true))
-                range.collapse(false)
-              }
-            })
-          })
-        }
-      }
+    init(walker.root)
+    while (walker.nextNode()) {
+      init(walker.currentNode)
     }
   }
 
