@@ -177,10 +177,6 @@ func main() {
 				Data:     "template",
 			}
 			for _, node := range nodes {
-				if node.Type != html.ElementNode {
-					continue
-				}
-
 				val, found := hasAttr(node, "type")
 				if node.DataAtom == atom.Script && found && val == mimeType {
 					if comp.TmplxScriptNode != nil {
@@ -1526,7 +1522,7 @@ document.addEventListener('DOMContentLoaded', function() {
             range.setStartBefore(start);
             range.setEndAfter(end);
             range.deleteContents();
-            for (let child of comp.children) {
+            for (let child of comp.childNodes) {
               range.insertNode(child.cloneNode(true))
               range.collapse(false)
             }
@@ -1537,6 +1533,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const addHandler = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return
+    }
+
     const walker = document.createTreeWalker(
       node,
       NodeFilter.SHOW_ELEMENT,
