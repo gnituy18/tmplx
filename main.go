@@ -51,113 +51,114 @@ var (
 )
 
 func main() {
-	flag.StringVar(&pagesDir, "pages", "pages", "pages directory")
 	flag.StringVar(&componentsDir, "components", "components", "components directory")
+	flag.StringVar(&pagesDir, "pages", "pages", "pages directory")
 	flag.StringVar(&outputFilePath, "out-file", "tmplx/handler.go", "output file path")
 	flag.StringVar(&outputPackageName, "out-pkg-name", "tmplx", "output package name")
 	flag.Parse()
-	pagesDir = filepath.Clean(pagesDir)
+
 	componentsDir = filepath.Clean(componentsDir)
+	pagesDir = filepath.Clean(pagesDir)
 	outputFilePath = filepath.Clean(outputFilePath)
-
-	if info, err := os.Stat(pagesDir); err != nil {
-		log.Fatal(fmt.Errorf("flag pages=%s: %w", pagesDir, err))
-	} else if !info.IsDir() {
-		log.Fatal(fmt.Errorf("flag pages=%s: not a directory", pagesDir))
-	}
-
-	if info, err := os.Stat(componentsDir); err != nil {
-		log.Fatal(fmt.Errorf("flag components=%s: %w", componentsDir, err))
-	} else if !info.IsDir() {
-		log.Fatal(fmt.Errorf("flag components=%s: not a directory", componentsDir))
-	}
-
 	if outputPackageName == "" {
 		log.Fatalln("output package name cannot be empty string")
 	}
 
 	errs := newErrors()
-	filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			errs.append(fmt.Errorf("error accessing %s: %w", path, err))
-			return nil
-		}
 
-		if entry.IsDir() {
-			return nil
-		}
-
-		ext := filepath.Ext(path)
-		if ext != ".html" {
-			log.Printf("skipping non-HTML file: %s\n", path)
-			return nil
-		}
-
-		relPath, err := filepath.Rel(componentsDir, path)
-		if err != nil {
-			errs.append(fmt.Errorf("relative path not found: %w", err))
-			return nil
-		}
-
-		basePath, _ := strings.CutSuffix(relPath, ext)
-
-		name := "tx-" + strings.ToLower(strings.ReplaceAll(basePath, "/", "-"))
-
-		for _, r := range name {
-			if _, found := componentNameCharSet[r]; !found {
-				errs.append(fmt.Errorf("invalid char \"%c\" found in <%s>, component name can only contain characters from [a-z], [0-9], [:], [-], [.], [_]", r, name))
+	if exist, err := dirExist(componentsDir); err != nil {
+		log.Fatal(err)
+	} else if !exist {
+		log.Println("components dir not found: %s", componentsDir)
+	} else {
+		filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				errs.append(fmt.Errorf("error accessing %s: %w", path, err))
 				return nil
 			}
-		}
 
-		if comp, ok := components[name]; ok {
-			errs.append(fmt.Errorf("duplicate component <%s> found: %s, %s", name, comp.RelPath, relPath))
+			if entry.IsDir() {
+				return nil
+			}
+
+			ext := filepath.Ext(path)
+			if ext != ".html" {
+				log.Printf("skipping non-HTML file: %s\n", path)
+				return nil
+			}
+
+			relPath, err := filepath.Rel(componentsDir, path)
+			if err != nil {
+				errs.append(fmt.Errorf("relative path not found: %w", err))
+				return nil
+			}
+
+			basePath, _ := strings.CutSuffix(relPath, ext)
+
+			name := "tx-" + strings.ToLower(strings.ReplaceAll(basePath, "/", "-"))
+
+			for _, r := range name {
+				if _, found := componentNameCharSet[r]; !found {
+					errs.append(fmt.Errorf("invalid char \"%c\" found in <%s>, component name can only contain characters from [a-z], [0-9], [:], [-], [.], [_]", r, name))
+					return nil
+				}
+			}
+
+			if comp, ok := components[name]; ok {
+				errs.append(fmt.Errorf("duplicate component <%s> found: %s, %s", name, comp.RelPath, relPath))
+				return nil
+			}
+
+			componentNames = append(componentNames, name)
+			components[name] = &Component{
+				FilePath: path,
+				RelPath:  relPath,
+				Name:     name,
+				GoIdent:  goIdent(name),
+			}
+
 			return nil
-		}
-
-		componentNames = append(componentNames, name)
-		components[name] = &Component{
-			FilePath: path,
-			RelPath:  relPath,
-			Name:     name,
-			GoIdent:  goIdent(name),
-		}
-
-		return nil
-	})
+		})
+	}
 
 	pages := []*Component{}
-	filepath.WalkDir(pagesDir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			errs.append(fmt.Errorf("error accessing %s: %w", path, err))
-		}
+	if exist, err := dirExist(pagesDir); err != nil {
+		log.Fatal(err)
+	} else if !exist {
+		log.Fatalf("pages dir not found: %s", pagesDir)
+	} else {
+		filepath.WalkDir(pagesDir, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				errs.append(fmt.Errorf("error accessing %s: %w", path, err))
+			}
 
-		if entry.IsDir() {
+			if entry.IsDir() {
+				return nil
+			}
+
+			ext := filepath.Ext(path)
+			if ext != ".html" {
+				log.Printf("skipping non-HTML file: %s\n", path)
+				return nil
+			}
+
+			relPath, err := filepath.Rel(pagesDir, path)
+			if err != nil {
+				errs.append(fmt.Errorf("relative path not found: %w", err))
+				return nil
+			}
+
+			basePath, _ := strings.CutSuffix(relPath, ext)
+
+			pages = append(pages, &Component{
+				FilePath: path,
+				RelPath:  relPath,
+				Name:     basePath,
+				GoIdent:  goIdent(basePath),
+			})
 			return nil
-		}
-
-		ext := filepath.Ext(path)
-		if ext != ".html" {
-			log.Printf("skipping non-HTML file: %s\n", path)
-			return nil
-		}
-
-		relPath, err := filepath.Rel(pagesDir, path)
-		if err != nil {
-			errs.append(fmt.Errorf("relative path not found: %w", err))
-			return nil
-		}
-
-		basePath, _ := strings.CutSuffix(relPath, ext)
-
-		pages = append(pages, &Component{
-			FilePath: path,
-			RelPath:  relPath,
-			Name:     basePath,
-			GoIdent:  goIdent(basePath),
 		})
-		return nil
-	})
+	}
 
 	errs.exitOnErrors()
 
@@ -1861,4 +1862,15 @@ func (id *IdGen) curr() string {
 func (id *IdGen) next() string {
 	id.Curr++
 	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
+}
+
+func dirExist(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return info.IsDir(), nil
 }
