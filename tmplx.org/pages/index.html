@@ -7,9 +7,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/themes/prism.min.css"
-    integrity="sha256-ko4j5rn874LF8dHwW29/xabhh8YBleWfvxb8nQce4Fc=" crossorigin="anonymous">
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.30.0/prism.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/languages/html.min.js"></script>
+
+  <script>hljs.highlightAll();</script>
   <style>
     body {
       color: #16161d;
@@ -34,6 +36,19 @@
     mark {
       background: Cornsilk;
     }
+
+    .btn {
+      background: DimGray;
+      color: white;
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 1.5rem;
+
+      &:hover {
+        background: gray;
+      }
+    }
   </style>
 </head>
 
@@ -41,22 +56,19 @@
 <body>
   <main>
     <h1 style="text-align:center"> &lt;tmplx&gt; </h1>
-    <p> <mark>tmplx is a compile-time framework for building state-driven web apps. </mark>
-    </p>
-    <p>
-      Embed Go code in HTML to define states and
-      event handlers, which compiles into Go handlers that update state, rerender specific UI sections, and return HTML
-      snippets. This embraces hypermedia by having the server drive UI updates via direct HTML responses.</p>
+    <p style="font-size:1.5rem;text-align:center"> <strong>Build state-driven web app with Go in HTML.</strong></p>
+    <div style="text-align:center;padding:4rem 0;">
+      <a class="btn" href="https://github.com/gnituy18/tmplx">Get Started </a>
+    </div>
     <pre>
-      <code tx-ignore class="language-html">
-&lt;script type=&quot;text/tmplx&quot;&gt;
-  // name is declared as a state
+      <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
+  // name is a state
   var name string = &quot;tmplx&quot;
-  // greeting is declared as a derived
+
+  // greeting is a derived
   var greeting string = fmt.Sprintf(&quot;Hello ,%s!&quot;, name)
 
   var counter int = 0
-  var counterTimes10 int = counter * 10
 
   // addOne event handler
   func addOne() {
@@ -64,29 +76,14 @@
   }
 &lt;/script&gt;
 
-&lt;html&gt;
-&lt;head&gt;
-  &lt;title&gt; { name } &lt;/title&gt;
-&lt;/head&gt;
-&lt;body&gt;
-  &lt;h1&gt; { greeting } &lt;/h1&gt;
-
-  &lt;p&gt;counter: { counter }&lt;/p&gt;
-  &lt;p&gt;counter * 10 = { counterTimes10 }&lt;/p&gt;
-
-  &lt;button tx-onclick=&quot;addOne()&quot;&gt;Add 1&lt;/button&gt;
-  &lt;button tx-onclick=&quot;counter--&quot;&gt;Subtract 1&lt;/button&gt;
-
-  &lt;p tx-if=&quot;counter % 2 == 0&quot;&gt; counter is even &lt;/p&gt;
-  &lt;p tx-else&gt; counter is odd &lt;/p&gt;
-
-  &lt;p tx-for=&quot;i := 0; i &lt; 10; i++&quot;&gt; { i } &lt;/p&gt;
-
-  &lt;a href=&quot;/second-page&quot;&gt;second page&lt;/a&gt;
-&lt;/body&gt;
-&lt;/html&gt;
+&lt;h2&gt; { greeting } &lt;/h2&gt;
+&lt;button tx-onclick=&quot;addOne()&quot;&gt;Add 1&lt;/button&gt;
+&lt;p&gt;count: { counter }&lt;/p&gt;
+&lt;p&gt;count * 10 = { counter * 10 }&lt;/p&gt;
       </code>
     </pre>
+    <tx-demo></tx-demo>
+
   </main>
 </body>
 
