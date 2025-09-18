@@ -60,6 +60,18 @@ func main() {
 	componentsDir = filepath.Clean(componentsDir)
 	outputFilePath = filepath.Clean(outputFilePath)
 
+	if info, err := os.Stat(pagesDir); err != nil {
+		log.Fatal(fmt.Errorf("flag pages=%s: %w", pagesDir, err))
+	} else if !info.IsDir() {
+		log.Fatal(fmt.Errorf("flag pages=%s: not a directory", pagesDir))
+	}
+
+	if info, err := os.Stat(componentsDir); err != nil {
+		log.Fatal(fmt.Errorf("flag components=%s: %w", componentsDir, err))
+	} else if !info.IsDir() {
+		log.Fatal(fmt.Errorf("flag components=%s: not a directory", componentsDir))
+	}
+
 	if outputPackageName == "" {
 		log.Fatalln("output package name cannot be empty string")
 	}
