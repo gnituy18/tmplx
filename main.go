@@ -51,6 +51,7 @@ var (
 )
 
 func main() {
+	log.SetFlags(0)
 	flag.StringVar(&componentsDir, "components", "components", "components directory")
 	flag.StringVar(&pagesDir, "pages", "pages", "pages directory")
 	flag.StringVar(&outputFilePath, "out-file", "tmplx/handler.go", "output file path")
@@ -69,7 +70,7 @@ func main() {
 	if exist, err := dirExist(componentsDir); err != nil {
 		log.Fatal(err)
 	} else if !exist {
-		log.Println("components dir not found: %s", componentsDir)
+		log.Printf("components directory not found: %s. skipping...\n", componentsDir)
 	} else {
 		filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -626,6 +627,7 @@ type TmplxHandler struct {
 	if _, err := file.Write(formatted); err != nil {
 		log.Fatal(err)
 	}
+	log.Println("success")
 }
 
 type Component struct {
@@ -1833,7 +1835,7 @@ func (es *Errors) hasErrs() bool {
 
 func (es *Errors) logAll() {
 	for _, err := range es.Errs {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
