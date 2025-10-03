@@ -377,8 +377,9 @@ You can put every thing that fit Go's `for` statement.
 </div>
 ```
 ### `<template>`
-### components (WIP)
-### morphing (WIP)
+### `tx-value`
+### components
+### DOM morphing (WIP)
 ### `tmplx` cmd
 #### `pages` directory
 #### `components` directory
