@@ -1291,10 +1291,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 }
 
 func (comp *Component) parseTmplStr(str string, escape bool) error {
-	str = strings.TrimSpace(str)
-	if len(str) == 0 {
-		str = " "
-	}
+	str = "'" + str + "'"
+	str = strings.Join(strings.Fields(str), " ")
+	str = str[1 : len(str)-1]
+
 	braceStack := 0
 	isInDoubleQuote := false
 	isInSingleQuote := false
