@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -374,7 +375,7 @@ type TmplxHandler struct {
 			if slotName != "" {
 				paramsStr += fmt.Sprintf(",render_slot_%s func()", slotName)
 			} else {
-				paramsStr += fmt.Sprintf(",render_default_slot func()")
+				paramsStr += ",render_default_slot func()"
 			}
 		}
 
@@ -1455,19 +1456,19 @@ func (comp *Component) implRenderFunc(out *strings.Builder) {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeStrLit:
-			if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(`%s`))\n", string(tmpl.Content))); err != nil {
+			if _, err := fmt.Fprintf(out, "w.Write([]byte(%s))\n", strconv.Quote(string(tmpl.Content))); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeExpr:
-			if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content))); err != nil {
+			if _, err := fmt.Fprintf(out, "w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeHtmlEscapeExpr:
-			if _, err := out.WriteString(fmt.Sprintf("w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content))); err != nil {
+			if _, err := fmt.Fprintf(out, "w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeUrlEscapeExpr:
-			if _, err := out.WriteString(fmt.Sprintf("if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\nw.Write([]byte(url.QueryEscape(string(param))))}\n", string(tmpl.Content))); err != nil {
+			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\nw.Write([]byte(url.QueryEscape(string(param))))}\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		}
@@ -1855,10 +1856,6 @@ func newIdGen(prefix string) *IdGen {
 type IdGen struct {
 	Curr   int
 	Prefix string
-}
-
-func (id *IdGen) curr() string {
-	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
 }
 
 func (id *IdGen) next() string {
