@@ -1,0 +1,21 @@
+<script type="text/tmplx">
+var list []string = []string{}
+var item string = ""
+
+func add() {
+  list = append(list, item)
+  item = ""
+}
+
+func remove(i int) {
+  list = append(list[0:i], list[i+1:]...)
+}
+</script>
+
+<label>New <input type="text" tx-value="item"></label>
+<button tx-onclick="add()">Add</button>
+<ol>
+  <li tx-for="i, l := range list" tx-key="l" tx-onclick="remove(i)">
+    { l }
+  </li>
+</ol>
