@@ -7,7 +7,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css">
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css">
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/languages/html.min.js"></script>
 
@@ -17,36 +18,50 @@
       color: #16161d;
       background: #efeff3;
       display: flex;
-      font-size: 1rem;
-      line-height: 1.5rem;
     }
 
     main {
-      margin-left: auto;
-      margin-right: auto;
+      margin: 4rem auto;
       width: 40rem;
     }
 
     h1 {
-      margin-top: 8rem;
       font-family: Verdana;
-      font-size: 4rem;
+      font-size: 3rem;
     }
 
-    mark {
-      background: Cornsilk;
+    h2 {
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    a {
+      color: RoyalBlue;
+    }
+
+    pre {
+      margin: 0;
     }
 
     .btn {
-      background: DimGray;
-      color: white;
       text-decoration: none;
-      padding: 0.5rem 1rem;
-      border-radius: 0.5rem;
-      font-size: 1.5rem;
+      border: solid;
+      border-radius: 0.25rem;
+      color: #16161d;
+      padding: 0.5rem 2rem;
+      font-weight: bold;
+      background-color: LightGray;
 
       &:hover {
-        background: gray;
+        background-color: Silver;
+      }
+    }
+
+    li {
+      cursor: pointer;
+
+      &:hover {
+        text-decoration: line-through
       }
     }
   </style>
@@ -56,34 +71,42 @@
 <body>
   <main>
     <h1 style="text-align:center"> &lt;tmplx&gt; </h1>
-    <p style="font-size:1.5rem;text-align:center"> <strong>Build state-driven web app with Go in HTML.</strong></p>
-    <div style="text-align:center;padding:4rem 0;">
+    <p style="text-align:center"> <strong>Build state-driven web app with Go in HTML.</strong></p>
+    <div style="text-align:center;margin-top:4rem">
       <a class="btn" href="https://github.com/gnituy18/tmplx">Get Started </a>
     </div>
+
+    <h2 style="margin-top:4rem"> Demo: To Do App</h2>
+    <tx-todo></tx-todo>
+
+    <h2 style="margin-top:2rem"><a href="https://github.com/gnituy18/tmplx/blob/main/tmplx.org/todo.html">Source
+        Code:</a></h2>
     <pre>
       <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
-  // name is a state
-  var name string = &quot;tmplx&quot;
+        var list []string = []string{}
+        var item string = &quot;&quot;
 
-  // greeting is a derived
-  var greeting string = fmt.Sprintf(&quot;Hello ,%s!&quot;, name)
+        func add() {
+        list = append(list, item)
+        item = &quot;&quot;
+        }
 
-  var counter int = 0
+        func remove(i int) {
+        list = append(list[0:i], list[i+1:]...)
+        }
+        &lt;/script&gt;
 
-  // addOne event handler
-  func addOne() {
-    counter++
-  }
-&lt;/script&gt;
-
-&lt;h2&gt; { greeting } &lt;/h2&gt;
-&lt;button tx-onclick=&quot;addOne()&quot;&gt;Add 1&lt;/button&gt;
-&lt;p&gt;count: { counter }&lt;/p&gt;
-&lt;p&gt;count * 10 = { counter * 10 }&lt;/p&gt;
-      </code>
+        &lt;label&gt;New &lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
+        &lt;button tx-onclick=&quot;add()&quot;&gt;Add&lt;/button&gt;
+        &lt;ol&gt;
+        &lt;li tx-for=&quot;i, l := range list&quot; tx-key=&quot;l&quot; tx-onclick=&quot;remove(i)&quot;&gt;
+        { l }
+        &lt;/li&gt;
+        &lt;/ol&gt;</code>
     </pre>
-    <tx-demo></tx-demo>
-
+    <p>It allows you to build UIs with React-like reactivity purely in Go.</p>
+    <h2 style="margin-top:2rem"><a
+        href="https://github.com/gnituy18/tmplx/blob/main/tmplx.org/tmplx/handler.html">Compiled Code:</a></h2>
   </main>
 </body>
 
