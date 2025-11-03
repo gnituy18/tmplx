@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"flag"
 	"fmt"
 	"go/ast"
@@ -234,7 +235,7 @@ func main() {
 				comp.ChildCompsIdGen[name] = newIdGen(comp.Name + "_" + name)
 			}
 
-			comp.FuncNameGen = newIdGen(comp.GoIdent)
+			comp.AnonFuncNameGen = newIdGen("anon_func")
 			comp.writeStrLit("<template id=\"")
 			comp.writeExpr("key")
 			comp.writeStrLit("\">")
@@ -316,7 +317,7 @@ func main() {
 				page.ChildCompsIdGen[name] = newIdGen(page.Name + "_" + name)
 			}
 
-			page.FuncNameGen = newIdGen(page.GoIdent)
+			page.AnonFuncNameGen = newIdGen(page.GoIdent)
 			errs.concat(page.parseTmpl(page.TemplateNode, []string{}))
 
 			if len(page.CurrRenderFuncContent) > 0 {
@@ -638,13 +639,14 @@ type Component struct {
 	Name    string
 	GoIdent string
 
-	TmplxScriptNode *html.Node
-	Imports         []*ast.ImportSpec
-	VarNames        []string
-	Vars            map[string]*Var
-	FuncNames       []string
-	Funcs           map[string]*Func
-	FuncNameGen     *IdGen
+	TmplxScriptNode  *html.Node
+	Imports          []*ast.ImportSpec
+	VarNames         []string
+	Vars             map[string]*Var
+	FuncNames        []string
+	Funcs            map[string]*Func
+	AnonFuncNameGen  *IdGen
+	InputFuncHandler bool
 
 	TemplateNode    *html.Node
 	SlotNames       []string
@@ -1081,14 +1083,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				}
 
 				comp.writeStrLit(" ")
-				if attr.Namespace != "" {
-					comp.writeStrLit(node.Namespace)
-					comp.writeStrLit(":")
-				}
-				comp.writeStrLit(attr.Key)
-				comp.writeStrLit(`="`)
-
 				if strings.HasPrefix(attr.Key, "tx-on") {
+					comp.writeStrLit(attr.Key)
+					comp.writeStrLit(`="`)
+
 					if expr, err := parser.ParseExpr(attr.Val); err == nil {
 						if callExpr, ok := expr.(*ast.CallExpr); ok {
 							if ident, ok := callExpr.Fun.(*ast.Ident); ok {
@@ -1142,11 +1140,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 									}
 
 									comp.writeStrLit(`"`)
-									comp.writeGo(fmt.Sprintf("if %s != \"tx_\" {\n", fun.Name+"_swap"))
 									comp.writeStrLit(" tx-swap=\"")
 									comp.writeExpr(fun.Name + "_swap")
 									comp.writeStrLit(`"`)
-									comp.writeGo("}\n")
 
 									continue
 								}
@@ -1154,7 +1150,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 						}
 					}
 
-					funcName := comp.FuncNameGen.next()
+					funcName := comp.AnonFuncNameGen.next()
 					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
 					if err != nil {
 						errs.append(comp.errf("parse inline statement failed: %s", attr.Val))
@@ -1181,13 +1177,37 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 					}
 
 					comp.writeStrLit(comp.funcId(decl.Name.Name))
+					comp.writeStrLit(`"`)
 
-				} else if isIgnore {
-					comp.writeStrLit(attr.Val)
-				} else if err := comp.parseTmplStr(attr.Val, false); err != nil {
-					errs.append(comp.errf("parse attr value failed: %s", attr.Val))
+				} else if attr.Key == "tx-value" {
+					if comp.Vars[attr.Val] == nil {
+						errs.append(comp.errf("cannot find var %s", attr.Val))
+						continue
+					}
+
+					comp.writeStrLit(fmt.Sprintf("tx-value=\"%s\"", attr.Val))
+
+					comp.writeStrLit(" tx-swap=\"")
+					comp.writeExpr("key")
+					comp.writeStrLit(`"`)
+
+					comp.writeStrLit("value=\"")
+					comp.writeExpr(attr.Val)
+					comp.writeStrLit("\"")
+				} else {
+					if attr.Namespace != "" {
+						comp.writeStrLit(node.Namespace)
+						comp.writeStrLit(":")
+					}
+					comp.writeStrLit(attr.Key)
+					comp.writeStrLit(`="`)
+					if isIgnore {
+						comp.writeStrLit(attr.Val)
+					} else if err := comp.parseTmplStr(attr.Val, false); err != nil {
+						errs.append(comp.errf("parse attr value failed: %s", attr.Val))
+					}
+					comp.writeStrLit(`"`)
 				}
-				comp.writeStrLit(`"`)
 			}
 
 			// https://html.spec.whatwg.org/#void-elements
@@ -1460,7 +1480,7 @@ func (comp *Component) implRenderFunc(out *strings.Builder) {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeExpr:
-			if _, err := fmt.Fprintf(out, "w.Write([]byte(fmt.Sprint(%s)))\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "fmt.Fprint(w, %s)\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeHtmlEscapeExpr:
@@ -1495,92 +1515,8 @@ type Func struct {
 	Decl *ast.FuncDecl
 }
 
-var runtimeScript = `
-document.addEventListener('DOMContentLoaded', function() {
-  let state = JSON.parse(this.getElementById("tx-state").innerHTML)
-
-  const init = (cn) => {
-    for (let attr of cn.attributes) {
-      if (attr.name.startsWith('tx-on')) {
-        const [fun, params] = attr.value.split("?")
-        const searchParams = new URLSearchParams(params)
-        const eventName = attr.name.slice(5);
-        cn.addEventListener(eventName, async () => {
-          const txSwap = cn.getAttribute("tx-swap")
-          let pfx = ''
-          if (txSwap) {
-            pfx = txSwap
-          }
-          for (let key in state) {
-            if (key.startsWith(pfx)) {
-              searchParams.append(key, JSON.stringify(state[key]))
-            }
-          }
-          searchParams.append("tx-swap", txSwap)
-          const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
-          res.text().then(html => {
-            if (pfx === '') {
-              document.open()
-              document.write(html)
-              document.close()
-              return
-            }
-
-            const comp = document.createElement('body')
-            comp.innerHTML = html
-            const txState = comp.querySelector("#tx-state")
-            const newStates = JSON.parse(txState.textContent)
-            state = { ...state, ...newStates }
-            comp.removeChild(txState)
-            const range = document.createRange()
-            const start = document.getElementById(txSwap)
-            const end = document.getElementById(txSwap + '_e')
-            range.setStartBefore(start);
-            range.setEndAfter(end);
-            range.deleteContents();
-            for (let child of comp.childNodes) {
-              range.insertNode(child.cloneNode(true))
-              range.collapse(false)
-            }
-          })
-        })
-      }
-    }
-  }
-
-  const addHandler = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      return
-    }
-
-    const walker = document.createTreeWalker(
-      node,
-      NodeFilter.SHOW_ELEMENT,
-      (n) => {
-        for (let attr of n.attributes) {
-          if (attr.name.startsWith('tx-on')) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }
-        return NodeFilter.FILTER_SKIP
-      }
-    );
-
-    init(walker.root)
-    while (walker.nextNode()) {
-      init(walker.currentNode)
-    }
-  }
-
-  new MutationObserver((records) => {
-    records.forEach((record) => {
-      if (record.type !== 'childList') return
-      record.addedNodes.forEach(addHandler)
-    })
-  }).observe(document.documentElement, { childList: true, subtree: true })
-  addHandler(document.documentElement)
-});
-`
+//go:embed runtime.js
+var runtimeScript string
 
 type RenderFuncType int
 
