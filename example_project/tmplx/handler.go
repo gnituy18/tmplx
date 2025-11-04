@@ -1,6 +1,7 @@
 package tmplx
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -8,149 +9,210 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
-type TmplxHandler struct {
-	Url         string
-	HandlerFunc http.HandlerFunc
-}
-
 var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
-  const state = JSON.parse(this.getElementById("tx-state").innerHTML)
+  let state = JSON.parse(this.getElementById("tx-state").innerHTML)
+  let tasks = [];
+  let isProcessing = false;
+
+  const init = (cn) => {
+    for (let attr of cn.attributes) {
+      if (attr.name === 'tx-value' && cn.tagName === 'INPUT') {
+        cn.addEventListener('input', (e) => {
+          const txSwap = cn.getAttribute("tx-swap")
+          const txValue = cn.getAttribute("tx-value")
+          if (txValue) {
+            state[txSwap][txValue] = e.target.value
+            return
+          }
+        })
+      } else if (attr.name.startsWith('tx-on')) {
+        const [fun, params] = attr.value.split("?")
+        const searchParams = new URLSearchParams(params)
+        let eventName = attr.name.slice(5)
+
+        cn.addEventListener(eventName, () => {
+          tasks.push(async () => {
+            const txSwap = cn.getAttribute("tx-swap")
+            searchParams.append("tx-swap", txSwap)
+
+
+            for (let key in state) {
+              if (key.startsWith(txSwap)) {
+                searchParams.append(key, JSON.stringify(state[key]))
+              }
+            }
+
+            const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
+            const html = await res.text()
+
+            if (txSwap === 'tx_') {
+              document.open()
+              document.write(html)
+              document.close()
+              return
+            }
+
+            const comp = document.createElement('body')
+            comp.innerHTML = html
+            const txState = comp.querySelector("#tx-state")
+            const newStates = JSON.parse(txState.textContent)
+            state = { ...state, ...newStates }
+            comp.removeChild(txState)
+            const range = document.createRange()
+            const start = document.getElementById(txSwap)
+            const end = document.getElementById(txSwap + '_e')
+            range.setStartBefore(start);
+            range.setEndAfter(end);
+            range.deleteContents();
+            for (let child of comp.childNodes) {
+              range.insertNode(child.cloneNode(true))
+              range.collapse(false)
+            }
+          })
+          processQueue()
+        })
+      }
+    }
+  }
+
+  async function processQueue() {
+    if (isProcessing) return;
+    isProcessing = true;
+    while (tasks.length > 0) {
+      const task = tasks.shift();
+      await task();
+    }
+    isProcessing = false;
+  }
+
   const addHandler = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return
+    }
+
     const walker = document.createTreeWalker(
       node,
       NodeFilter.SHOW_ELEMENT,
       (n) => {
         for (let attr of n.attributes) {
-          if (attr.name.startsWith('tx-on')) {
+          if (attr.name.startsWith('tx-on') || attr.name === 'tx-value') {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
         return NodeFilter.FILTER_SKIP
       }
     );
+
+    init(walker.root)
     while (walker.nextNode()) {
-      const cn = walker.currentNode;
-      for (let attr of cn.attributes) {
-        if (attr.name.startsWith('tx-on')) {
-          const [fun, params] = attr.value.split("?")
-          const searchParams = new URLSearchParams(params)
-          const eventName = attr.name.slice(5);
-          cn.addEventListener(eventName, async () => {
-            for (let key in state) {
-              searchParams.append(key, JSON.stringify(state[key]))
-            }
-            const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
-            res.text().then(html => {
-              document.open()
-              document.write(html)
-              document.close()
-            })
-          })
-        }
-      }
+      init(walker.currentNode)
     }
   }
 
   new MutationObserver((records) => {
     records.forEach((record) => {
       if (record.type !== 'childList') return
-      records.addedNodes()
+      record.addedNodes.forEach(addHandler)
     })
-  }).observe(document.documentElement, { childList: true, subList: true })
+  }).observe(document.documentElement, { childList: true, subtree: true })
   addHandler(document.documentElement)
 });
 `
 
-func render_index(w io.Writer, state string, name string, greeting string, counter int, counterTimes10 int, str string) {
-	w.Write([]byte(`<html><head>
+type TmplxHandler struct {
+	Url         string
+	HandlerFunc http.HandlerFunc
+}
+type state_tx_h_button struct {
+	S_name string `json:"name"`
+}
 
+func render_tx_h_button(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, handleClick, handleClick_swap string) {
+	w.Write([]byte("<template id=\""))
+	fmt.Fprint(w, key)
+	w.Write([]byte("\"></template>  <button tx-onclick=\""))
+	fmt.Fprint(w, handleClick)
+	w.Write([]byte("\" tx-swap=\""))
+	fmt.Fprint(w, handleClick_swap)
+	w.Write([]byte("\"> "))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(name))))
+	w.Write([]byte(" </button>   <template id=\""))
+	fmt.Fprint(w, key+"_e")
+	w.Write([]byte("\"></template>"))
+}
 
+type state_index struct {
+	S_name           string `json:"name"`
+	S_greeting       string `json:"greeting"`
+	S_counter        int    `json:"counter"`
+	S_counterTimes10 int    `json:"counterTimes10"`
+	S_str            string `json:"str"`
+}
 
-
-  <title> `))
-	w.Write([]byte(fmt.Sprint(name)))
-	w.Write([]byte(` </title>
-<script id="tx-runtime">`))
+func render_index(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, greeting string, counter int, counterTimes10 int, str string, addOne, addOne_swap string, appendS, appendS_swap string, index_1, index_1_swap string) {
+	w.Write([]byte("<html><head> <title> "))
+	fmt.Fprint(w, name)
+	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
 	w.Write([]byte(runtimeScript))
-	w.Write([]byte(`</script><script type="application/json" id="tx-state">`))
-	w.Write([]byte(fmt.Sprint(state)))
-	w.Write([]byte(`</script></head>
-
-<body>
-  <h1> `))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <h1> "))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(greeting))))
-	w.Write([]byte(` </h1>
-
-  <p>counter: `))
+	w.Write([]byte(" </h1> <p>counter: "))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(counter))))
-	w.Write([]byte(`</p>
-  <p>counter * 10 = `))
+	w.Write([]byte("</p> <p>counter * 10 = "))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(counterTimes10))))
-	w.Write([]byte(`</p>
-
-  <button tx-onclick="index_addOne">Add 1</button>
-  <button tx-onclick="index_func_1">Subtract 1</button>
-
-  `))
-
+	w.Write([]byte("</p> <button tx-onclick=\""))
+	fmt.Fprint(w, addOne)
+	w.Write([]byte("\" tx-swap=\""))
+	fmt.Fprint(w, addOne_swap)
+	w.Write([]byte("\">Add 1</button> <button tx-onclick=\"index_index_1\"\" tx-swap=\""))
+	fmt.Fprint(w, index_1_swap)
+	w.Write([]byte("\">Subtract 1</button> "))
 	if counter%2 == 0 {
-		w.Write([]byte(`<p> counter is even </p>
-  `))
-
+		w.Write([]byte("<p> counter is even </p> "))
 	} else {
-		w.Write([]byte(`<p> counter is odd </p>
-
-  `))
+		w.Write([]byte("<p> counter is odd </p> "))
 
 	}
-	w.Write([]byte(`<button tx-onclick="index_appendS?s=`))
+	w.Write([]byte("<button tx-onclick=\""))
+	fmt.Fprint(w, appendS)
+	w.Write([]byte("?s="))
 	if param, err := json.Marshal("str"); err != nil {
 		log.Panic(err)
 	} else {
 		w.Write([]byte(url.QueryEscape(string(param))))
 	}
-	w.Write([]byte(`">append str</button>
-  <p>`))
+	w.Write([]byte("\" tx-swap=\""))
+	fmt.Fprint(w, appendS_swap)
+	w.Write([]byte("\">append str</button> <p>"))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(str))))
-	w.Write([]byte(`</p>
-
-  `))
+	w.Write([]byte("</p> "))
 
 	for i := 0; i < 10; i++ {
-		w.Write([]byte(`<p> `))
+		w.Write([]byte("<p tx-key=\"i\"> "))
 		w.Write([]byte(html.EscapeString(fmt.Sprint(i))))
-		w.Write([]byte(` </p>`))
+		w.Write([]byte(" </p>"))
 
 	}
-	w.Write([]byte(`
-
-  <a href="/second-page">second page</a>
-
-
-
-</body></html>`))
+	w.Write([]byte(" <a href=\"/second-page\">second page</a> </body></html>"))
 }
-func render_second_d_page(w io.Writer, state string) {
-	w.Write([]byte(`<html><head>
-  <title> `))
-	w.Write([]byte(fmt.Sprint(1 + 2)))
-	w.Write([]byte(` </title>
-</head>
 
-<body>
-  <h1> `))
+type state_second_h_page struct {
+}
+
+func render_second_h_page(w io.Writer, key string, states map[string]string, newStates map[string]any) {
+	w.Write([]byte("<html><head> <title> "))
+	fmt.Fprint(w, 1+2)
+	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
+	w.Write([]byte(runtimeScript))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <h1> "))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(fmt.Sprintf("a + b = %d", 1+2)))))
-	w.Write([]byte(` </h1>
-
-
-</body></html>`))
+	w.Write([]byte(" </h1> </body></html>"))
 }
-func Handlers() []TmplxHandler { return tmplxHandlers }
 
 var tmplxHandlers []TmplxHandler = []TmplxHandler{
-
 	{
 		Url: "/{$}",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
@@ -159,91 +221,129 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			var counter int = 0
 			var counterTimes10 int = counter * 10
 			var str string = ""
-			greeting = fmt.Sprintf("Hello ,%s!", name)
-			counterTimes10 = counter * 10
-
-			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10, "str": str})
-			state := string(stateBytes)
-			render_index(w, state, name, greeting, counter, counterTimes10, str)
-
+			state := &state_index{
+				S_name:    name,
+				S_counter: counter,
+				S_str:     str,
+			}
+			newStates := map[string]any{}
+			newStates["tx_"] = state
+			var buf bytes.Buffer
+			render_index(&buf, "tx_", map[string]string{}, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 	{
 		Url: "/tx/index_addOne",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
-			var name string
-			json.Unmarshal([]byte(query.Get("name")), &name)
-			var greeting string = fmt.Sprintf("Hello ,%s!", name)
-			var counter int
-			json.Unmarshal([]byte(query.Get("counter")), &counter)
-			var counterTimes10 int = counter * 10
-			var str string
-			json.Unmarshal([]byte(query.Get("str")), &str)
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, "tx_") {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_index{}
+			json.Unmarshal([]byte(states["tx_"]), &state)
+			name := state.S_name
+			greeting := fmt.Sprintf("Hello ,%s!", name)
+			counter := state.S_counter
+			counterTimes10 := counter * 10
+			str := state.S_str
 			counter++
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
-
-			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10, "str": str})
-			state := string(stateBytes)
-			render_index(w, state, name, greeting, counter, counterTimes10, str)
-
+			var buf bytes.Buffer
+			render_index(&buf, "tx_", states, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			newStates["tx_"] = &state_index{
+				S_name:    name,
+				S_counter: counter,
+				S_str:     str,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 	{
 		Url: "/tx/index_appendS",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
-			var name string
-			json.Unmarshal([]byte(query.Get("name")), &name)
-			var greeting string = fmt.Sprintf("Hello ,%s!", name)
-			var counter int
-			json.Unmarshal([]byte(query.Get("counter")), &counter)
-			var counterTimes10 int = counter * 10
-			var str string
-			json.Unmarshal([]byte(query.Get("str")), &str)
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, "tx_") {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_index{}
+			json.Unmarshal([]byte(states["tx_"]), &state)
+			name := state.S_name
+			greeting := fmt.Sprintf("Hello ,%s!", name)
+			counter := state.S_counter
+			counterTimes10 := counter * 10
+			str := state.S_str
 			var s string
 			json.Unmarshal([]byte(query.Get("s")), &s)
 			str += s
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
-
-			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10, "str": str})
-			state := string(stateBytes)
-			render_index(w, state, name, greeting, counter, counterTimes10, str)
-
+			var buf bytes.Buffer
+			render_index(&buf, "tx_", states, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			newStates["tx_"] = &state_index{
+				S_name:    name,
+				S_counter: counter,
+				S_str:     str,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 	{
-		Url: "/tx/index_func_1",
+		Url: "/tx/index_index_1",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
 			query := r.URL.Query()
-			var name string
-			json.Unmarshal([]byte(query.Get("name")), &name)
-			var greeting string = fmt.Sprintf("Hello ,%s!", name)
-			var counter int
-			json.Unmarshal([]byte(query.Get("counter")), &counter)
-			var counterTimes10 int = counter * 10
-			var str string
-			json.Unmarshal([]byte(query.Get("str")), &str)
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, "tx_") {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_index{}
+			json.Unmarshal([]byte(states["tx_"]), &state)
+			name := state.S_name
+			greeting := fmt.Sprintf("Hello ,%s!", name)
+			counter := state.S_counter
+			counterTimes10 := counter * 10
+			str := state.S_str
 			counter--
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
-
-			stateBytes, _ := json.Marshal(map[string]any{"name": name, "greeting": greeting, "counter": counter, "counterTimes10": counterTimes10, "str": str})
-			state := string(stateBytes)
-			render_index(w, state, name, greeting, counter, counterTimes10, str)
-
+			var buf bytes.Buffer
+			render_index(&buf, "tx_", states, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			newStates["tx_"] = &state_index{
+				S_name:    name,
+				S_counter: counter,
+				S_str:     str,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 	{
 		Url: "/second-page",
 		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-
-			stateBytes, _ := json.Marshal(map[string]any{})
-			state := string(stateBytes)
-			render_second_d_page(w, state)
-
+			state := &state_second_h_page{}
+			newStates := map[string]any{}
+			newStates["tx_"] = state
+			var buf bytes.Buffer
+			render_second_h_page(&buf, "tx_", map[string]string{}, newStates)
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 }
+
+func Handlers() []TmplxHandler { return tmplxHandlers }

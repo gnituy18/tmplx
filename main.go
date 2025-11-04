@@ -1179,6 +1179,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 					comp.writeStrLit(comp.funcId(decl.Name.Name))
 					comp.writeStrLit(`"`)
 
+					comp.writeStrLit(`"`)
+					comp.writeStrLit(" tx-swap=\"")
+					comp.writeExpr(decl.Name.Name + "_swap")
+					comp.writeStrLit(`"`)
+
 				} else if attr.Key == "tx-value" {
 					if comp.Vars[attr.Val] == nil {
 						errs.append(comp.errf("cannot find var %s", attr.Val))

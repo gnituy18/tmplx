@@ -40,7 +40,7 @@
   <button tx-onclick='appendS("str")'>append str</button>
   <p>{ str }</p>
 
-  <p tx-for="i := 0; i < 10; i++"> { i } </p>
+  <p tx-for="i := 0; i < 10; i++" tx-key="i"> { i } </p>
 
   <a href="/second-page">second page</a>
 </body>
