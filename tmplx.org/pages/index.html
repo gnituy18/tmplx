@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-  <title>a tmplx </title>
+  <title> tmplx </title>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css">
@@ -79,32 +79,33 @@
     <h2 style="margin-top:4rem"> Demo: To Do App</h2>
     <tx-todo></tx-todo>
 
-    <h2 style="margin-top:2rem"><a href="https://github.com/gnituy18/tmplx/blob/main/tmplx.org/components/todo.html">Source
+    <h2 style="margin-top:2rem"><a
+        href="https://github.com/gnituy18/tmplx/blob/main/tmplx.org/components/todo.html">Source
         Code:</a></h2>
     <pre>
       <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
-var list []string = []string{}
-var item string = &quot;&quot;
+        var list []string = []string{}
+        var item string = &quot;&quot;
 
-func add() {
-  list = append(list, item)
-  item = &quot;&quot;
-}
+        func add() {
+        list = append(list, item)
+        item = &quot;&quot;
+        }
 
-func remove(i int) {
-  list = append(list[0:i], list[i+1:]...)
-}
-&lt;/script&gt;
+        func remove(i int) {
+        list = append(list[0:i], list[i+1:]...)
+        }
+        &lt;/script&gt;
 
-&lt;label&gt;New &lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
+        &lt;label&gt;New &lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
 
-&lt;button tx-onclick=&quot;add()&quot;&gt;Add&lt;/button&gt;
+        &lt;button tx-onclick=&quot;add()&quot;&gt;Add&lt;/button&gt;
 
-&lt;ol&gt;
-  &lt;li tx-for=&quot;i, l := range list&quot; tx-key=&quot;l&quot; tx-onclick=&quot;remove(i)&quot;&gt;
-    { l }
-  &lt;/li&gt;
-&lt;/ol&gt;</code>
+        &lt;ol&gt;
+        &lt;li tx-for=&quot;i, l := range list&quot; tx-key=&quot;l&quot; tx-onclick=&quot;remove(i)&quot;&gt;
+        { l }
+        &lt;/li&gt;
+        &lt;/ol&gt;</code>
     </pre>
     <p>It allows you to build UIs with React-like reactivity purely in Go.</p>
     <h2 style="margin-top:2rem"><a
