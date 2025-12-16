@@ -59,13 +59,12 @@ func main() {
 	log.SetFlags(0)
 	flag.StringVar(&componentsDir, "components", "components", "components directory")
 	flag.StringVar(&pagesDir, "pages", "pages", "pages directory")
-	flag.StringVar(&outputFilePath, "out-file", "tmplx/handler.go", "output file path")
+	flag.StringVar(&outputFilePath, "out-file", "", "output file path")
 	flag.StringVar(&outputPackageName, "out-pkg-name", "tmplx", "output package name")
 	flag.Parse()
 
 	componentsDir = filepath.Clean(componentsDir)
 	pagesDir = filepath.Clean(pagesDir)
-	outputFilePath = filepath.Clean(outputFilePath)
 	if outputPackageName == "" {
 		log.Fatalln("output package name cannot be empty string")
 	}
@@ -621,20 +620,28 @@ type TmplxHandler struct {
 		log.Fatalln(fmt.Errorf("format output file failed: %w", err))
 	}
 
-	dir := filepath.Dir(outputFilePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		log.Fatalln(err)
-	}
-	file, err := os.OpenFile(outputFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer file.Close()
+	if outputFilePath == "" {
+		if _, err := os.Stdout.Write(formatted); err != nil {
+			log.Fatalln(err)
+		}
+	} else {
+		outputFilePath = filepath.Clean(outputFilePath)
+		dir := filepath.Dir(outputFilePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			log.Fatalln(err)
+		}
+		file, err := os.OpenFile(outputFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer file.Close()
 
-	if _, err := file.Write(formatted); err != nil {
-		log.Fatal(err)
+		if _, err := file.Write(formatted); err != nil {
+			log.Fatal(err)
+		}
+		log.Println("success")
 	}
-	log.Println("success")
+
 }
 
 type CompType int
