@@ -147,12 +147,13 @@ func render_tx_h_button(w io.Writer, key string, states map[string]string, newSt
 type state_index struct {
 	S_name           string `json:"name"`
 	S_greeting       string `json:"greeting"`
+	S_path           string `json:"path"`
 	S_counter        int    `json:"counter"`
 	S_counterTimes10 int    `json:"counterTimes10"`
 	S_str            string `json:"str"`
 }
 
-func render_index(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, greeting string, counter int, counterTimes10 int, str string, addOne, addOne_swap string, appendS, appendS_swap string, index_1, index_1_swap string) {
+func render_index(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, greeting string, path string, counter int, counterTimes10 int, str string, addOne, addOne_swap string, appendS, appendS_swap string, index_1, index_1_swap string) {
 	w.Write([]byte("<html><head> <title> "))
 	fmt.Fprint(w, name)
 	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
@@ -212,32 +213,48 @@ func render_second_h_page(w io.Writer, key string, states map[string]string, new
 	w.Write([]byte(" </h1> </body></html>"))
 }
 
+type state__lb_name_rb_ struct {
+	S_name string `json:"name"`
+}
+
+func render__lb_name_rb_(w io.Writer, key string, states map[string]string, newStates map[string]any, name string) {
+	w.Write([]byte("<html><head> <title> "))
+	fmt.Fprint(w, name)
+	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
+	w.Write([]byte(runtimeScript))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <h1> Hello, "))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(name))))
+	w.Write([]byte(" </h1> </body></html>"))
+}
+
 var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	{
 		Url: "/{$}",
-		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
+		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
 			var name string = "tmplx"
 			var greeting string = fmt.Sprintf("Hello ,%s!", name)
-			var counter int = 0
+			var path string = tx_r.PathValue("index")
+			var counter int
 			var counterTimes10 int = counter * 10
 			var str string = ""
 			state := &state_index{
 				S_name:    name,
+				S_path:    path,
 				S_counter: counter,
 				S_str:     str,
 			}
 			newStates := map[string]any{}
 			newStates["tx_"] = state
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", map[string]string{}, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			render_index(&buf, "tx_", map[string]string{}, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 	{
 		Url: "/tx/index_addOne",
-		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			query := r.URL.Query()
+		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+			query := tx_r.URL.Query()
 			states := map[string]string{}
 			for k, v := range query {
 				if strings.HasPrefix(k, "tx_") {
@@ -249,6 +266,7 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			json.Unmarshal([]byte(states["tx_"]), &state)
 			name := state.S_name
 			greeting := fmt.Sprintf("Hello ,%s!", name)
+			path := state.S_path
 			counter := state.S_counter
 			counterTimes10 := counter * 10
 			str := state.S_str
@@ -256,9 +274,10 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", states, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			render_index(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
 			newStates["tx_"] = &state_index{
 				S_name:    name,
+				S_path:    path,
 				S_counter: counter,
 				S_str:     str,
 			}
@@ -268,8 +287,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	},
 	{
 		Url: "/tx/index_appendS",
-		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			query := r.URL.Query()
+		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+			query := tx_r.URL.Query()
 			states := map[string]string{}
 			for k, v := range query {
 				if strings.HasPrefix(k, "tx_") {
@@ -281,6 +300,7 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			json.Unmarshal([]byte(states["tx_"]), &state)
 			name := state.S_name
 			greeting := fmt.Sprintf("Hello ,%s!", name)
+			path := state.S_path
 			counter := state.S_counter
 			counterTimes10 := counter * 10
 			str := state.S_str
@@ -290,9 +310,10 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", states, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			render_index(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
 			newStates["tx_"] = &state_index{
 				S_name:    name,
+				S_path:    path,
 				S_counter: counter,
 				S_str:     str,
 			}
@@ -302,8 +323,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	},
 	{
 		Url: "/tx/index_index_1",
-		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
-			query := r.URL.Query()
+		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+			query := tx_r.URL.Query()
 			states := map[string]string{}
 			for k, v := range query {
 				if strings.HasPrefix(k, "tx_") {
@@ -315,6 +336,7 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			json.Unmarshal([]byte(states["tx_"]), &state)
 			name := state.S_name
 			greeting := fmt.Sprintf("Hello ,%s!", name)
+			path := state.S_path
 			counter := state.S_counter
 			counterTimes10 := counter * 10
 			str := state.S_str
@@ -322,9 +344,10 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", states, newStates, name, greeting, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			render_index(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
 			newStates["tx_"] = &state_index{
 				S_name:    name,
+				S_path:    path,
 				S_counter: counter,
 				S_str:     str,
 			}
@@ -334,12 +357,27 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	},
 	{
 		Url: "/second-page",
-		HandlerFunc: func(w http.ResponseWriter, r *http.Request) {
+		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
 			state := &state_second_h_page{}
 			newStates := map[string]any{}
 			newStates["tx_"] = state
 			var buf bytes.Buffer
 			render_second_h_page(&buf, "tx_", map[string]string{}, newStates)
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
+		},
+	},
+	{
+		Url: "/{name}",
+		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+			var name string = tx_r.PathValue("name")
+			state := &state__lb_name_rb_{
+				S_name: name,
+			}
+			newStates := map[string]any{}
+			newStates["tx_"] = state
+			var buf bytes.Buffer
+			render__lb_name_rb_(&buf, "tx_", map[string]string{}, newStates, name)
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},

@@ -27,6 +27,8 @@ import (
 const (
 	mimeType = "text/tmplx"
 
+	txComtPath = "tx:path"
+
 	txIgnoreKey  = "tx-ignore"
 	txForKey     = "tx-for"
 	txKeyKey     = "tx-key"
@@ -47,6 +49,7 @@ var (
 		'k': {}, 'l': {}, 'm': {}, 'n': {}, 'o': {}, 'p': {}, 'q': {}, 'r': {}, 's': {}, 't': {},
 		'u': {}, 'v': {}, 'w': {}, 'x': {}, 'y': {}, 'z': {}, '0': {}, '1': {}, '2': {}, '3': {},
 		'4': {}, '5': {}, '6': {}, '7': {}, '8': {}, '9': {}, ':': {}, '-': {}, '.': {}, '_': {},
+		'{': {}, '}': {},
 	}
 	componentNames = []string{}
 	components     = map[string]*Component{}
@@ -102,7 +105,7 @@ func main() {
 
 			for _, r := range name {
 				if _, found := componentNameCharSet[r]; !found {
-					errs.append(fmt.Errorf("invalid char \"%c\" found in <%s>, component name can only contain characters from [a-z], [0-9], [:], [-], [.], [_]", r, name))
+					errs.append(fmt.Errorf("invalid char \"%c\" found in <%s>, component name can only contain characters from [a-z], [0-9], [:], [-], [.], [_], [{], [}]", r, name))
 					return nil
 				}
 			}
@@ -114,6 +117,7 @@ func main() {
 
 			componentNames = append(componentNames, name)
 			components[name] = &Component{
+				Type:     CompTypeComp,
 				FilePath: path,
 				RelPath:  relPath,
 				Name:     name,
@@ -154,6 +158,7 @@ func main() {
 			basePath, _ := strings.CutSuffix(relPath, ext)
 
 			pages = append(pages, &Component{
+				Type:     CompTypePage,
 				FilePath: path,
 				RelPath:  relPath,
 				Name:     basePath,
@@ -411,7 +416,7 @@ type TmplxHandler struct {
 	for _, page := range pages {
 		out.WriteString("{\n")
 		out.WriteString("Url: \"" + page.urlPath() + "\",\n")
-		out.WriteString("HandlerFunc: func(w http.ResponseWriter, r *http.Request) {\n")
+		out.WriteString("HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
 			out.WriteString(fmt.Sprintf("var %s %s", v.Name, astToSource(v.TypeExpr)))
@@ -466,8 +471,8 @@ type TmplxHandler struct {
 			f := page.Funcs[funcName]
 			out.WriteString("{\n")
 			out.WriteString("Url: \"/tx/" + page.funcId(funcName) + "\",\n")
-			out.WriteString("HandlerFunc: func(w http.ResponseWriter, r *http.Request) {\n")
-			out.WriteString("query := r.URL.Query()\n")
+			out.WriteString("HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {\n")
+			out.WriteString("query := tx_r.URL.Query()\n")
 			out.WriteString("states := map[string]string{}\n")
 			out.WriteString("for k, v := range query {\n")
 			out.WriteString("if strings.HasPrefix(k, \"tx_\") {\n")
@@ -537,9 +542,9 @@ type TmplxHandler struct {
 
 			out.WriteString("{\n")
 			out.WriteString("Url: \"/tx/" + comp.funcId(funcName) + "\",\n")
-			out.WriteString("HandlerFunc: func(w http.ResponseWriter, r *http.Request) {\n")
+			out.WriteString("HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("w.Header().Set(\"Content-Type\", \"text/html\")\n")
-			out.WriteString("query := r.URL.Query()\n")
+			out.WriteString("query := tx_r.URL.Query()\n")
 			out.WriteString("txSwap := query.Get(\"tx-swap\")\n")
 			out.WriteString("states := map[string]string{}\n")
 			out.WriteString("for k, v := range query {\n")
@@ -632,7 +637,15 @@ type TmplxHandler struct {
 	log.Println("success")
 }
 
+type CompType int
+
+const (
+	CompTypePage = iota + 1
+	CompTypeComp
+)
+
 type Component struct {
+	Type     CompType
 	FilePath string
 	RelPath  string
 
@@ -675,7 +688,7 @@ func (comp *Component) parseTmplxScript() *Errors {
 
 	if comp.TmplxScriptNode != nil {
 		// TODO: save position into errors
-		scriptAst, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+comp.TmplxScriptNode.FirstChild.Data, 0)
+		scriptAst, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+comp.TmplxScriptNode.FirstChild.Data, parser.ParseComments)
 		if err != nil {
 			errs.append(comp.errf("parse tmplx script failed: %w", err))
 			return errs
@@ -698,42 +711,74 @@ func (comp *Component) parseTmplxScript() *Errors {
 						comp.Imports = append(comp.Imports, s)
 					}
 				case token.VAR:
-					for _, spec := range d.Specs {
-						s, ok := spec.(*ast.ValueSpec)
-						if !ok {
-							errs.append(comp.errf("not a value spec: %s", astToSource(spec)))
-							continue
+					if len(d.Specs) > 1 {
+						errs.append(comp.errf("var declaration must be single-variable: %s", astToSource(d)))
+						continue
+					}
+
+					spec := d.Specs[0]
+					s, ok := spec.(*ast.ValueSpec)
+					if !ok {
+						errs.append(comp.errf("not a value spec: %s", astToSource(spec)))
+						continue
+					}
+
+					if s.Type == nil {
+						errs.append(comp.errf("must specify a type in declaration: %s", astToSource(spec)))
+					}
+
+					if len(s.Names) > 1 {
+						errs.append(comp.errf("var declaration must be single-variable: %s", astToSource(spec)))
+						continue
+					}
+
+					ident := s.Names[0]
+					comp.VarNames = append(comp.VarNames, ident.Name)
+					comp.Vars[ident.Name] = &Var{
+						Name:        ident.Name,
+						StructField: "S_" + ident.Name,
+						TypeExpr:    s.Type,
+					}
+
+					if d.Doc != nil {
+						comments := []Comment{}
+						for _, comment := range d.Doc.List {
+							comments = append(comments, parseComments(comment.Text)...)
 						}
 
-						if s.Type == nil {
-							errs.append(comp.errf("must specify a type in declaration: %s", astToSource(spec)))
-						}
-
-						for _, ident := range s.Names {
-							comp.VarNames = append(comp.VarNames, ident.Name)
-							comp.Vars[ident.Name] = &Var{
-								Name:        ident.Name,
-								StructField: "S_" + ident.Name,
-								TypeExpr:    s.Type,
+						for _, comment := range comments {
+							if comment.Name == CommentPath {
+								comp.Vars[ident.Name].InitExpr = &ast.CallExpr{
+									Fun: &ast.SelectorExpr{
+										X:   &ast.Ident{Name: "tx_r"},
+										Sel: &ast.Ident{Name: "PathValue"},
+									},
+									Args: []ast.Expr{
+										&ast.BasicLit{
+											Value: fmt.Sprintf("\"%s\"", comment.Value),
+											Kind:  token.STRING,
+										},
+									},
+								}
+								break
 							}
 						}
 
-						if len(s.Values) == 0 {
-							continue
+						if len(s.Values) > 0 {
+							errs.append(comp.errf("no init value if path value assigned: %s", astToSource(spec)))
 						}
 
-						if len(s.Values) > len(s.Names) {
-							errs.append(comp.errf("extra init exprs: %s", astToSource(spec)))
-							continue
+						if astToSource(s.Type) != "string" {
+							errs.append(comp.errf("binding path value need this var type to be 'string': %s", astToSource(spec)))
 						}
 
-						if len(s.Values) < len(s.Names) {
-							errs.append(comp.errf("missin init exprs: %s", astToSource(spec)))
-							continue
-						}
+						comp.Vars[ident.Name].Type = VarTypeState
 
-						for i, v := range s.Values {
-							found := false
+					} else if len(s.Values) == 1 || len(s.Values) == 0 {
+
+						found := false
+						if len(s.Values) == 1 {
+							v := s.Values[0]
 							ast.Inspect(v, func(n ast.Node) bool {
 								if found {
 									return false
@@ -751,16 +796,19 @@ func (comp *Component) parseTmplxScript() *Errors {
 								found = true
 								return false
 							})
-
-							if found {
-								comp.Vars[s.Names[i].Name].Type = VarTypeDerived
-							} else {
-								comp.Vars[s.Names[i].Name].Type = VarTypeState
-							}
-
-							comp.Vars[s.Names[i].Name].InitExpr = v
+							comp.Vars[ident.Name].InitExpr = v
 						}
+
+						if found {
+							comp.Vars[ident.Name].Type = VarTypeDerived
+						} else {
+							comp.Vars[ident.Name].Type = VarTypeState
+						}
+
+					} else if len(s.Values) > 1 {
+						errs.append(comp.errf("var declaration must be single-variable: %s", astToSource(spec)))
 					}
+
 				}
 			}
 		}
@@ -1813,4 +1861,40 @@ func dirExist(path string) (bool, error) {
 		return false, err
 	}
 	return info.IsDir(), nil
+}
+
+type CommentName string
+
+const (
+	CommentMethod CommentName = "method"
+	CommentPath   CommentName = "path"
+)
+
+type Comment struct {
+	Name  CommentName
+	Value string
+}
+
+func parseComments(text string) []Comment {
+	comments := []Comment{}
+
+	if text[1] == '*' {
+		text = text[2 : len(text)-2]
+	} else {
+		text = text[2:]
+	}
+
+	lines := strings.SplitSeq(text, "\n")
+	for line := range lines {
+		str := strings.TrimSpace(line)
+		if strings.HasPrefix(str, txComtPath) {
+			val := strings.TrimSpace(str[7:])
+			comments = append(comments, Comment{
+				Name:  CommentPath,
+				Value: val,
+			})
+		}
+	}
+
+	return comments
 }
