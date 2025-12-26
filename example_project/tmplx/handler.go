@@ -122,9 +122,9 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
 });
 `
 
-type TmplxHandler struct {
-	Url         string
-	HandlerFunc http.HandlerFunc
+type TxRoute struct {
+	Pattern string
+	Handler http.HandlerFunc
 }
 type state_tx_h_button struct {
 	S_name string `json:"name"`
@@ -227,10 +227,10 @@ func render__lb_name_rb_(w io.Writer, key string, states map[string]string, newS
 	w.Write([]byte(" </h1> </body></html>"))
 }
 
-var tmplxHandlers []TmplxHandler = []TmplxHandler{
+var txRoutes []TxRoute = []TxRoute{
 	{
-		Url: "/{$}",
-		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+		Pattern: "GET /{$}",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			var name string = "tmplx"
 			var greeting string = fmt.Sprintf("Hello ,%s!", name)
 			var path string = tx_r.PathValue("index")
@@ -252,8 +252,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 		},
 	},
 	{
-		Url: "/tx/index_addOne",
-		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+		Pattern: "GET /tx/index_addOne",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			query := tx_r.URL.Query()
 			states := map[string]string{}
 			for k, v := range query {
@@ -286,8 +286,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 		},
 	},
 	{
-		Url: "/tx/index_appendS",
-		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+		Pattern: "GET /tx/index_appendS",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			query := tx_r.URL.Query()
 			states := map[string]string{}
 			for k, v := range query {
@@ -322,8 +322,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 		},
 	},
 	{
-		Url: "/tx/index_index_1",
-		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+		Pattern: " /tx/index_index_1",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			query := tx_r.URL.Query()
 			states := map[string]string{}
 			for k, v := range query {
@@ -356,8 +356,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 		},
 	},
 	{
-		Url: "/second-page",
-		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+		Pattern: "GET /second-page",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			state := &state_second_h_page{}
 			newStates := map[string]any{}
 			newStates["tx_"] = state
@@ -368,8 +368,8 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 		},
 	},
 	{
-		Url: "/{name}",
-		HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {
+		Pattern: "GET /{name}",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			var name string = tx_r.PathValue("name")
 			state := &state__lb_name_rb_{
 				S_name: name,
@@ -384,4 +384,4 @@ var tmplxHandlers []TmplxHandler = []TmplxHandler{
 	},
 }
 
-func Handlers() []TmplxHandler { return tmplxHandlers }
+func Routes() []TxRoute { return txRoutes }
