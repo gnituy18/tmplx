@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-	for _, th := range tmplx.Handlers() {
-		http.HandleFunc("GET "+th.Url, th.HandlerFunc)
+	for _, r := range tmplx.Routes() {
+		http.HandleFunc(r.Pattern, r.Handler)
 	}
 
 	log.Fatal(http.ListenAndServe(":8081", nil))

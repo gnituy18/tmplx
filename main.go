@@ -12,6 +12,7 @@ import (
 	"go/token"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,7 +28,8 @@ import (
 const (
 	mimeType = "text/tmplx"
 
-	txComtPath = "tx:path"
+	txComtPath   = "tx:path"
+	txComtMethod = "tx:method"
 
 	txIgnoreKey  = "tx-ignore"
 	txForKey     = "tx-for"
@@ -353,9 +355,9 @@ func main() {
 	out.WriteString(")\n")
 	out.WriteString("var runtimeScript = `" + runtimeScript + "`\n")
 	out.WriteString(`
-type TmplxHandler struct {
-        Url		string
-	HandlerFunc 	http.HandlerFunc
+type TxRoute struct {
+        Pattern	string
+	Handler	http.HandlerFunc
 }
 `)
 	for _, name := range componentNames {
@@ -411,11 +413,11 @@ type TmplxHandler struct {
 		out.WriteString("}\n")
 	}
 
-	out.WriteString("var tmplxHandlers []TmplxHandler = []TmplxHandler{\n")
+	out.WriteString("var txRoutes []TxRoute = []TxRoute{\n")
 	for _, page := range pages {
 		out.WriteString("{\n")
-		out.WriteString("Url: \"" + page.urlPath() + "\",\n")
-		out.WriteString("HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {\n")
+		out.WriteString("Pattern: \"GET " + page.urlPath() + "\",\n")
+		out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
 			out.WriteString(fmt.Sprintf("var %s %s", v.Name, astToSource(v.TypeExpr)))
@@ -469,8 +471,8 @@ type TmplxHandler struct {
 
 			f := page.Funcs[funcName]
 			out.WriteString("{\n")
-			out.WriteString("Url: \"/tx/" + page.funcId(funcName) + "\",\n")
-			out.WriteString("HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {\n")
+			out.WriteString(fmt.Sprintf("Pattern: \"%s /tx/%s\",\n", f.Method, page.funcId(funcName)))
+			out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("query := tx_r.URL.Query()\n")
 			out.WriteString("states := map[string]string{}\n")
 			out.WriteString("for k, v := range query {\n")
@@ -540,8 +542,8 @@ type TmplxHandler struct {
 			}
 
 			out.WriteString("{\n")
-			out.WriteString("Url: \"/tx/" + comp.funcId(funcName) + "\",\n")
-			out.WriteString("HandlerFunc: func(w http.ResponseWriter, tx_r *http.Request) {\n")
+			out.WriteString(fmt.Sprintf("Pattern: \"%s /tx/%s\",\n", f.Method, comp.funcId(funcName)))
+			out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("w.Header().Set(\"Content-Type\", \"text/html\")\n")
 			out.WriteString("query := tx_r.URL.Query()\n")
 			out.WriteString("txSwap := query.Get(\"tx-swap\")\n")
@@ -606,7 +608,7 @@ type TmplxHandler struct {
 	}
 	out.WriteString("}\n")
 
-	out.WriteString("func Handlers() []TmplxHandler { return tmplxHandlers }\n\n")
+	out.WriteString("func Routes() []TxRoute { return txRoutes }\n\n")
 
 	data := []byte(out.String())
 	formatted, err := imports.Process(outputFilePath, data, nil)
@@ -850,10 +852,23 @@ func (comp *Component) parseTmplxScript() *Errors {
 				}
 			}
 
+			method := http.MethodGet
+			if d.Doc != nil {
+				for _, list := range d.Doc.List {
+					comments := parseComments(list.Text)
+					for _, comment := range comments {
+						if comment.Name == txComtMethod {
+							method = comment.Value
+						}
+					}
+				}
+			}
+
 			comp.FuncNames = append(comp.FuncNames, d.Name.Name)
 			comp.Funcs[d.Name.Name] = &Func{
-				Name: d.Name.Name,
-				Decl: d,
+				Method: method,
+				Name:   d.Name.Name,
+				Decl:   d,
 			}
 		}
 	}
@@ -1571,8 +1586,9 @@ type Var struct {
 }
 
 type Func struct {
-	Name string
-	Decl *ast.FuncDecl
+	Method string
+	Name   string
+	Decl   *ast.FuncDecl
 }
 
 //go:embed runtime.js
@@ -1895,9 +1911,15 @@ func parseComments(text string) []Comment {
 	for line := range lines {
 		str := strings.TrimSpace(line)
 		if strings.HasPrefix(str, txComtPath) {
-			val := strings.TrimSpace(str[7:])
+			val := strings.TrimSpace(str[len(txComtPath):])
 			comments = append(comments, Comment{
 				Name:  CommentPath,
+				Value: val,
+			})
+		} else if strings.HasPrefix(str, txComtMethod) {
+			val := strings.TrimSpace(str[len(txComtMethod):])
+			comments = append(comments, Comment{
+				Name:  txComtMethod,
 				Value: val,
 			})
 		}
