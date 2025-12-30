@@ -1,0 +1,88 @@
+<!-- prettier-ignore -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Tmplx Guide</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+    <script>
+      hljs.highlightAll();
+    </script>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <nav>
+      <ul>
+        <li><a href="#quick-start">Quick Start</a></li>
+        <li><a href="#essentials">Essentials</a></li>
+      </ul>
+    </nav>
+    <main>
+      <h2 id="quick-start">Quick Start</h2>
+      <h3>1. Install tmplx</h3>
+      <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
+
+      <h3>2. Create a new project</h3>
+      <pre><code tx-ignore>$ mkdir my-tmplx-app
+$ cd my-tmplx-app
+$ go mod init my-tmplx-app
+
+$ mkdir pages
+$ touch pages/index.html
+
+$ mkdir tmplx   # generated code will go here</code></pre>
+
+      <h3>3. Write your first page (pages/index.html)</h3>
+      <pre><code tx-ignore class="language-html">&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+  &lt;head&gt;
+    &lt;title&gt;My Tmplx App&lt;/title&gt;
+
+    &lt;script type="text/tmplx"&gt;
+      var name string = "World" // state
+      var greeting string = fmt.Sprintf("Hello, %s!", name) // derived
+    &lt;/script&gt;
+  &lt;/head&gt;
+
+  &lt;body&gt;
+    &lt;h1&gt;{greeting}&lt;/h1&gt;
+  &lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+      <h3>4. Generate routes</h3>
+      <pre><code tx-ignore>$ tmplx -out-file=tmplx/routes.go</code></pre>
+      <p>This creates <code>tmplx/routes.go</code> with compiled handlers and render functions.</p>
+
+      <h3>5. Add main.go</h3>
+      <pre><code tx-ignore class="language-go">package main
+
+import (
+	"log"
+	"net/http"
+
+	"my-tmplx-app/tmplx"
+)
+
+func main() {
+	for _, r := range tmplx.Routes() {
+		http.HandleFunc(r.Pattern, r.Handler)
+	}
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}</code></pre>
+
+      <h3>6. Run the app</h3>
+      <pre><code tx-ignore>$ go run .</code></pre>
+      <p>Open <a href="http://localhost:8080/" target="_blank">http://localhost:8080/</a>. You should see “Hello, World!” rendered server-side using Go logic.</p>
+
+      <h2 id="essentials">Essentials</h2>
+    </main>
+  </body>
+</html>

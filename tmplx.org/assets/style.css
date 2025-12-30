@@ -1,0 +1,49 @@
+body {
+  color: #16161d;
+  background: #efeff3;
+  display: flex;
+}
+
+main {
+  margin: 4rem auto;
+  width: 40rem;
+}
+
+h1 {
+  font-family: Verdana;
+  font-size: 3rem;
+}
+
+h2 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+a {
+  color: RoyalBlue;
+}
+
+pre {
+  margin: 0;
+}
+
+.btn {
+  text-decoration: none;
+  border: solid;
+  border-radius: 0.25rem;
+  color: #16161d;
+  padding: 0.5rem 2rem;
+  font-weight: bold;
+  background-color: LightGray;
+
+  &:hover {
+    background-color: Silver;
+  }
+}
+
+.item {
+  &:hover {
+    cursor: pointer;
+    text-decoration: line-through;
+  }
+}

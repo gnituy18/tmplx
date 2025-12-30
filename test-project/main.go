@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"example_project/tmplx"
+	"test-project/tmplx"
 )
 
 func main() {
