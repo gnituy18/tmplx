@@ -5,11 +5,11 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/main"
-  cmd = "tmplx && go build -o ./tmp/main ."
+  cmd = "tmplx -out-file=./tmplx/routes.go && go build -o ./tmp/main ."
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []
-  exclude_regex = ["tmplx/handler.go"]
+  exclude_regex = ["tmplx/routes.go"]
   exclude_unchanged = false
   follow_symlink = false
   full_bin = ""
