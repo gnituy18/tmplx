@@ -20,12 +20,39 @@
   </head>
   <body>
     <nav>
+      <h2>Tmplx Docs</h2>
       <ul>
+        <li><a href="#introduction">Introduction</a></li>
         <li><a href="#quick-start">Quick Start</a></li>
-        <li><a href="#essentials">Essentials</a></li>
+        <li>
+          <h3>Guide</h3>
+          <ul>
+            <li><a href="#project-structure">Project Structure</a></li>
+            <li><a href="#html">HTML Files</a></li>
+            <li><a href="#script">Tmplx Script</a></li>
+            <li><a href="#interpolation">Go Interpolation</a></li>
+            <li><a href="#state">State</a></li>
+            <li><a href="#derived">Derived State</a></li>
+            <li><a href="#handlers">Event Handler</a></li>
+            <li><a href="#init">init()</a></li>
+            <li><a href="#control-flow">Control Flow</a></li>
+          </ul>
+        </li>
       </ul>
     </nav>
     <main>
+      <h2 id="introduction">Introduction</h2>
+      <p>
+        Tmplx is a compile-time framework using Go for building state-driven web
+        apps. It allows you to build UIs with React-like reactivity purely in
+        Go.
+      </p>
+      <p>
+        Embed Go code in HTML to define states and event handlers. Go manages
+        backend logic while HTML defines the UI, all in one file. This creates a
+        seamless integration, eliminating the mental context switch between
+        backend and frontend development.
+      </p>
       <h2 id="quick-start">Quick Start</h2>
       <h3>1. Install tmplx</h3>
       <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
@@ -59,7 +86,10 @@ $ mkdir tmplx   # generated code will go here</code></pre>
 
       <h3>4. Generate routes</h3>
       <pre><code tx-ignore>$ tmplx -out-file=tmplx/routes.go</code></pre>
-      <p>This creates <code>tmplx/routes.go</code> with compiled handlers and render functions.</p>
+      <p>
+        This creates <code>tmplx/routes.go</code> with compiled handlers and
+        render functions.
+      </p>
 
       <h3>5. Add main.go</h3>
       <pre><code tx-ignore class="language-go">package main
@@ -80,9 +110,13 @@ func main() {
 
       <h3>6. Run the app</h3>
       <pre><code tx-ignore>$ go run .</code></pre>
-      <p>Open <a href="http://localhost:8080/" target="_blank">http://localhost:8080/</a>. You should see “Hello, World!” rendered server-side using Go logic.</p>
+      <p>
+        Open
+        <a href="http://localhost:8080/" target="_blank"
+          >http://localhost:8080/</a
+        >. You should see “Hello, World!” rendered server-side using Go logic.
+      </p>
 
-      <h2 id="essentials">Essentials</h2>
     </main>
   </body>
 </html>
