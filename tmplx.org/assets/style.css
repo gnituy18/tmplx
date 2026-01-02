@@ -56,14 +56,14 @@ h1 {
 }
 
 h2 {
-  color: SlateGray;
+  color: DarkSlateGray;
   text-shadow: 0.125rem 0.125rem Silver;
   margin-top: 4rem;
   margin-bottom: 1rem;
 }
 
 h3 {
-  color: DarkSlateGray;
+  padding-top: 1rem;
 }
 
 a {
@@ -76,6 +76,13 @@ a {
 
 pre {
   margin: 0;
+  padding: 0;
+}
+
+code {
+  background: Gainsboro;
+  padding: 0.0625rem 0.25rem;
+  border-radius: 0.25rem;
 }
 
 .btn {
