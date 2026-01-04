@@ -87,12 +87,13 @@ code {
 
 .btn {
   text-decoration: none;
-  border: solid;
+  border: solid DarkSlateGray;
   border-radius: 0.25rem;
-  color: #16161d;
-  padding: 0.5rem 2rem;
+  color: DarkSlateGray;
+  padding: 0.5rem 3rem;
   font-weight: bold;
   background-color: LightGray;
+  box-shadow: 0.25rem 0.25rem Silver;
 
   &:hover {
     background-color: Silver;

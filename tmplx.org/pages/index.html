@@ -3,7 +3,7 @@
 
 <html lang="en">
   <head>
-    <title>tmplx</title>
+    <title>Tmplx</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link
@@ -24,24 +24,45 @@
 
   <body>
     <main>
-      <h1 style="text-align: center; text-shadow: 0.25rem 0.25rem Silver">&lt;tmplx&gt;</h1>
+      <h1 style="text-align: center; text-shadow: 0.25rem 0.25rem Silver">
+        &lt;tmplx&gt;
+      </h1>
       <p style="text-align: center">
-        <strong>Build state-driven web app with Go in HTML.</strong>
+        <strong>Build interactive web apps with just HTML and Go</strong>
       </p>
-      <div style="display:flex; gap:1rem; justify-content: center; text-align:center; margin-top:4rem">
+      <ul style="margin-top: 4rem">
+        <li>Reactive UIs driven by plain Go variables</li>
+        <li>Reusable components written as regular HTML files</li>
+        <li>Full Go backend logic and HTML in the same file</li>
+      </ul>
+      <div
+        style="
+          display: flex;
+          gap: 1rem;
+          justify-content: center;
+          text-align: center;
+          margin-top: 4rem;
+        "
+      >
         <a class="btn" href="/docs">Docs</a>
         <a class="btn" href="https://github.com/gnituy18/tmplx">GitHub</a>
       </div>
 
-      <h2 style="margin-top: 4rem">Demo: To Do App</h2>
+      <h2 style="text-align: center; margin-top: 4rem">Demos</h2>
+
+      <tx-counter></tx-counter>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var counter int
+&lt;/script&gt;
+
+&lt;h3&gt;Counter&lt;/h3&gt;
+&lt;button tx-onclick=&quot;counter--&quot;&gt;-&lt;/button&gt;
+&lt;span&gt; { counter } &lt;/span&gt;
+&lt;button tx-onclick=&quot;counter++&quot;&gt;+&lt;/button&gt;</code>
+      </pre>
       <tx-todo></tx-todo>
 
-      <h2 style="margin-top: 2rem">
-        <a
-          href="https://github.com/gnituy18/tmplx/blob/main/tmplx.org/components/todo.html"
-          >Source Code:</a
-        >
-      </h2>
       <pre>
         <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
 var list []string = []string{}
@@ -57,21 +78,17 @@ func remove(i int) {
 }
 &lt;/script&gt;
 
-&lt;label&gt;New &lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
+&lt;label&gt;&lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
 &lt;button tx-onclick=&quot;add()&quot;&gt;Add&lt;/button&gt;
 &lt;ol&gt;
-  &lt;li tx-for=&quot;i, l := range list&quot; tx-key=&quot;l&quot; tx-onclick=&quot;remove(i)&quot;&gt;
+  &lt;li 
+    tx-for=&quot;i, l := range list&quot;
+    tx-key=&quot;l&quot;
+    tx-onclick=&quot;remove(i)&quot;&gt;
     { l }
   &lt;/li&gt;
 &lt;/ol&gt;</code>
       </pre>
-      <p>It allows you to build UIs with React-like reactivity purely in Go.</p>
-      <h2 style="margin-top: 2rem">
-        <a
-          href="https://github.com/gnituy18/tmplx/blob/main/tmplx.org/tmplx/routes.go"
-          >Compiled Code:</a
-        >
-      </h2>
     </main>
   </body>
 </html>
