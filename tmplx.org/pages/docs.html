@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Tmplx Guide</title>
+    <title>Docs | Tmplx</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link
       rel="stylesheet"
@@ -25,16 +25,13 @@
         <li><a href="#introduction">Introduction</a></li>
         <li><a href="#installing">Installing</a></li>
         <li><a href="#pages-and-routing">Pages and Routing</a></li>
-        <li><a href="#quick-start">Quick Start</a></li>
-        <li><a href="#project-structure">Project Structure</a></li>
-        <li><a href="#html">HTML Files</a></li>
-        <li><a href="#script">Tmplx Script</a></li>
-        <li><a href="#interpolation">Go Interpolation</a></li>
+        <li><a href="#tmplx-script">Tmplx Script</a></li>
+        <li>
+          <a href="#expression-interpolation">Expression Interpolation</a>
+        </li>
         <li><a href="#state">State</a></li>
-        <li><a href="#derived">Derived State</a></li>
+        <li><a href="#derived-state">Derived State</a></li>
         <li><a href="#handlers">Event Handler</a></li>
-        <li><a href="#init">init()</a></li>
-        <li><a href="#control-flow">Control Flow</a></li>
         <li>
           <h3>Dev Tools</h3>
           <ul>
@@ -57,13 +54,18 @@
         backend and frontend development.
       </p>
       <p>HTML file is only thing you need</p>
-      <h2>Installing</h2>
+      <h2 id="installing">Installing</h2>
       <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
       <h2 id="pages-and-routing">Pages and Routing</h2>
       <p>
+        You put all your html files into the pages directory that it can either
+        be in your project or outside of your project.
+      </p>
+      <p>
         Tmplx uses <strong>filesystem-based routing</strong>. The route is the
-        relative path of the HTML file inside the <strong>pages</strong> directory
-        without the <code>.html</code> extension.
+        relative path of the HTML file inside the
+        <strong>pages</strong> directory without the
+        <code>.html</code> extension.
       </p>
       <p>
         If the file is named <code>index.html</code>, omit
@@ -89,9 +91,9 @@ pages/login/index.html → /login</code>
         <a href="https://pkg.go.dev/net/http#hdr-Patterns-ServeMux"
           >Wildcards</a
         >
-        are supported out of the box using <code tx-ignore>{}</code> in directory or file
-        names. Captured values can be used in initial states via tmplx comments.
-        Wildcard names must be valid Go identifiers.
+        are supported out of the box using <code tx-ignore>{}</code> in
+        directory or file names. Captured values can be used in initial states
+        via tmplx comments. Wildcard names must be valid Go identifiers.
       </p>
       <pre><code tx-ignore>pages/user/{user_id}.html → /user/{user_id}</code>
       </pre>
@@ -105,70 +107,78 @@ pages/login/index.html → /login</code>
         Default pages location: <code>./pages</code>. Change it with the
         <code>-pages</code> flag:
       </p>
-      <pre><code tx-ignore>$ tmplx -pages="/some/other/location ..."</code></pre>
+      <pre><code tx-ignore>$ tmplx -pages="/some/other/location"</code></pre>
 
-      <h2 id="quick-start">Quick Start</h2>
+      <h2 id="tmplx-script">Tmplx Script</h2>
+      <p>
+        Tmplx lets you embed Go code directly in your HTML using a special
+        <code>&lt;script&gt;</code> tag with <code>type="text/tmplx"</code>.
+        Inside the tag, you write normal Go code to declare
+        <a href="#state">state</a>, <a href="#derived-state">derived state</a>,
+        <a href="#event-handler">event handlers</a>, and the special
+        <a href="#init">init()</a> function.
+      </p>
+      <p>
+        Each page or component HTML file may contain
+        <strong>exactly one</strong> tmplx script. For pages, you can place it
+        anywhere inside <code>&lt;head&gt;</code> or <code>&lt;body&gt;</code>.
+        For components, place the tmplx script at the root of the file. Having
+        multiple tmplx scripts will cause a compilation error.
+      </p>
+      <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
 
-      <h3>2. Create a new project</h3>
-      <pre><code tx-ignore>$ mkdir my-tmplx-app
-$ cd my-tmplx-app
-$ go mod init my-tmplx-app
-
-$ mkdir pages
-$ touch pages/index.html
-
-$ mkdir tmplx   # generated code will go here</code></pre>
-
-      <h3>3. Write your first page (pages/index.html)</h3>
-      <pre><code tx-ignore class="language-html">&lt;!DOCTYPE html&gt;
 &lt;html lang="en"&gt;
   &lt;head&gt;
-    &lt;title&gt;My Tmplx App&lt;/title&gt;
+    &lt;meta charset="utf-8"&gt;
+    &lt;title&gt;My Page&lt;/title&gt;
 
     &lt;script type="text/tmplx"&gt;
-      var name string = "World" // state
-      var greeting string = fmt.Sprintf("Hello, %s!", name) // derived
+      ...
     &lt;/script&gt;
   &lt;/head&gt;
-
   &lt;body&gt;
-    &lt;h1&gt;{greeting}&lt;/h1&gt;
+    ...
   &lt;/body&gt;
 &lt;/html&gt;</code></pre>
 
-      <h3>4. Generate routes</h3>
-      <pre><code tx-ignore>$ tmplx -out-file=tmplx/routes.go</code></pre>
+      <h2 id="expression-interpolation">Expression Interpolation</h2>
       <p>
-        This creates <code>tmplx/routes.go</code> with compiled handlers and
-        render functions.
+        Embed Go expressions in HTML using {} for dynamic content. You can only
+        place Go expressions in text nodes or attribute values; other placements
+        cause parsing errors. text nodes output is HTML-escaped; attribute it is
+        not escaped.
       </p>
 
-      <h3>5. Add main.go</h3>
-      <pre><code tx-ignore class="language-go">package main
-
-import (
-	"log"
-	"net/http"
-
-	"my-tmplx-app/tmplx"
-)
-
-func main() {
-	for _, r := range tmplx.Routes() {
-		http.HandleFunc(r.Pattern, r.Handler)
-	}
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}</code></pre>
-
-      <h3>6. Run the app</h3>
-      <pre><code tx-ignore>$ go run .</code></pre>
       <p>
-        Open
-        <a href="http://localhost:8080/" target="_blank"
-          >http://localhost:8080/</a
-        >. You should see “Hello, World!” rendered server-side using Go logic.
+        Every expression is run once when the page is load or every component is
+        rerender, so bemindful with every code you put in the interpolation like
+        accessing database or run heavying loading functions.
       </p>
-      <h2></h2>
+      <pre><code tx-ignore class="language-html">&lt;p class='{ strings.Join([]string{&quot;c1&quot;, &quot;c2&quot;}, &quot; &quot;) }'&gt;
+ Hello, { user.GetNameById(&quot;id&quot;) }!
+&lt;/p&gt;</code></pre>
+      <pre>
+        <code>&lt;p class=&quot;c1 c2&quot;&gt;
+ Hello, tmplx!
+&lt;/p&gt;</code>
+      </pre>
+
+      <p>
+        You can add tx-ignore to disable Go expression interpolation for that
+        specific node's attribute values and its text children, but not the
+        element children.
+      </p>
+
+      <pre><code tx-ignore class="language-html">&lt;p tx-ignore&gt;
+  { &quot;ignored&quot; }
+  &lt;span&gt; { &quot;not&quot; + &quot;ignore&quot; } &lt;/span&gt;
+&lt;/p&gt;</code>
+      </pre>
+
+      <pre><code tx-ignore class="language-html">&lt;p tx-ignore&gt;
+  { &quot;ignored&quot; }
+  &lt;span&gt; not ignored &lt;/span&gt;
+&lt;/p&gt;</code></pre>
 
       <h2>Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>

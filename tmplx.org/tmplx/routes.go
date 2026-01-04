@@ -126,6 +126,24 @@ type TxRoute struct {
 	Pattern string
 	Handler http.HandlerFunc
 }
+type state_tx_h_counter struct {
+	S_counter int `json:"counter"`
+}
+
+func render_tx_h_counter(w io.Writer, key string, states map[string]string, newStates map[string]any, counter int, anon_func_1, anon_func_1_swap string, anon_func_2, anon_func_2_swap string) {
+	w.Write([]byte("<template id=\""))
+	fmt.Fprint(w, key)
+	w.Write([]byte("\"></template> <h3>Counter</h3> <button tx-onclick=\"tx_h_counter_anon_func_1\"\" tx-swap=\""))
+	fmt.Fprint(w, anon_func_1_swap)
+	w.Write([]byte("\">-</button> <span> "))
+	w.Write([]byte(html.EscapeString(fmt.Sprint(counter))))
+	w.Write([]byte(" </span> <button tx-onclick=\"tx_h_counter_anon_func_2\"\" tx-swap=\""))
+	fmt.Fprint(w, anon_func_2_swap)
+	w.Write([]byte("\">+</button> <template id=\""))
+	fmt.Fprint(w, key+"_e")
+	w.Write([]byte("\"></template>"))
+}
+
 type state_tx_h_todo struct {
 	S_list []string `json:"list"`
 	S_item string   `json:"item"`
@@ -134,7 +152,7 @@ type state_tx_h_todo struct {
 func render_tx_h_todo(w io.Writer, key string, states map[string]string, newStates map[string]any, list []string, item string, add, add_swap string, remove, remove_swap string) {
 	w.Write([]byte("<template id=\""))
 	fmt.Fprint(w, key)
-	w.Write([]byte("\"></template> <label>New <input type=\"text\" tx-value=\"item\" tx-swap=\""))
+	w.Write([]byte("\"></template> <h3>To Do</h3> <label><input type=\"text\" tx-value=\"item\" tx-swap=\""))
 	fmt.Fprint(w, key)
 	w.Write([]byte("\"value=\""))
 	fmt.Fprint(w, item)
@@ -169,18 +187,32 @@ type state_docs struct {
 }
 
 func render_docs(w io.Writer, key string, states map[string]string, newStates map[string]any) {
-	w.Write([]byte("<!DOCTYPE html><html lang=\"en\"><head> <title>Tmplx Guide</title> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script id=\"tx-runtime\">"))
+	w.Write([]byte("<!DOCTYPE html><html lang=\"en\"><head> <title>Docs | Tmplx</title> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script id=\"tx-runtime\">"))
 	w.Write([]byte(runtimeScript))
-	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <nav> <h2>Tmplx Docs</h2> <ul> <li><a href=\"#introduction\">Introduction</a></li> <li><a href=\"#installing\">Installing</a></li> <li><a href=\"#pages-and-routing\">Pages and Routing</a></li> <li><a href=\"#quick-start\">Quick Start</a></li> <li><a href=\"#project-structure\">Project Structure</a></li> <li><a href=\"#html\">HTML Files</a></li> <li><a href=\"#script\">Tmplx Script</a></li> <li><a href=\"#interpolation\">Go Interpolation</a></li> <li><a href=\"#state\">State</a></li> <li><a href=\"#derived\">Derived State</a></li> <li><a href=\"#handlers\">Event Handler</a></li> <li><a href=\"#init\">init()</a></li> <li><a href=\"#control-flow\">Control Flow</a></li> <li> <h3>Dev Tools</h3> <ul> <li><a href=\"#syntax-highlight\">Syntax Highlight</a></li> </ul> </li> </ul> </nav> <main> <h2 id=\"introduction\">Introduction</h2> <p> Tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity purely in Go. </p> <p> Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI, all in one file. This creates a seamless integration, eliminating the mental context switch between backend and frontend development. </p> <p>HTML file is only thing you need</p> <h2>Installing</h2> <pre><code tx-ignore=\"\">$ go install github.com/gnituy18/tmplx@latest</code></pre> <h2 id=\"pages-and-routing\">Pages and Routing</h2> <p> Tmplx uses <strong>filesystem-based routing</strong>. The route is the relative path of the HTML file inside the <strong>pages</strong> directory without the <code>.html</code> extension. </p> <p> If the file is named <code>index.html</code>, omit <code>index</code> (it serves the directory path). For a route like <code>/index</code>, place <code>index.html</code> in a directory named <code>index</code>. </p> <pre><code tx-ignore=\"\">pages/index.html → /\npages/about.html → /about\npages/index/index.html → /index\npages/admin/dashboard.html → /admin/dashboard</code> </pre> <p> There can be multiple file paths that map to the same route. Choose one style that fits your preference. Duplicate routes will cause compilation failure. </p> <pre><code tx-ignore=\"\">pages/login.html → /login\npages/login/index.html → /login</code> </pre> <p> <a href=\"https://pkg.go.dev/net/http#hdr-Patterns-ServeMux\">Wildcards</a> are supported out of the box using <code tx-ignore=\"\">{}</code> in directory or file names. Captured values can be used in initial states via tmplx comments. Wildcard names must be valid Go identifiers. </p> <pre><code tx-ignore=\"\">pages/user/{user_id}.html → /user/{user_id}</code> </pre> <p> Tmplx compiles all pages into a single Go file you can import into your Go project, so the pages directory can be outside your project, but keeping it inside is recommended. </p> <p> Default pages location: <code>./pages</code>. Change it with the <code>-pages</code> flag: </p> <pre><code tx-ignore=\"\">$ tmplx -pages=&#34;/some/other/location ...&#34;</code></pre> <h2 id=\"quick-start\">Quick Start</h2> <h3>2. Create a new project</h3> <pre><code tx-ignore=\"\">$ mkdir my-tmplx-app\n$ cd my-tmplx-app\n$ go mod init my-tmplx-app\n\n$ mkdir pages\n$ touch pages/index.html\n\n$ mkdir tmplx   # generated code will go here</code></pre> <h3>3. Write your first page (pages/index.html)</h3> <pre><code tx-ignore=\"\" class=\"language-html\">&lt;!DOCTYPE html&gt;\n&lt;html lang=&#34;en&#34;&gt;\n  &lt;head&gt;\n    &lt;title&gt;My Tmplx App&lt;/title&gt;\n\n    &lt;script type=&#34;text/tmplx&#34;&gt;\n      var name string = &#34;World&#34; // state\n      var greeting string = fmt.Sprintf(&#34;Hello, %s!&#34;, name) // derived\n    &lt;/script&gt;\n  &lt;/head&gt;\n\n  &lt;body&gt;\n    &lt;h1&gt;{greeting}&lt;/h1&gt;\n  &lt;/body&gt;\n&lt;/html&gt;</code></pre> <h3>4. Generate routes</h3> <pre><code tx-ignore=\"\">$ tmplx -out-file=tmplx/routes.go</code></pre> <p> This creates <code>tmplx/routes.go</code> with compiled handlers and render functions. </p> <h3>5. Add main.go</h3> <pre><code tx-ignore=\"\" class=\"language-go\">package main\n\nimport (\n\t&#34;log&#34;\n\t&#34;net/http&#34;\n\n\t&#34;my-tmplx-app/tmplx&#34;\n)\n\nfunc main() {\n\tfor _, r := range tmplx.Routes() {\n\t\thttp.HandleFunc(r.Pattern, r.Handler)\n\t}\n\tlog.Fatal(http.ListenAndServe(&#34;:8080&#34;, nil))\n}</code></pre> <h3>6. Run the app</h3> <pre><code tx-ignore=\"\">$ go run .</code></pre> <p> Open <a href=\"http://localhost:8080/\" target=\"_blank\">http://localhost:8080/</a>. You should see “Hello, World!” rendered server-side using Go logic. </p> <h2></h2> <h2>Syntax Highlight</h2> <a href=\"https://github.com/gnituy18/tmplx.nvim\">Neovim Plugin</a> </main> </body></html>"))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <nav> <h2>Tmplx Docs</h2> <ul> <li><a href=\"#introduction\">Introduction</a></li> <li><a href=\"#installing\">Installing</a></li> <li><a href=\"#pages-and-routing\">Pages and Routing</a></li> <li><a href=\"#tmplx-script\">Tmplx Script</a></li> <li> <a href=\"#expression-interpolation\">Expression Interpolation</a> </li> <li><a href=\"#state\">State</a></li> <li><a href=\"#derived-state\">Derived State</a></li> <li><a href=\"#handlers\">Event Handler</a></li> <li> <h3>Dev Tools</h3> <ul> <li><a href=\"#syntax-highlight\">Syntax Highlight</a></li> </ul> </li> </ul> </nav> <main> <h2 id=\"introduction\">Introduction</h2> <p> Tmplx is a compile-time framework using Go for building state-driven web apps. It allows you to build UIs with React-like reactivity purely in Go. </p> <p> Embed Go code in HTML to define states and event handlers. Go manages backend logic while HTML defines the UI, all in one file. This creates a seamless integration, eliminating the mental context switch between backend and frontend development. </p> <p>HTML file is only thing you need</p> <h2 id=\"installing\">Installing</h2> <pre><code tx-ignore=\"\">$ go install github.com/gnituy18/tmplx@latest</code></pre> <h2 id=\"pages-and-routing\">Pages and Routing</h2> <p> You put all your html files into the pages directory that it can either be in your project or outside of your project. </p> <p> Tmplx uses <strong>filesystem-based routing</strong>. The route is the relative path of the HTML file inside the <strong>pages</strong> directory without the <code>.html</code> extension. </p> <p> If the file is named <code>index.html</code>, omit <code>index</code> (it serves the directory path). For a route like <code>/index</code>, place <code>index.html</code> in a directory named <code>index</code>. </p> <pre><code tx-ignore=\"\">pages/index.html → /\npages/about.html → /about\npages/index/index.html → /index\npages/admin/dashboard.html → /admin/dashboard</code> </pre> <p> There can be multiple file paths that map to the same route. Choose one style that fits your preference. Duplicate routes will cause compilation failure. </p> <pre><code tx-ignore=\"\">pages/login.html → /login\npages/login/index.html → /login</code> </pre> <p> <a href=\"https://pkg.go.dev/net/http#hdr-Patterns-ServeMux\">Wildcards</a> are supported out of the box using <code tx-ignore=\"\">{}</code> in directory or file names. Captured values can be used in initial states via tmplx comments. Wildcard names must be valid Go identifiers. </p> <pre><code tx-ignore=\"\">pages/user/{user_id}.html → /user/{user_id}</code> </pre> <p> Tmplx compiles all pages into a single Go file you can import into your Go project, so the pages directory can be outside your project, but keeping it inside is recommended. </p> <p> Default pages location: <code>./pages</code>. Change it with the <code>-pages</code> flag: </p> <pre><code tx-ignore=\"\">$ tmplx -pages=&#34;/some/other/location&#34;</code></pre> <h2 id=\"tmplx-script\">Tmplx Script</h2> <p> Tmplx lets you embed Go code directly in your HTML using a special <code>&lt;script&gt;</code> tag with <code>type=&#34;text/tmplx&#34;</code>. Inside the tag, you write normal Go code to declare <a href=\"#state\">state</a>, <a href=\"#derived-state\">derived state</a>, <a href=\"#event-handler\">event handlers</a>, and the special <a href=\"#init\">init()</a> function. </p> <p> Each page or component HTML file may contain <strong>exactly one</strong> tmplx script. For pages, you can place it anywhere inside <code>&lt;head&gt;</code> or <code>&lt;body&gt;</code>. For components, place the tmplx script at the root of the file. Having multiple tmplx scripts will cause a compilation error. </p> <pre><code tx-ignore=\"\">&lt;!DOCTYPE html&gt;\n\n&lt;html lang=&#34;en&#34;&gt;\n  &lt;head&gt;\n    &lt;meta charset=&#34;utf-8&#34;&gt;\n    &lt;title&gt;My Page&lt;/title&gt;\n\n    &lt;script type=&#34;text/tmplx&#34;&gt;\n      ...\n    &lt;/script&gt;\n  &lt;/head&gt;\n  &lt;body&gt;\n    ...\n  &lt;/body&gt;\n&lt;/html&gt;</code></pre> <h2 id=\"expression-interpolation\">Expression Interpolation</h2> <p> Embed Go expressions in HTML using  for dynamic content. You can only place Go expressions in text nodes or attribute values; other placements cause parsing errors. text nodes output is HTML-escaped; attribute it is not escaped. </p> <p> Every expression is run once when the page is load or every component is rerender, so bemindful with every code you put in the interpolation like accessing database or run heavying loading functions. </p> <pre><code tx-ignore=\"\" class=\"language-html\">&lt;p class=&#39;{ strings.Join([]string{&#34;c1&#34;, &#34;c2&#34;}, &#34; &#34;) }&#39;&gt;\n Hello, { user.GetNameById(&#34;id&#34;) }!\n&lt;/p&gt;</code></pre> <pre> <code>&lt;p class=&#34;c1 c2&#34;&gt; Hello, tmplx! &lt;/p&gt;</code> </pre> <p> You can add tx-ignore to disable Go expression interpolation for that specific node&#39;s attribute values and its text children, but not the element children. </p> <pre><code tx-ignore=\"\" class=\"language-html\">&lt;p tx-ignore&gt;\n  { &#34;ignored&#34; }\n  &lt;span&gt; { &#34;not&#34; + &#34;ignore&#34; } &lt;/span&gt;\n&lt;/p&gt;</code> </pre> <pre><code tx-ignore=\"\" class=\"language-html\">&lt;p tx-ignore&gt;\n  { &#34;ignored&#34; }\n  &lt;span&gt; not ignored &lt;/span&gt;\n&lt;/p&gt;</code></pre> <h2>Syntax Highlight</h2> <a href=\"https://github.com/gnituy18/tmplx.nvim\">Neovim Plugin</a> </main> </body></html>"))
 }
 
 type state_index struct {
 }
 
 func render_index(w io.Writer, key string, states map[string]string, newStates map[string]any) {
-	w.Write([]byte("<!DOCTYPE html><html lang=\"en\"><head> <title>tmplx</title> <meta charset=\"UTF-8\"/> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script id=\"tx-runtime\">"))
+	w.Write([]byte("<!DOCTYPE html><html lang=\"en\"><head> <title>Tmplx</title> <meta charset=\"UTF-8\"/> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script id=\"tx-runtime\">"))
 	w.Write([]byte(runtimeScript))
-	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <main> <h1 style=\"text-align: center; text-shadow: 0.25rem 0.25rem Silver\">&lt;tmplx&gt;</h1> <p style=\"text-align: center\"> <strong>Build state-driven web app with Go in HTML.</strong> </p> <div style=\"display:flex; gap:1rem; justify-content: center; text-align:center; margin-top:4rem\"> <a class=\"btn\" href=\"/docs\">Docs</a> <a class=\"btn\" href=\"https://github.com/gnituy18/tmplx\">GitHub</a> </div> <h2 style=\"margin-top: 4rem\">Demo: To Do App</h2> "))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <main> <h1 style=\"text-align: center; text-shadow: 0.25rem 0.25rem Silver\"> &lt;tmplx&gt; </h1> <p style=\"text-align: center\"> <strong>Build interactive web apps with just HTML and Go</strong> </p> <ul style=\"margin-top: 4rem\"> <li>Reactive UIs driven by plain Go variables</li> <li>Reusable components written as regular HTML files</li> <li>Full Go backend logic and HTML in the same file</li> </ul> <div style=\" display: flex; gap: 1rem; justify-content: center; text-align: center; margin-top: 4rem; \"> <a class=\"btn\" href=\"/docs\">Docs</a> <a class=\"btn\" href=\"https://github.com/gnituy18/tmplx\">GitHub</a> </div> <h2 style=\"text-align: center; margin-top: 4rem\">Demos</h2> "))
+	{
+		ckey := key + "_index_tx-counter_1"
+		state := &state_tx_h_counter{}
+		if _, ok := states[ckey]; ok {
+			json.Unmarshal([]byte(states[ckey]), state)
+			newStates[ckey] = state
+		} else {
+
+			newStates[ckey] = state
+		}
+		counter := state.S_counter
+		render_tx_h_counter(w, ckey, states, newStates, counter, "tx_h_counter_anon_func_1", ckey, "tx_h_counter_anon_func_2", ckey)
+	}
+	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var counter int\n&lt;/script&gt;\n\n&lt;h3&gt;Counter&lt;/h3&gt;\n&lt;button tx-onclick=&#34;counter--&#34;&gt;-&lt;/button&gt;\n&lt;span&gt; { counter } &lt;/span&gt;\n&lt;button tx-onclick=&#34;counter++&#34;&gt;+&lt;/button&gt;</code> </pre> "))
 	{
 		ckey := key + "_index_tx-todo_1"
 		state := &state_tx_h_todo{}
@@ -196,7 +228,7 @@ func render_index(w io.Writer, key string, states map[string]string, newStates m
 		item := state.S_item
 		render_tx_h_todo(w, ckey, states, newStates, list, item, "tx_h_todo_add", ckey, "tx_h_todo_remove", ckey)
 	}
-	w.Write([]byte(" <h2 style=\"margin-top: 2rem\"> <a href=\"https://github.com/gnituy18/tmplx/blob/main/tmplx.org/components/todo.html\">Source Code:</a> </h2> <pre> <code tx-ignore=\"\" class=\"language-html\">&lt;script type=&#34;text/tmplx&#34;&gt;\nvar list []string = []string{}\nvar item string = &#34;&#34;\n\nfunc add() {\n  list = append(list, item)\n  item = &#34;&#34;\n}\n\nfunc remove(i int) {\n  list = append(list[0:i], list[i+1:]...)\n}\n&lt;/script&gt;\n\n&lt;label&gt;New &lt;input type=&#34;text&#34; tx-value=&#34;item&#34;&gt;&lt;/label&gt;\n&lt;button tx-onclick=&#34;add()&#34;&gt;Add&lt;/button&gt;\n&lt;ol&gt;\n  &lt;li tx-for=&#34;i, l := range list&#34; tx-key=&#34;l&#34; tx-onclick=&#34;remove(i)&#34;&gt;\n    { l }\n  &lt;/li&gt;\n&lt;/ol&gt;</code> </pre> <p>It allows you to build UIs with React-like reactivity purely in Go.</p> <h2 style=\"margin-top: 2rem\"> <a href=\"https://github.com/gnituy18/tmplx/blob/main/tmplx.org/tmplx/routes.go\">Compiled Code:</a> </h2> </main> </body></html>"))
+	w.Write([]byte(" <pre> <code tx-ignore=\"\" class=\"language-html\">&lt;script type=&#34;text/tmplx&#34;&gt;\nvar list []string = []string{}\nvar item string = &#34;&#34;\n\nfunc add() {\n  list = append(list, item)\n  item = &#34;&#34;\n}\n\nfunc remove(i int) {\n  list = append(list[0:i], list[i+1:]...)\n}\n&lt;/script&gt;\n\n&lt;label&gt;&lt;input type=&#34;text&#34; tx-value=&#34;item&#34;&gt;&lt;/label&gt;\n&lt;button tx-onclick=&#34;add()&#34;&gt;Add&lt;/button&gt;\n&lt;ol&gt;\n  &lt;li \n    tx-for=&#34;i, l := range list&#34;\n    tx-key=&#34;l&#34;\n    tx-onclick=&#34;remove(i)&#34;&gt;\n    { l }\n  &lt;/li&gt;\n&lt;/ol&gt;</code> </pre> </main> </body></html>"))
 }
 
 var txRoutes []TxRoute = []TxRoute{
@@ -222,6 +254,60 @@ var txRoutes []TxRoute = []TxRoute{
 			render_index(&buf, "tx_", map[string]string{}, newStates)
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
+		},
+	},
+	{
+		Pattern: " /tx/tx_h_counter_anon_func_1",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			query := tx_r.URL.Query()
+			txSwap := query.Get("tx-swap")
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, txSwap) {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_tx_h_counter{}
+			json.Unmarshal([]byte(states[txSwap]), &state)
+			counter := state.S_counter
+			counter--
+			render_tx_h_counter(w, txSwap, states, newStates, counter, "tx_h_counter_anon_func_1", txSwap, "tx_h_counter_anon_func_2", txSwap)
+			w.Write([]byte("<script id=\"tx-state\" type=\"application/json\">"))
+			newStates[txSwap] = &state_tx_h_counter{
+				S_counter: counter,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(stateBytes)
+			w.Write([]byte("</script>"))
+		},
+	},
+	{
+		Pattern: " /tx/tx_h_counter_anon_func_2",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			query := tx_r.URL.Query()
+			txSwap := query.Get("tx-swap")
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, txSwap) {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_tx_h_counter{}
+			json.Unmarshal([]byte(states[txSwap]), &state)
+			counter := state.S_counter
+			counter++
+			render_tx_h_counter(w, txSwap, states, newStates, counter, "tx_h_counter_anon_func_1", txSwap, "tx_h_counter_anon_func_2", txSwap)
+			w.Write([]byte("<script id=\"tx-state\" type=\"application/json\">"))
+			newStates[txSwap] = &state_tx_h_counter{
+				S_counter: counter,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(stateBytes)
+			w.Write([]byte("</script>"))
 		},
 	},
 	{
