@@ -1000,11 +1000,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 			for _, varName := range childComp.VarNames {
 				v := childComp.Vars[varName]
 				if v.Type == VarTypeState {
-					comp.writeGo(fmt.Sprintf("state.%s", v.StructField))
 					if val, found := hasAttr(node, varName); found {
-						comp.writeGo(fmt.Sprintf(" = %s\n", val))
+						comp.writeGo(fmt.Sprintf("state.%s = %s\n",v.StructField, val))
 					} else if v.InitExpr != nil {
-						comp.writeGo(fmt.Sprintf(" = %s\n", astToSource(v.InitExpr)))
+						comp.writeGo(fmt.Sprintf("state.%s = %s\n",v.StructField, astToSource(v.InitExpr)))
 					} else {
 						comp.writeGo("\n")
 					}
