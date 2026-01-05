@@ -24,12 +24,10 @@
 
   <body>
     <main>
-      <h1 style="text-align: center; text-shadow: 0.25rem 0.25rem Silver">
-        &lt;tmplx&gt;
-      </h1>
-      <p style="text-align: center">
-        <strong>Build interactive web apps with just HTML and Go</strong>
-      </p>
+      <h1 style="text-align: center">&lt;tmplx&gt;</h1>
+      <h2 style="text-align: center; margin-top: 1.5rem">
+        Interactive Web App with just HTML and Go
+      </h2>
       <ul style="margin-top: 4rem">
         <li>Reactive UIs driven by plain Go variables</li>
         <li>Reusable components written as regular HTML files</li>
@@ -48,34 +46,61 @@
         <a class="btn" href="https://github.com/gnituy18/tmplx">GitHub</a>
       </div>
 
-      <h2 style="text-align: center; margin-top: 4rem">Demos</h2>
+      <h2 style="text-align: center">Demos</h2>
 
-      <tx-counter></tx-counter>
+      <h3>Counter</h3>
+      <div
+        style="
+          padding: 2rem;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          border: solid SlateGray;
+          border-radius: 0.25rem;
+        "
+      >
+        <div>
+          <tx-counter></tx-counter>
+        </div>
+      </div>
       <pre>
         <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
   var counter int
 &lt;/script&gt;
 
-&lt;h3&gt;Counter&lt;/h3&gt;
 &lt;button tx-onclick=&quot;counter--&quot;&gt;-&lt;/button&gt;
 &lt;span&gt; { counter } &lt;/span&gt;
 &lt;button tx-onclick=&quot;counter++&quot;&gt;+&lt;/button&gt;</code>
       </pre>
-      <tx-todo></tx-todo>
+      <h3>To Do</h3>
+      <div
+        style="
+          padding: 2rem;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          border: solid SlateGray;
+          border-radius: 0.25rem;
+        "
+      >
+        <div>
+          <tx-todo></tx-todo>
+        </div>
+      </div>
 
       <pre>
         <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
-var list []string = []string{}
-var item string = &quot;&quot;
-
-func add() {
-  list = append(list, item)
-  item = &quot;&quot;
-}
-
-func remove(i int) {
-  list = append(list[0:i], list[i+1:]...)
-}
+  var list []string = []string{}
+  var item string = &quot;&quot;
+  
+  func add() {
+    list = append(list, item)
+    item = &quot;&quot;
+  }
+  
+  func remove(i int) {
+    list = append(list[0:i], list[i+1:]...)
+  }
 &lt;/script&gt;
 
 &lt;label&gt;&lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
