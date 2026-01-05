@@ -1,9 +1,61 @@
 body {
-  color: #16161d;
-  background: #efeff3;
   display: flex;
-  font-size: 1rem; /* 1rem (16px) */ 
-  line-height: 1.5rem; /* calc(1.5 / 1) */
+  background: SmokeWhite;
+  color: DarkSlateGray;
+  font-family: Verdana;
+}
+
+main {
+  margin: 4rem auto;
+  width: 40rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 3rem;
+  text-shadow: 0.25rem 0.25rem Silver;
+}
+
+h2 {
+  margin-top: 8rem;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  text-shadow: 0.125rem 0.125rem Silver;
+}
+
+h3 {
+  padding-top: 1rem;
+}
+
+a {
+  color: RoyalBlue;
+  text-decoration: none;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+p {
+  line-height: 1.5rem;
+}
+
+ul {
+  line-height: 1.5rem;
+}
+
+ol {
+  margin: 0;
+}
+
+pre {
+  margin: 0;
+  padding: 0;
+}
+
+code {
+  background: Cornsilk;
+  padding: 0.0625rem 0.25rem;
+  border-radius: 0.25rem;
 }
 
 nav {
@@ -45,64 +97,18 @@ nav a {
   width: 100%;
 }
 
-main {
-  margin: 4rem auto;
-  width: 40rem;
-}
-
-h1 {
-  font-family: Verdana;
-  font-size: 3rem;
-}
-
-h2 {
-  color: DarkSlateGray;
-  text-shadow: 0.125rem 0.125rem Silver;
-  margin-top: 4rem;
-  margin-bottom: 1rem;
-}
-
-h3 {
-  padding-top: 1rem;
-}
-
-a {
-  color: RoyalBlue;
-  text-decoration: none;
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-pre {
-  margin: 0;
-  padding: 0;
-}
-
-code {
-  background: Gainsboro;
-  padding: 0.0625rem 0.25rem;
-  border-radius: 0.25rem;
-}
-
 .btn {
   text-decoration: none;
   border: solid DarkSlateGray;
   border-radius: 0.25rem;
-  color: DarkSlateGray;
   padding: 0.5rem 3rem;
+  color: DarkSlateGray;
   font-weight: bold;
-  background-color: LightGray;
-  box-shadow: 0.25rem 0.25rem Silver;
+  background: LightBlue;
+  box-shadow: 0.25rem 0.25rem DarkSlateGray;
 
   &:hover {
-    background-color: Silver;
-  }
-}
-
-.item {
-  &:hover {
-    cursor: pointer;
-    text-decoration: line-through;
+    background-color: PowderBlue;
+    text-decoration: none;
   }
 }

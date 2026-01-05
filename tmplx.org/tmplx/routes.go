@@ -133,7 +133,7 @@ type state_tx_h_counter struct {
 func render_tx_h_counter(w io.Writer, key string, states map[string]string, newStates map[string]any, counter int, anon_func_1, anon_func_1_swap string, anon_func_2, anon_func_2_swap string) {
 	w.Write([]byte("<template id=\""))
 	fmt.Fprint(w, key)
-	w.Write([]byte("\"></template> <h3>Counter</h3> <button tx-onclick=\"tx_h_counter_anon_func_1\"\" tx-swap=\""))
+	w.Write([]byte("\"></template> <button tx-onclick=\"tx_h_counter_anon_func_1\"\" tx-swap=\""))
 	fmt.Fprint(w, anon_func_1_swap)
 	w.Write([]byte("\">-</button> <span> "))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(counter))))
@@ -152,7 +152,7 @@ type state_tx_h_todo struct {
 func render_tx_h_todo(w io.Writer, key string, states map[string]string, newStates map[string]any, list []string, item string, add, add_swap string, remove, remove_swap string) {
 	w.Write([]byte("<template id=\""))
 	fmt.Fprint(w, key)
-	w.Write([]byte("\"></template> <h3>To Do</h3> <label><input type=\"text\" tx-value=\"item\" tx-swap=\""))
+	w.Write([]byte("\"></template> <div> <label><input type=\"text\" tx-value=\"item\" tx-swap=\""))
 	fmt.Fprint(w, key)
 	w.Write([]byte("\"value=\""))
 	fmt.Fprint(w, item)
@@ -178,7 +178,7 @@ func render_tx_h_todo(w io.Writer, key string, states map[string]string, newStat
 		w.Write([]byte("</li>"))
 
 	}
-	w.Write([]byte(" </ol> <template id=\""))
+	w.Write([]byte(" </ol> </div> <template id=\""))
 	fmt.Fprint(w, key+"_e")
 	w.Write([]byte("\"></template>"))
 }
@@ -198,7 +198,7 @@ type state_index struct {
 func render_index(w io.Writer, key string, states map[string]string, newStates map[string]any) {
 	w.Write([]byte("<!DOCTYPE html><html lang=\"en\"><head> <title>Tmplx</title> <meta charset=\"UTF-8\"/> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script id=\"tx-runtime\">"))
 	w.Write([]byte(runtimeScript))
-	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <main> <h1 style=\"text-align: center; text-shadow: 0.25rem 0.25rem Silver\"> &lt;tmplx&gt; </h1> <p style=\"text-align: center\"> <strong>Build interactive web apps with just HTML and Go</strong> </p> <ul style=\"margin-top: 4rem\"> <li>Reactive UIs driven by plain Go variables</li> <li>Reusable components written as regular HTML files</li> <li>Full Go backend logic and HTML in the same file</li> </ul> <div style=\" display: flex; gap: 1rem; justify-content: center; text-align: center; margin-top: 4rem; \"> <a class=\"btn\" href=\"/docs\">Docs</a> <a class=\"btn\" href=\"https://github.com/gnituy18/tmplx\">GitHub</a> </div> <h2 style=\"text-align: center; margin-top: 4rem\">Demos</h2> "))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <main> <h1 style=\"text-align: center\">&lt;tmplx&gt;</h1> <h2 style=\"text-align: center; margin-top: 1.5rem\"> Interactive Web App with just HTML and Go </h2> <ul style=\"margin-top: 4rem\"> <li>Reactive UIs driven by plain Go variables</li> <li>Reusable components written as regular HTML files</li> <li>Full Go backend logic and HTML in the same file</li> </ul> <div style=\" display: flex; gap: 1rem; justify-content: center; text-align: center; margin-top: 4rem; \"> <a class=\"btn\" href=\"/docs\">Docs</a> <a class=\"btn\" href=\"https://github.com/gnituy18/tmplx\">GitHub</a> </div> <h2 style=\"text-align: center\">Demos</h2> <h3>Counter</h3> <div style=\" padding: 2rem; display: flex; justify-content: center; align-items: center; border: solid SlateGray; border-radius: 0.25rem; \"> <div> "))
 	{
 		ckey := key + "_index_tx-counter_1"
 		state := &state_tx_h_counter{}
@@ -212,7 +212,7 @@ func render_index(w io.Writer, key string, states map[string]string, newStates m
 		counter := state.S_counter
 		render_tx_h_counter(w, ckey, states, newStates, counter, "tx_h_counter_anon_func_1", ckey, "tx_h_counter_anon_func_2", ckey)
 	}
-	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var counter int\n&lt;/script&gt;\n\n&lt;h3&gt;Counter&lt;/h3&gt;\n&lt;button tx-onclick=&#34;counter--&#34;&gt;-&lt;/button&gt;\n&lt;span&gt; { counter } &lt;/span&gt;\n&lt;button tx-onclick=&#34;counter++&#34;&gt;+&lt;/button&gt;</code> </pre> "))
+	w.Write([]byte(" </div> </div> <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var counter int\n&lt;/script&gt;\n\n&lt;button tx-onclick=&#34;counter--&#34;&gt;-&lt;/button&gt;\n&lt;span&gt; { counter } &lt;/span&gt;\n&lt;button tx-onclick=&#34;counter++&#34;&gt;+&lt;/button&gt;</code> </pre> <h3>To Do</h3> <div style=\" padding: 2rem; display: flex; justify-content: center; align-items: center; border: solid SlateGray; border-radius: 0.25rem; \"> <div> "))
 	{
 		ckey := key + "_index_tx-todo_1"
 		state := &state_tx_h_todo{}
@@ -228,7 +228,7 @@ func render_index(w io.Writer, key string, states map[string]string, newStates m
 		item := state.S_item
 		render_tx_h_todo(w, ckey, states, newStates, list, item, "tx_h_todo_add", ckey, "tx_h_todo_remove", ckey)
 	}
-	w.Write([]byte(" <pre> <code tx-ignore=\"\" class=\"language-html\">&lt;script type=&#34;text/tmplx&#34;&gt;\nvar list []string = []string{}\nvar item string = &#34;&#34;\n\nfunc add() {\n  list = append(list, item)\n  item = &#34;&#34;\n}\n\nfunc remove(i int) {\n  list = append(list[0:i], list[i+1:]...)\n}\n&lt;/script&gt;\n\n&lt;label&gt;&lt;input type=&#34;text&#34; tx-value=&#34;item&#34;&gt;&lt;/label&gt;\n&lt;button tx-onclick=&#34;add()&#34;&gt;Add&lt;/button&gt;\n&lt;ol&gt;\n  &lt;li \n    tx-for=&#34;i, l := range list&#34;\n    tx-key=&#34;l&#34;\n    tx-onclick=&#34;remove(i)&#34;&gt;\n    { l }\n  &lt;/li&gt;\n&lt;/ol&gt;</code> </pre> </main> </body></html>"))
+	w.Write([]byte(" </div> </div> <pre> <code tx-ignore=\"\" class=\"language-html\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var list []string = []string{}\n  var item string = &#34;&#34;\n  \n  func add() {\n    list = append(list, item)\n    item = &#34;&#34;\n  }\n  \n  func remove(i int) {\n    list = append(list[0:i], list[i+1:]...)\n  }\n&lt;/script&gt;\n\n&lt;label&gt;&lt;input type=&#34;text&#34; tx-value=&#34;item&#34;&gt;&lt;/label&gt;\n&lt;button tx-onclick=&#34;add()&#34;&gt;Add&lt;/button&gt;\n&lt;ol&gt;\n  &lt;li \n    tx-for=&#34;i, l := range list&#34;\n    tx-key=&#34;l&#34;\n    tx-onclick=&#34;remove(i)&#34;&gt;\n    { l }\n  &lt;/li&gt;\n&lt;/ol&gt;</code> </pre> </main> </body></html>"))
 }
 
 var txRoutes []TxRoute = []TxRoute{

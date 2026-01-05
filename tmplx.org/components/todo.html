@@ -12,9 +12,10 @@
   }
 </script>
 
-<h3>To Do</h3>
-<label><input type="text" tx-value="item" /></label>
-<button tx-onclick="add()">Add</button>
-<ol>
-  <li tx-for="i, l := range list" tx-key="l" tx-onclick="remove(i)">{ l }</li>
-</ol>
+<div>
+  <label><input type="text" tx-value="item" /></label>
+  <button tx-onclick="add()">Add</button>
+  <ol>
+    <li tx-for="i, l := range list" tx-key="l" tx-onclick="remove(i)">{ l }</li>
+  </ol>
+</div>
