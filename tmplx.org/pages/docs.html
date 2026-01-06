@@ -31,7 +31,8 @@
         </li>
         <li><a href="#state">State</a></li>
         <li><a href="#derived-state">Derived State</a></li>
-        <li><a href="#handlers">Event Handler</a></li>
+        <li><a href="#event-handler">Event Handler</a></li>
+        <li><a href="#init">init()</a></li>
         <li>
           <h3>Dev Tools</h3>
           <ul>
@@ -43,17 +44,59 @@
     <main>
       <h2 id="introduction">Introduction</h2>
       <p>
-        Tmplx is a compile-time framework using Go for building state-driven web
-        apps. It allows you to build UIs with React-like reactivity purely in
-        Go.
+        Tmplx is a framework for building full-stack web applications using only
+        Go and HTML. It focuses on significantly reducing cognitive load by:
+      </p>
+      <ol>
+        <li>keeping frontend and backend logic close together.</li>
+        <li>providing reactive UI updates driven by Go variables.</li>
+        <li>
+          using existing Go syntax you already know while closely following the
+          HTML standard.
+        </li>
+      </ol>
+      <p>
+        Developing with Tmplx feels like writing plain server-side Go templates
+        that magically become reactive.
+      </p>
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var count int
+  var double int = count * 2
+
+  func init() {
+    count = 0
+  }
+
+  func increment() {
+    count++
+  }
+&lt;/script&gt;
+
+&lt;div&gt;Count: {count}&lt;/div&gt;
+&lt;div&gt;Double: {double}&lt;/div&gt;
+&lt;div&gt; Parity:
+  &lt;span tx-if=&quot;count % 2 == 0&quot;&gt;even&lt;/span&gt;
+  &lt;span tx-else&gt;odd&lt;/span&gt;
+&lt;/div&gt;
+&lt;span tx-for=&quot;i := 0; i &lt; count; i++&quot; tx-key=&quot;i&quot;&gt;{ i }&lt;/span&gt;
+&lt;button tx-onclick=&quot;increment()&quot;&gt;increment&lt;/button&gt;</code></pre>
+
+      <p>
+        You embed Go code directly in HTML files inside a
+        <code>&lt;script type="text/tmplx"&gt;</code> block.
+        <a href="#state">States</a>, <a href="derived-state">derived states</a>,
+        <a href="#event-handler">event handlers</a>, and the markup they control
+        all stay in the same file—everything is visible at a glance, with no
+        need to jump between templates and backend code.
       </p>
       <p>
-        Embed Go code in HTML to define states and event handlers. Go manages
-        backend logic while HTML defines the UI, all in one file. This creates a
-        seamless integration, eliminating the mental context switch between
-        backend and frontend development.
+        The Go code runs only on the server, producing exactly the HTML needed
+        for each request. When a user interacts, the browser calls the
+        corresponding Go handler, which updates state, re-renders only the
+        affected part, and returns a small HTML fragment. A lightweight built-in
+        runtime swaps it seamlessly into the page.
       </p>
-      <p>HTML file is only thing you need</p>
+
       <h2 id="installing">Installing</h2>
       <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
       <h2 id="pages-and-routing">Pages and Routing</h2>

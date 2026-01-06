@@ -44,6 +44,7 @@ ul {
 }
 
 ol {
+  line-height: 1.5rem;
   margin: 0;
 }
 
@@ -53,6 +54,7 @@ pre {
 }
 
 code {
+  line-height: 1.5rem;
   background: Cornsilk;
   padding: 0.0625rem 0.25rem;
   border-radius: 0.25rem;

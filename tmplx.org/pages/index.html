@@ -114,6 +114,36 @@
   &lt;/li&gt;
 &lt;/ol&gt;</code>
       </pre>
+
+      <h3>Triangle</h3>
+      <div
+        style="
+          padding: 2rem;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          border: solid SlateGray;
+          border-radius: 0.25rem;
+        "
+      >
+        <div>
+          <tx-triangle></tx-triangle>
+        </div>
+      </div>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var counter int = 5
+&lt;/script&gt;
+
+&lt;div&gt;
+  &lt;span&gt; { counter } &lt;/span&gt;
+  &lt;button tx-onclick=&quot;counter++&quot;&gt;+&lt;/button&gt;
+&lt;/div&gt;
+&lt;div tx-for=&quot;h := 0; h &lt; counter; h++&quot; tx-key=&quot;h&quot;&gt;
+  &lt;span tx-for=&quot;s := 0; s &lt; counter-h-1; s++&quot; tx-key=&quot;s&quot;&gt;_&lt;/span&gt;
+  &lt;span tx-for=&quot;i := 0; i &lt; h*2+1; i++&quot; tx-key=&quot;i&quot;&gt;*&lt;/span&gt;
+&lt;/div&gt;</code>
+      </pre>
     </main>
   </body>
 </html>
