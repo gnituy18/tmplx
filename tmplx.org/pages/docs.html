@@ -50,10 +50,7 @@
       <ol>
         <li>keeping frontend and backend logic close together.</li>
         <li>providing reactive UI updates driven by Go variables.</li>
-        <li>
-          using existing Go syntax you already know while closely following the
-          HTML standard.
-        </li>
+        <li>requiring zero new syntax.</li>
       </ol>
       <p>
         Developing with Tmplx feels like writing plain server-side Go templates
@@ -96,6 +93,7 @@
         affected part, and returns a small HTML fragment. A lightweight built-in
         runtime swaps it seamlessly into the page.
       </p>
+      <p>everything is compile time</p>
 
       <h2 id="installing">Installing</h2>
       <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
