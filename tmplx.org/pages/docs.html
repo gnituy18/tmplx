@@ -53,24 +53,19 @@
         <li>requiring zero new syntax.</li>
       </ol>
       <p>
-        Developing with Tmplx feels like writing plain server-side Go templates
-        that magically become reactive.
+        Developing with Tmplx feels like writing a more intuitive version of Go templates where the UI magically becomes reactive.
       </p>
       <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var count int
+  var count int = 0
   var double int = count * 2
-
-  func init() {
-    count = 0
-  }
 
   func increment() {
     count++
   }
 &lt;/script&gt;
 
-&lt;div&gt;Count: {count}&lt;/div&gt;
-&lt;div&gt;Double: {double}&lt;/div&gt;
+&lt;div&gt; Count: {count} &lt;/div&gt;
+&lt;div&gt; Double: {double} &lt;/div&gt;
 &lt;div&gt; Parity:
   &lt;span tx-if=&quot;count % 2 == 0&quot;&gt;even&lt;/span&gt;
   &lt;span tx-else&gt;odd&lt;/span&gt;
