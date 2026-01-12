@@ -203,38 +203,44 @@
 
       <h2 id="tmplx-script">tmplx Script</h2>
       <p>
-        tmplx lets you embed Go code directly in your HTML using a special
-        <code>&lt;script&gt;</code> tag with <code>type="text/tmplx"</code>.
-        Inside the tag, you write normal Go code to declare
-        <a href="#state">state</a>, <a href="#derived-state">derived state</a>,
-        <a href="#event-handler">event handlers</a>, and the special
-        <a href="#init">init()</a> function.
+        <code>&lt;script type="text/tmplx"&gt;</code> is a special tag that you
+        can add to your page or component to declare <a href="#state">state</a>,
+        <a href="#derived-state">derived state</a>,
+        <a href="#event-handlers">event handlers</a>, and the special
+        <a href="#init">init()</a> function to control your UI or add backend
+        logic.
       </p>
       <p>
-        Each page or component HTML file may contain
-        <strong>exactly one</strong> tmplx script. For pages, you can place it
-        anywhere inside <code>&lt;head&gt;</code> or <code>&lt;body&gt;</code>.
-        For components, place the tmplx script at the root of the file. Having
-        multiple tmplx scripts will cause a compilation error.
+        Each page or component file can have exactly <strong>one</strong> tmplx
+        script. Multiple scripts cause a compilation error.
+      </p>
+      <p>
+        In pages, place it anywhere inside <code>&lt;head&gt;</code> or
+        <code>&lt;body&gt;</code>.
       </p>
       <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
-
 &lt;html lang="en"&gt;
   &lt;head&gt;
-    &lt;meta charset="utf-8"&gt;
-    &lt;title&gt;My Page&lt;/title&gt;
-
+    ...
     &lt;script type="text/tmplx"&gt;
-      ...
+      // Go code here
     &lt;/script&gt;
+    ...
   &lt;/head&gt;
   &lt;body&gt;
     ...
   &lt;/body&gt;
-&lt;/html&gt;</code></pre>
+&lt;/html&gt;</code>
+      </pre>
+      <p>In components, place it at the root level.</p>
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  // Go code here
+&lt;/script&gt;
+...
+...</code></pre>
 
       <h2 id="expression-interpolation">Expression Interpolation</h2>
-      <p>
+      <p tx-ignore>
         Embed Go expressions in HTML using {} for dynamic content. You can only
         place Go expressions in text nodes or attribute values; other placements
         cause parsing errors. text nodes output is HTML-escaped; attribute it is
