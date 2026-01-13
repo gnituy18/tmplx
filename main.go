@@ -1001,9 +1001,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				v := childComp.Vars[varName]
 				if v.Type == VarTypeState {
 					if val, found := hasAttr(node, varName); found {
-						comp.writeGo(fmt.Sprintf("state.%s = %s\n",v.StructField, val))
+						comp.writeGo(fmt.Sprintf("state.%s = %s\n", v.StructField, val))
 					} else if v.InitExpr != nil {
-						comp.writeGo(fmt.Sprintf("state.%s = %s\n",v.StructField, astToSource(v.InitExpr)))
+						comp.writeGo(fmt.Sprintf("state.%s = %s\n", v.StructField, astToSource(v.InitExpr)))
 					} else {
 						comp.writeGo("\n")
 					}
@@ -1054,7 +1054,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *Errors {
 				}
 			}
 
-			comp.writeGo(fmt.Sprintf("render_%s(w, ckey, states, newStates, %s", childComp.GoIdent, strings.Join(params, ",")))
+			comp.writeGo(fmt.Sprintf("render_%s(w, ckey, states, newStates", childComp.GoIdent))
+			for _, param := range params {
+				comp.writeGo(", " + param)
+			}
 
 			slotNodes := map[string]*html.Node{}
 
