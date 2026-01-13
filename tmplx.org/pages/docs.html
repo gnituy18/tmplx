@@ -128,6 +128,16 @@
         from the source to the UI is reduced to a minimum. The fewer
         transformations you perform on your data, the fewer bugs you introduce.
       </p>
+      <h2 id="installing">Installing</h2>
+
+      <p>tmplx requires Go 1.22 or later.</p>
+      <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
+      <p>
+        This adds tmplx to your Go bin directory (usually $GOPATH/bin or
+        $HOME/go/bin). Make sure that directory is in your PATH.
+      </p>
+      <p>After installation, verify it works:</p>
+      <pre><code tx-ignore>$ tmplx --help</code></pre>
 
       <h2 id="pages-and-routing">Pages and Routing</h2>
       <p>
@@ -240,42 +250,56 @@
 ...</code></pre>
 
       <h2 id="expression-interpolation">Expression Interpolation</h2>
+      <p>
+        Use curly braces <code tx-ignore>{}</code> to insert
+        <a href="https://go.dev/ref/spec#Expressions">Go expressions</a> into
+        HTML. Expressions are allowed only in:
+      </p>
+      <ul>
+        <li><strong>text nodes</strong></li>
+        <li><strong>attribute values</strong></li>
+      </ul>
+      <p>Placing expressions anywhere else causes a parsing error.</p>
+
       <p tx-ignore>
-        Embed Go expressions in HTML using {} for dynamic content. You can only
-        place Go expressions in text nodes or attribute values; other placements
-        cause parsing errors. text nodes output is HTML-escaped; attribute it is
-        not escaped.
+        tmplx converts expression results to strings using
+        <code><a href="https://pkg.go.dev/fmt#Sprint">fmt.Sprint</a></code
+        >. The difference is that in <strong>text nodes</strong> the output is
+        <strong>HTML-escaped</strong> to prevent cross-site scripting (XSS)
+        attacks.
       </p>
 
       <p>
-        Every expression is run once when the page is load or every component is
-        rerender, so bemindful with every code you put in the interpolation like
-        accessing database or run heavying loading functions.
+        Expressions run on the server every time the page loads or a component
+        re-renders after an event. Avoid side effects in expressions, such as
+        database queries or heavy computations, because they execute on every
+        render.
       </p>
-      <pre><code tx-ignore class="language-html">&lt;p class='{ strings.Join([]string{&quot;c1&quot;, &quot;c2&quot;}, &quot; &quot;) }'&gt;
- Hello, { user.GetNameById(&quot;id&quot;) }!
-&lt;/p&gt;</code></pre>
-      <pre>
-        <code>&lt;p class=&quot;c1 c2&quot;&gt;
+
+      <pre><code tx-ignore class="language-html">&lt;p class='{ strings.Join([]string{"c1", "c2"}, " ") }'&gt;
+ Hello, { user.GetNameById(0) }!
+&lt;/p&gt;</code>
+      </pre>
+
+      <pre><code tx-ignore class="language-html">&lt;p class="c1 c2"&gt;
  Hello, tmplx!
-&lt;/p&gt;</code>
-      </pre>
+&lt;/p&gt;</code></pre>
 
-      <p>
-        You can add tx-ignore to disable Go expression interpolation for that
-        specific node's attribute values and its text children, but not the
-        element children.
+      <p tx-ignore>
+        Add the <code>tx-ignore</code> attribute to an element to disable
+        expression interpolation in that element's attributes and its direct
+        text children. Descendant elements are still processed normally.
       </p>
 
       <pre><code tx-ignore class="language-html">&lt;p tx-ignore&gt;
-  { &quot;ignored&quot; }
-  &lt;span&gt; { &quot;not&quot; + &quot;ignore&quot; } &lt;/span&gt;
+  { "ignored" }
+  &lt;span&gt;{ "not" + " ignored" }&lt;/span&gt;
 &lt;/p&gt;</code>
       </pre>
 
       <pre><code tx-ignore class="language-html">&lt;p tx-ignore&gt;
-  { &quot;ignored&quot; }
-  &lt;span&gt; not ignored &lt;/span&gt;
+  { "ignored" }
+  &lt;span&gt;not ignored&lt;/span&gt;
 &lt;/p&gt;</code></pre>
 
       <h2>Syntax Highlight</h2>
