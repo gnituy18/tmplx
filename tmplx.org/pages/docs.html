@@ -30,7 +30,7 @@
           <a href="#expression-interpolation">Expression Interpolation</a>
         </li>
         <li><a href="#state">State</a></li>
-        <li><a href="#derived-state">Derived State</a></li>
+        <li><a href="#derived">Derived</a></li>
         <li><a href="#event-handler">Event Handler</a></li>
         <li><a href="#init">init()</a></li>
         <li>
@@ -106,8 +106,8 @@
         You use the <code tx-ignore>&lt;script type="text/tmplx"&gt;</code> tag
         to embed valid Go code and make the page or component dynamic. tmplx
         uses a subset of Go syntax to provide reactive features like local
-        state, derived values, and event handlers. At the same time, because the
-        script is valid Go, you can implement any backend logic—such as database
+        state, derived, and event handlers. At the same time, because the script
+        is valid Go, you can implement any backend logic—such as database
         queries—directly in the template.
       </p>
       <p>
@@ -215,7 +215,7 @@
       <p>
         <code>&lt;script type="text/tmplx"&gt;</code> is a special tag that you
         can add to your page or component to declare <a href="#state">state</a>,
-        <a href="#derived-state">derived state</a>,
+        <a href="#derived">derived</a>,
         <a href="#event-handlers">event handlers</a>, and the special
         <a href="#init">init()</a> function to control your UI or add backend
         logic.
@@ -367,6 +367,52 @@ var username string = user.GetNameById("id")
 // ✅ Complex JSON-compatible types
 var m map[string]int = map[string]int{"key": 100}
 &lt;/script&gt;</code></pre>
+
+      <h2 id="derived">Derived</h2>
+      A <strong>derived</strong> is a <strong>read-only</strong> value that is
+      automatically calculated from states. It updates whenever those states
+      change.
+
+      <p>
+        Declaring a derived works the same way as declaring package-level
+        variables in Go. When the right-hand side of the declaration
+        <strong>references existing state or other derived values</strong>, it
+        is treated as a derived value.
+      </p>
+
+      <p>
+        Derived values follow most of the same rules as regular state variables,
+        but with some differences:
+      </p>
+
+      <ol>
+        <li><strong>Only one identifier per declaration.</strong></li>
+        <li><strong>The type must be specified explicitly.</strong></li>
+        <li>
+          <strong
+            >Derived values cannot be modified directly in event handlers,
+            though they may be read.</strong
+          >
+        </li>
+      </ol>
+
+      <pre>
+        <code tx-ignore>&lt;script type="text/tmplx"&gt;
+  var num1 int = 100 // state
+  var num2 int = num1 * 2 // derived
+&lt;/script&gt;
+
+...
+&lt;p&gt;{num1} * 2 = {num2}&lt;/p&gt;</code></pre>
+
+      <pre>
+        <code tx-ignore>&lt;script type="text/tmplx"&gt;
+  var classStrs []string = []string{"c1", "c2", "c3"} // state
+  var class string = strings.Join(classStrs, " ") // derived
+&lt;/script&gt;
+
+...
+&lt;p class="{class}"&gt; ... &lt;/p&gt;</code></pre>
 
       <h2>Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>
