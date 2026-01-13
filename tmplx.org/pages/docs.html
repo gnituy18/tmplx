@@ -57,20 +57,9 @@
         Developing with tmplx feels like writing a more intuitive version of Go
         templates where the UI magically becomes reactive.
       </p>
-      <div
-        style="
-          padding: 2rem;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          border: solid SlateGray;
-          border-radius: 0.25rem;
-        "
-      >
-        <div>
-          <tx-todo></tx-todo>
-        </div>
-      </div>
+      <tx-example-wrapper>
+        <tx-todo></tx-todo>
+      </tx-example-wrapper>
       <pre>
         <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
   var list []string
@@ -99,16 +88,16 @@
 
       <p>
         You start by creating an HTML file. It can be a page or a reusable
-        component, depending on where you place it. tmplx respects the HTML
-        standard. There's no new syntax for
+        component, depending on where you place it.
       </p>
       <p>
         You use the <code tx-ignore>&lt;script type="text/tmplx"&gt;</code> tag
-        to embed valid Go code and make the page or component dynamic. tmplx
-        uses a subset of Go syntax to provide reactive features like local
-        state, derived, and event handlers. At the same time, because the script
-        is valid Go, you can implement any backend logic—such as database
-        queries—directly in the template.
+        to embed Go code and make the page or component dynamic. tmplx uses a
+        subset of Go syntax to provide reactive features like
+        <a href="#state">state</a>, <a href="derived">derived</a>, and
+        <a href="event-lhandler">event handlers</a>. At the same time, because
+        the script is valid Go, you can implement any backend logic—such as
+        database queries—directly in the template.
       </p>
       <p>
         tmplx compiles the HTML templates and embedded Go code into Go functions
@@ -413,6 +402,124 @@ var m map[string]int = map[string]int{"key": 100}
 
 ...
 &lt;p class="{class}"&gt; ... &lt;/p&gt;</code></pre>
+
+      <h2 id="event-handler">Event Handler</h2>
+      <p>
+        Event handlers let you respond to frontend events with backend logic or
+        update state to trigger UI changes.
+      </p>
+      <p>
+        To declare an event handler, define a Go function in the global scope of
+        the <code>&lt;script type="text/tmplx"&gt;</code> block. Bind it to a
+        DOM event by adding an attribute that starts with
+        <code>tx-on</code> followed by the event name (e.g.,
+        <code>tx-onclick</code>).
+      </p>
+      <pre><code tx-ignore>&lt;script type="text/tmplx"&gt;
+  var counter int = 0
+
+  func add1() {
+    counter += 1
+  }
+&lt;/script&gt;
+
+&lt;p&gt;{ counter }&lt;/p&gt;
+&lt;button tx-onclick="add1()"&gt;Add 1&lt;/button&gt;</code></pre>
+
+      <p>
+        In this example, the <code>add1</code> handler runs every time the
+        button is clicked. The <code>counter</code> state increases by 1, and
+        the paragraph updates automatically.
+      </p>
+      <p>
+        It’s not magic. tmplx compiles each event handler into an HTTP endpoint.
+        The runtime JavaScript attaches a lightweight listener that sends the
+        required state to the endpoint, receives the updated HTML fragment,
+        merges the new state, and swaps the affected part of the DOM. It feels
+        like direct backend access from the client, but it’s just a simple API
+        call with targeted DOM swapping.
+      </p>
+
+      <h3>Arguments</h3>
+      You can add arguments from local variable declared within
+      <code>tx-if</code>, or <code>tx-for</code> with the following rules:
+      <ul>
+        <li>
+          <strong
+            >Argument names cannot match state or derived state names.
+          </strong>
+        </li>
+        <li><strong>Argument types must be JSON-compatible.</strong></li>
+      </ul>
+
+      <tx-example-wrapper>
+        <tx-addn></tx-addn>
+      </tx-example-wrapper>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var counter int = 0
+
+  func addNum(num int) {
+    counter += num
+  }
+&lt;/script&gt;
+
+&lt;p&gt;{ counter }&lt;/p&gt;
+&lt;button tx-for=&quot;i := 0; i &lt; 10; i++&quot; tx-key=&quot;i&quot; tx-onclick=&quot;addNum(i)&quot;&gt;
+  +{ i }
+&lt;/button&gt;</code></pre>
+
+      <h3>Inline Statements</h3>
+
+      <p>
+        For simple actions, embed Go statements directly in
+        <code>tx-on*</code> attributes to update state. This avoids defining
+        separate handler functions.
+      </p>
+      <tx-example-wrapper>
+        <tx-double></tx-double>
+      </tx-example-wrapper>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var val int = 1
+&lt;/script&gt;
+
+&lt;p&gt;{ val }&lt;/p&gt;
+&lt;button tx-onclick=&quot;val *= 2&quot;&gt;double it!&lt;/button&gt;</code>
+      </pre>
+      <h2 id="init">init()</h2>
+      <p>
+        <code>init()</code> is a special function that runs automatically
+        <strong>once</strong> when a <strong>page</strong> is first rendered.
+        Components cannot use this function.
+      </p>
+      <tx-example-wrapper>
+        <tx-current-time></tx-current-time>
+      </tx-example-wrapper>
+
+      <pre>
+        <code tx-ignore>&lt;script type="text/tmplx"&gt;
+  var t string
+
+  func init() {
+    t = fmt.Sprint(time.Now().Format(time.RFC3339))
+  }
+&lt;/script&gt;
+
+&lt;p&gt;{ t }&lt;/p&gt;</code></pre>
+
+      <p>
+        Another common use case is to initialize one state from another state
+        without turning the second variable into a derived state.
+      </p>
+      <pre><code tx-ignore>&lt;script type="text/tmplx"&gt;
+  var a int = 1
+  var b int
+
+  func init() {
+    b = a * 2 // b remains a regular state
+  }
+&lt;/script&gt;</code></pre>
 
       <h2>Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>

@@ -1,0 +1,9 @@
+<script type="text/tmplx">
+  var t string
+
+  func init() {
+    t = fmt.Sprint(time.Now().Format(time.RFC3339))
+  }
+</script>
+
+<p>{ t }</p>
