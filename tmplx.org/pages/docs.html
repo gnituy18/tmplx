@@ -302,6 +302,72 @@
   &lt;span&gt;not ignored&lt;/span&gt;
 &lt;/p&gt;</code></pre>
 
+      <h2 id="state">State</h2>
+      <p>
+        <strong>State</strong> is the mutable data that describes a component's
+        current condition.
+      </p>
+
+      <p>
+        Declaring state works like declaring variables in Go's package scope. If
+        you provide no initial value, the state starts with the zero value for
+        its type.
+      </p>
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+var name string
+&lt;/script&gt;</code></pre>
+
+      <p>To set an initial value, use the <code>=</code> operator.</p>
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+var name string = "tmplx"
+&lt;/script&gt;</code></pre>
+
+      <p>Although the syntax follows valid Go code, these rules apply:</p>
+      <ol>
+        <li><strong>Only one identifier per declaration.</strong></li>
+        <li>
+          <strong
+            >The type must be explicitly declared and JSON-compatible.</strong
+          >
+        </li>
+      </ol>
+      <p>
+        The 1st rule is enforced by the compiler. The 2nd is not checked at
+        compile time (for now) and will cause a runtime error if violated.
+      </p>
+
+      <h3>Some invalid state declarations:</h3>
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+// ❌ Must explicitly declare the type
+var str = ""
+
+// ❌ Cannot use the := short declaration
+num := 1
+
+// ❌ Type must be JSON-marshalable/unmarshalable
+var f func(int) = func(i int) { ... }
+var w io.Writer
+
+// ❌ Only one identifier per declaration
+var a, b int = 10, 20
+var a, b int = f()
+&lt;/script&gt;</code></pre>
+
+      <h3>Some valid state declarations:</h3>
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+// ✅ Zero value
+var id int64
+
+// ✅ With initial value
+var address string = "..."
+
+// ✅ Initialized with a function call (assuming the package is imported)
+var username string = user.GetNameById("id")
+
+// ✅ Complex JSON-compatible types
+var m map[string]int = map[string]int{"key": 100}
+&lt;/script&gt;</code></pre>
+
       <h2>Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>
     </main>
