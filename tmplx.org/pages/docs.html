@@ -546,3 +546,44 @@ var m map[string]int = map[string]int{"key": 100}
     </main>
   </body>
 </html>
+<!-- ### Control Flow
+
+#### `tx-if`, `tx-else-if`, `tx-else`
+
+You can use any valid expression in the value of `tx-if`, `tx-else-if` that fits Go's if statement condition. The `tx-else` attribute does not require any value. New variables created in the expression will also be accessible to the children of the node. It works just like Go's conditional statements.
+
+```html
+<script type="text/tmplx">
+  var num int = 1
+</script>
+...
+<button tx-onclick="num++">Add 1</button>
+<p tx-if="counter % 2 == 1"> odd </p>
+<p tx-else> even </p>
+```
+
+```html
+<p tx-if="user, err := user.GetUser(); err != nil">
+  <span tx-if="err == ErrNotFound"> User not found</span>
+</p>
+<p tx-else-if='user.Name == ""'> user.Name not set </p>
+<p tx-else > Hi!, { user.Name } </p>
+```
+
+#### `tx-for`
+You can put every thing that fit Go's `for` statement.
+```html
+...
+<div tx-for="_, user := range users">
+  { user.Id }: { user.Name }
+</div>
+```
+```html
+...
+<div tx-for="i := 0; i < 10; i++">
+  <div tx-for="j := 0; j < 10; j++">
+    { i } * { j } = { i * j }
+  </div>
+</div>
+```
+ -->
