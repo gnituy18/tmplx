@@ -1,0 +1,10 @@
+<script type="text/tmplx">
+  var num int
+</script>
+
+<button tx-onclick="num++">change</button>
+<div>
+  <p tx-if="num % 3 == 0" style="background: red; color: white">red</p>
+  <p tx-else-if="num % 3 == 1" style="background: blue; color: white">blue</p>
+  <p tx-else style="background: green; color: white">green</p>
+</div>

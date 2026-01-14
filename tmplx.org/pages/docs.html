@@ -37,11 +37,11 @@
         <li>
           <a href="#control-flow">Control Flow</a>
           <ul>
-            <li><a href="#tx-if">tx-if</a></li>
-            <li><a href="#tx-for">tx-for</a></li>
+            <li><a href="#conditionals">Conditionals</a></li>
+            <li><a href="#loops">Loops</a></li>
           </ul>
         </li>
-        <li><a href="#input-binding">Input Binding</a></li>
+        <li><a href="#input-binding">🚧 Input Binding</a></li>
         <li><a href="#template">&lt;template&gt;</a></li>
         <li>
           <a href="#component">Component</a>
@@ -586,9 +586,147 @@ var m map[string]int = map[string]int{"key": 100}
       </p>
 
       <h2 id="control-flow">Control Flow</h2>
-      <p>docs in progress...</p>
-      <h2 id="input-binding">Input Binding</h2>
-      <p>docs in progress...</p>
+      <p>
+        tmplx avoids new custom syntax for conditionals and loops because that
+        would increase compiler complexity. Instead, it embeds control flow
+        directly into HTML attributes, similar to Vue.js and
+        <a href="https://alpinejs.dev/">Alpine.js</a>.
+      </p>
+
+      <h3 id="conditionals">Conditionals</h3>
+      <p>
+        To conditionally render elements, use the <code>tx-if</code>,
+        <code>tx-else-if</code>, and <code>tx-else</code> attributes on the
+        desired tags. The values for <code>tx-if</code> and
+        <code>tx-else-if</code> can be any valid Go expression that would fit in
+        an <code>if</code> or <code>else if</code> statement. The
+        <code>tx-else</code> attribute needs no value.
+      </p>
+
+      <tx-example-wrapper>
+        <tx-cond></tx-cond>
+      </tx-example-wrapper>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var num int
+&lt;/script&gt;
+
+&lt;button tx-onclick=&quot;num++&quot;&gt;change&lt;/button&gt;
+&lt;div&gt;
+  &lt;p tx-if=&quot;num % 3 == 0&quot; style=&quot;background: red; color: white&quot;&gt;red&lt;/p&gt;
+  &lt;p tx-else-if=&quot;num % 3 == 1&quot; style=&quot;background: blue; color: white&quot;&gt;blue&lt;/p&gt;
+  &lt;p tx-else style=&quot;background: green; color: white&quot;&gt;green&lt;/p&gt;
+&lt;/div&gt;</code>
+      </pre>
+
+      <p>
+        You can declare <strong>local variables</strong> and handle errors
+        exactly as you would in regular Go code. Local variables declared in
+        conditionals are available to the element and its descendants, just like
+        in Go.
+      </p>
+      <pre><code tx-ignore>&lt;p tx-if=&quot;user, err := user.GetUser(); err != nil&quot;&gt;
+  &lt;span tx-if=&quot;err == ErrNotFound&quot;&gt;User not found&lt;/span&gt;
+&lt;/p&gt;
+&lt;p tx-else-if='user.Name == &quot;&quot;'&gt;user.Name not set&lt;/p&gt;
+&lt;p tx-else&gt;Hi, { user.Name }&lt;/p&gt;</code></pre>
+
+      <p>
+        A conditional group consists of
+        <strong>consecutive sibling nodes</strong> that share the same parent.
+        Disconnected nodes are not treated as part of the same group. A
+        standalone <code>tx-else-if</code> or <code>tx-else</code> without a
+        preceding <code>tx-if</code> will cause a compilation error.
+      </p>
+
+      <h3 id="loops">Loops</h3>
+      <p>
+        To repeat elements, use the <code>tx-for</code> attribute. Its value can
+        be any valid Go <code>for</code> statement, including
+        <strong>classic for</strong> or <strong>range for</strong>.
+      </p>
+
+      <p>
+        Local variables declared in the loop are available to the element and
+        all of its descendants, just like in Go.
+      </p>
+
+      <p>
+        Always add a <code>tx-key</code> attribute with a unique value for each
+        item. This gives the compiler a unique identifier for the node during
+        updates.
+      </p>
+
+      <tx-example-wrapper>
+        <tx-triangle></tx-triangle>
+      </tx-example-wrapper>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var counter int = 5
+&lt;/script&gt;
+
+&lt;div&gt;
+  &lt;span&gt; { counter } &lt;/span&gt;
+  &lt;button tx-onclick=&quot;counter++&quot;&gt;+&lt;/button&gt;
+&lt;/div&gt;
+&lt;div tx-for=&quot;h := 0; h &lt; counter; h++&quot; tx-key=&quot;h&quot;&gt;
+  &lt;span tx-for=&quot;s := 0; s &lt; counter-h-1; s++&quot; tx-key=&quot;s&quot;&gt;_&lt;/span&gt;
+  &lt;span tx-for=&quot;i := 0; i &lt; h*2+1; i++&quot; tx-key=&quot;i&quot;&gt;*&lt;/span&gt;
+&lt;/div&gt;</code>
+      </pre>
+
+      <pre><code tx-ignore>&lt;div tx-for=&quot;_, user := range users&quot;&gt;
+  { user.Id }: { user.Name }
+&lt;/div&gt;</code></pre>
+
+      <h2 id="input-binding">🚧 Input Binding</h2>
+      <p>
+        <strong
+          >This feature is in active development and may change or be removed in
+          the future.</strong
+        >
+      </p>
+      <p>
+        tmplx provides two-way binding (kind of) for
+        <code>&lt;input&gt;</code> elements using the
+        <code>tx-value</code> attribute. The input value is kept in sync with a
+        state variable on the client side.
+      </p>
+      <p>
+        As the user types, the client-side state updates immediately. The
+        displayed value only refreshes after a server round-trip that causes a
+        re-render. Conversely, when another event handler modifies the state,
+        the input value updates automatically on the next render.
+      </p>
+
+      <tx-example-wrapper>
+        <tx-greeting></tx-greeting>
+      </tx-example-wrapper>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var name string = &quot;&quot;
+
+  func update() {}
+&lt;/script&gt;
+
+&lt;input type=&quot;text&quot; tx-value=&quot;name&quot; placeholder=&quot;Enter your name&quot; /&gt;
+&lt;button tx-onclick=&quot;update()&quot;&gt;Greet&lt;/button&gt;
+
+&lt;p tx-if='name != &quot;&quot;'&gt;Hello, { name }&lt;/p&gt;</code></pre>
+
+      <p>
+        Typing updates the client state instantly, but the greeting only changes
+        after clicking the button, which triggers a server round-trip and
+        re-render.
+      </p>
+
+      <p>
+        This is a current limitation of server-side re-renders. For smooth live
+        preview, combine tmplx with a client-side library like
+        <a href="https://alpinejs.dev/">Alpine.js</a> (or similar) to handle
+        instant updates locally.
+      </p>
+
       <h2 id="template">&lt;template&gt;</h2>
       <p>docs in progress...</p>
       <h2 id="component">Component</h2>
@@ -601,27 +739,6 @@ var m map[string]int = map[string]int{"key": 100}
 </html>
 <!-- ### Control Flow
 
-#### `tx-if`, `tx-else-if`, `tx-else`
-
-You can use any valid expression in the value of `tx-if`, `tx-else-if` that fits Go's if statement condition. The `tx-else` attribute does not require any value. New variables created in the expression will also be accessible to the children of the node. It works just like Go's conditional statements.
-
-```html
-<script type="text/tmplx">
-  var num int = 1
-</script>
-...
-<button tx-onclick="num++">Add 1</button>
-<p tx-if="counter % 2 == 1"> odd </p>
-<p tx-else> even </p>
-```
-
-```html
-<p tx-if="user, err := user.GetUser(); err != nil">
-  <span tx-if="err == ErrNotFound"> User not found</span>
-</p>
-<p tx-else-if='user.Name == ""'> user.Name not set </p>
-<p tx-else > Hi!, { user.Name } </p>
-```
 
 #### `tx-for`
 You can put every thing that fit Go's `for` statement.
