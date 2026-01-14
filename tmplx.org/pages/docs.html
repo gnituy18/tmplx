@@ -41,8 +41,8 @@
             <li><a href="#loops">Loops</a></li>
           </ul>
         </li>
-        <li><a href="#input-binding">🚧 Input Binding</a></li>
         <li><a href="#template">&lt;template&gt;</a></li>
+        <li><a href="#input-binding">🚧 Input Binding</a></li>
         <li>
           <a href="#component">Component</a>
           <ul>
@@ -678,6 +678,56 @@ var m map[string]int = map[string]int{"key": 100}
       <pre><code tx-ignore>&lt;div tx-for=&quot;_, user := range users&quot;&gt;
   { user.Id }: { user.Name }
 &lt;/div&gt;</code></pre>
+      <h2 id="template">&lt;template&gt;</h2>
+      <p>
+        The <code>&lt;template&gt;</code> tag is a non-rendering container that
+        lets you apply control flow attributes (<code>tx-if</code>,
+        <code>tx-else-if</code>, <code>tx-else</code>, or <code>tx-for</code>)
+        to a group of elements at once.
+      </p>
+      <p>
+        The <code>&lt;template&gt;</code> itself is removed from the outpu.t
+        only its children are rendered (or not, depending on the control flow).
+      </p>
+      <p>
+        You can nest <code>&lt;template&gt;</code> tags and combine them with
+        other control flow attributes on child elements.
+      </p>
+
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var loggedIn bool = true
+&lt;/script&gt;
+
+&lt;template tx-if=&quot;loggedIn&quot;&gt;
+  &lt;p&gt;Welcome back!&lt;/p&gt;
+  &lt;button tx-onclick=&quot;logout()&quot;&gt;Logout&lt;/button&gt;
+&lt;/template&gt;
+
+&lt;template tx-else&gt;
+  &lt;p&gt;Please sign in.&lt;/p&gt;
+  &lt;button tx-onclick=&quot;login()&quot;&gt;Login&lt;/button&gt;
+&lt;/template&gt;</code>
+      </pre>
+
+
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var posts []Post = []Post{
+    {Title: &quot;First Post&quot;, Body: &quot;Hello world&quot;},
+    {Title: &quot;Second Post&quot;, Body: &quot;tmplx is great&quot;},
+  }
+&lt;/script&gt;
+
+&lt;template tx-for=&quot;i, p := range posts&quot; tx-key=&quot;i&quot;&gt;
+  &lt;article&gt;
+    &lt;h3&gt;{ p.Title }&lt;/h3&gt;
+    &lt;p&gt;{ p.Body }&lt;/p&gt;
+    &lt;hr&gt;
+  &lt;/article&gt;
+&lt;/template&gt;</code>
+      </pre>
+
 
       <h2 id="input-binding">🚧 Input Binding</h2>
       <p>
@@ -723,12 +773,10 @@ var m map[string]int = map[string]int{"key": 100}
       <p>
         This is a current limitation of server-side re-renders. For smooth live
         preview, combine tmplx with a client-side library like
-        <a href="https://alpinejs.dev/">Alpine.js</a> (or similar) to handle
+        <a href="https://alpinejs.dev/">Alpine.js</a> to handle
         instant updates locally.
       </p>
 
-      <h2 id="template">&lt;template&gt;</h2>
-      <p>docs in progress...</p>
       <h2 id="component">Component</h2>
       <p>docs in progress...</p>
 
@@ -737,23 +785,3 @@ var m map[string]int = map[string]int{"key": 100}
     </main>
   </body>
 </html>
-<!-- ### Control Flow
-
-
-#### `tx-for`
-You can put every thing that fit Go's `for` statement.
-```html
-...
-<div tx-for="_, user := range users">
-  { user.Id }: { user.Name }
-</div>
-```
-```html
-...
-<div tx-for="i := 0; i < 10; i++">
-  <div tx-for="j := 0; j < 10; j++">
-    { i } * { j } = { i * j }
-  </div>
-</div>
-```
- -->
