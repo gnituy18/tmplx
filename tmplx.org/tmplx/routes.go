@@ -159,6 +159,29 @@ func render_tx_h_addn(w io.Writer, key string, states map[string]string, newStat
 	w.Write([]byte("\"></template>"))
 }
 
+type state_tx_h_cond struct {
+	S_num int `json:"num"`
+}
+
+func render_tx_h_cond(w io.Writer, key string, states map[string]string, newStates map[string]any, num int, anon_func_1, anon_func_1_swap string) {
+	w.Write([]byte("<template id=\""))
+	fmt.Fprint(w, key)
+	w.Write([]byte("\"></template> <button tx-onclick=\"tx_h_cond_anon_func_1\"\" tx-swap=\""))
+	fmt.Fprint(w, anon_func_1_swap)
+	w.Write([]byte("\">change</button> <div> "))
+	if num%3 == 0 {
+		w.Write([]byte("<p style=\"background: red; color: white\">red</p> "))
+	} else if num%3 == 1 {
+		w.Write([]byte("<p style=\"background: blue; color: white\">blue</p> "))
+	} else {
+		w.Write([]byte("<p style=\"background: green; color: white\">green</p> "))
+
+	}
+	w.Write([]byte("</div> <template id=\""))
+	fmt.Fprint(w, key+"_e")
+	w.Write([]byte("\"></template>"))
+}
+
 type state_tx_h_counter struct {
 	S_counter int `json:"counter"`
 }
@@ -234,6 +257,33 @@ func render_tx_h_example_h_wrapper(w io.Writer, key string, states map[string]st
 
 	}
 	w.Write([]byte(" </div> </div> <template id=\""))
+	fmt.Fprint(w, key+"_e")
+	w.Write([]byte("\"></template>"))
+}
+
+type state_tx_h_greeting struct {
+	S_name string `json:"name"`
+}
+
+func render_tx_h_greeting(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, update, update_swap string) {
+	w.Write([]byte("<template id=\""))
+	fmt.Fprint(w, key)
+	w.Write([]byte("\"></template> <input type=\"text\" tx-value=\"name\" tx-swap=\""))
+	fmt.Fprint(w, key)
+	w.Write([]byte("\"value=\""))
+	fmt.Fprint(w, name)
+	w.Write([]byte("\" placeholder=\"Enter your name\"/> <button tx-onclick=\""))
+	fmt.Fprint(w, update)
+	w.Write([]byte("\" tx-swap=\""))
+	fmt.Fprint(w, update_swap)
+	w.Write([]byte("\">Greet</button> "))
+	if name != "" {
+		w.Write([]byte("<p>Hello, "))
+		w.Write([]byte(html.EscapeString(fmt.Sprint(name))))
+		w.Write([]byte("</p> "))
+
+	}
+	w.Write([]byte("<template id=\""))
 	fmt.Fprint(w, key+"_e")
 	w.Write([]byte("\"></template>"))
 }
@@ -317,7 +367,7 @@ type state_docs struct {
 func render_docs(w io.Writer, key string, states map[string]string, newStates map[string]any) {
 	w.Write([]byte("<!DOCTYPE html><html lang=\"en\"><head> <title>Docs | tmplx</title> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script id=\"tx-runtime\">"))
 	w.Write([]byte(runtimeScript))
-	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <nav> <h2>tmplx Docs</h2> <ul> <li><a href=\"#introduction\">Introduction</a></li> <li><a href=\"#installing\">Installing</a></li> <li><a href=\"#pages-and-routing\">Pages and Routing</a></li> <li><a href=\"#tmplx-script\">tmplx Script</a></li> <li> <a href=\"#expression-interpolation\">Expression Interpolation</a> </li> <li><a href=\"#state\">State</a></li> <li><a href=\"#derived\">Derived</a></li> <li><a href=\"#event-handler\">Event Handler</a></li> <li><a href=\"#init\">init()</a></li> <li><a href=\"#path-parameter\">Path Parameter</a></li> <li> <a href=\"#control-flow\">Control Flow</a> <ul> <li><a href=\"#tx-if\">tx-if</a></li> <li><a href=\"#tx-for\">tx-for</a></li> </ul> </li> <li><a href=\"#input-binding\">Input Binding</a></li> <li><a href=\"#template\">&lt;template&gt;</a></li> <li> <a href=\"#component\">Component</a> <ul> <li><a href=\"#props\">Props</a></li> <li><a href=\"#slot\">&lt;slot&gt;</a></li> </ul> </li> <li> Dev Tools <ul> <li><a href=\"#syntax-highlight\">Syntax Highlight</a></li> </ul> </li> </ul> </nav> <main> <h2 id=\"introduction\">Introduction</h2> <p> tmplx is a framework for building full-stack web applications using only Go and HTML. Its goal is to make building web apps simple, intuitive, and fun again. It significantly reduces cognitive load by: </p> <ol> <li> <strong>keeping frontend and backend logic close together</strong> </li> <li> <strong>providing reactive UI updates driven by Go variables</strong> </li> <li><strong>requiring zero new syntax</strong></li> </ol> <p> Developing with tmplx feels like writing a more intuitive version of Go templates where the UI magically becomes reactive. </p> "))
+	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <nav> <h2>tmplx Docs</h2> <ul> <li><a href=\"#introduction\">Introduction</a></li> <li><a href=\"#installing\">Installing</a></li> <li><a href=\"#pages-and-routing\">Pages and Routing</a></li> <li><a href=\"#tmplx-script\">tmplx Script</a></li> <li> <a href=\"#expression-interpolation\">Expression Interpolation</a> </li> <li><a href=\"#state\">State</a></li> <li><a href=\"#derived\">Derived</a></li> <li><a href=\"#event-handler\">Event Handler</a></li> <li><a href=\"#init\">init()</a></li> <li><a href=\"#path-parameter\">Path Parameter</a></li> <li> <a href=\"#control-flow\">Control Flow</a> <ul> <li><a href=\"#conditionals\">Conditionals</a></li> <li><a href=\"#loops\">Loops</a></li> </ul> </li> <li><a href=\"#input-binding\">🚧 Input Binding</a></li> <li><a href=\"#template\">&lt;template&gt;</a></li> <li> <a href=\"#component\">Component</a> <ul> <li><a href=\"#props\">Props</a></li> <li><a href=\"#slot\">&lt;slot&gt;</a></li> </ul> </li> <li> Dev Tools <ul> <li><a href=\"#syntax-highlight\">Syntax Highlight</a></li> </ul> </li> </ul> </nav> <main> <h2 id=\"introduction\">Introduction</h2> <p> tmplx is a framework for building full-stack web applications using only Go and HTML. Its goal is to make building web apps simple, intuitive, and fun again. It significantly reduces cognitive load by: </p> <ol> <li> <strong>keeping frontend and backend logic close together</strong> </li> <li> <strong>providing reactive UI updates driven by Go variables</strong> </li> <li><strong>requiring zero new syntax</strong></li> </ol> <p> Developing with tmplx feels like writing a more intuitive version of Go templates where the UI magically becomes reactive. </p> "))
 	{
 		ckey := key + "_docs_tx-example-wrapper_1"
 		state := &state_tx_h_example_h_wrapper{}
@@ -444,7 +494,100 @@ func render_docs(w io.Writer, key string, states map[string]string, newStates ma
 			},
 		)
 	}
-	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var t string\n\n  func init() {\n    t = fmt.Sprint(time.Now().Format(time.RFC3339))\n  }\n&lt;/script&gt;\n\n&lt;p&gt;{ t }&lt;/p&gt;</code></pre> <p> Another common use case is to initialize one state from another state without turning the second variable into a derived state. </p> <pre><code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var a int = 1\n  var b int\n\n  func init() {\n    b = a * 2 // b remains a regular state\n  }\n&lt;/script&gt;</code></pre> <h2 id=\"path-parameter\">Path Parameters</h2> <p> You can inject path parameters into states using a <code>//tx:path</code> comment placed directly above the state declaration. This feature works only in <a href=\"#pages-and-routing\">pages</a> and requires the state to be of type <code>string</code>. </p> <p> For example, given a route pattern like <code tx-ignore=\"\">/blog/post/{post_id}</code>, you can access the <code>post_id</code> parameter as follows: </p> <pre><code tx-ignore=\"\">&lt;!DOCTYPE html&gt;\n&lt;html&gt;\n  &lt;head&gt;\n    &lt;script type=&#34;text/tmplx&#34;&gt;\n      // tx:path post_id\n      var postId string\n\n      var post Post\n      \n      func init() {\n        post = db.GetPost(postId)\n      }\n    &lt;/script&gt;\n  &lt;/head&gt;\n\n  &lt;body&gt;\n    &lt;h1&gt;{ post.Title }&lt;/h1&gt;\n    ...\n  &lt;/body&gt;\n&lt;/html&gt;</code></pre> <p> The value of the <code>post_id</code> path parameter is automatically injected into the <code>postId</code> state during initialization. After that, <code>postId</code> behaves like any other state and can be read or modified as needed. </p> <h2 id=\"control-flow\">Control Flow</h2> <p>docs in progress...</p> <h2 id=\"input-binding\">Input Binding</h2> <p>docs in progress...</p> <h2 id=\"template\">&lt;template&gt;</h2> <p>docs in progress...</p> <h2 id=\"component\">Component</h2> <p>docs in progress...</p> <h2 id=\"syntax-highlight\">Syntax Highlight</h2> <a href=\"https://github.com/gnituy18/tmplx.nvim\">Neovim Plugin</a> </main> </body></html>"))
+	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var t string\n\n  func init() {\n    t = fmt.Sprint(time.Now().Format(time.RFC3339))\n  }\n&lt;/script&gt;\n\n&lt;p&gt;{ t }&lt;/p&gt;</code></pre> <p> Another common use case is to initialize one state from another state without turning the second variable into a derived state. </p> <pre><code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var a int = 1\n  var b int\n\n  func init() {\n    b = a * 2 // b remains a regular state\n  }\n&lt;/script&gt;</code></pre> <h2 id=\"path-parameter\">Path Parameters</h2> <p> You can inject path parameters into states using a <code>//tx:path</code> comment placed directly above the state declaration. This feature works only in <a href=\"#pages-and-routing\">pages</a> and requires the state to be of type <code>string</code>. </p> <p> For example, given a route pattern like <code tx-ignore=\"\">/blog/post/{post_id}</code>, you can access the <code>post_id</code> parameter as follows: </p> <pre><code tx-ignore=\"\">&lt;!DOCTYPE html&gt;\n&lt;html&gt;\n  &lt;head&gt;\n    &lt;script type=&#34;text/tmplx&#34;&gt;\n      // tx:path post_id\n      var postId string\n\n      var post Post\n      \n      func init() {\n        post = db.GetPost(postId)\n      }\n    &lt;/script&gt;\n  &lt;/head&gt;\n\n  &lt;body&gt;\n    &lt;h1&gt;{ post.Title }&lt;/h1&gt;\n    ...\n  &lt;/body&gt;\n&lt;/html&gt;</code></pre> <p> The value of the <code>post_id</code> path parameter is automatically injected into the <code>postId</code> state during initialization. After that, <code>postId</code> behaves like any other state and can be read or modified as needed. </p> <h2 id=\"control-flow\">Control Flow</h2> <p> tmplx avoids new custom syntax for conditionals and loops because that would increase compiler complexity. Instead, it embeds control flow directly into HTML attributes, similar to Vue.js and <a href=\"https://alpinejs.dev/\">Alpine.js</a>. </p> <h3 id=\"conditionals\">Conditionals</h3> <p> To conditionally render elements, use the <code>tx-if</code>, <code>tx-else-if</code>, and <code>tx-else</code> attributes on the desired tags. The values for <code>tx-if</code> and <code>tx-else-if</code> can be any valid Go expression that would fit in an <code>if</code> or <code>else if</code> statement. The <code>tx-else</code> attribute needs no value. </p> "))
+	{
+		ckey := key + "_docs_tx-example-wrapper_5"
+		state := &state_tx_h_example_h_wrapper{}
+		if _, ok := states[ckey]; ok {
+			json.Unmarshal([]byte(states[ckey]), state)
+			newStates[ckey] = state
+		} else {
+			newStates[ckey] = state
+		}
+		render_tx_h_example_h_wrapper(w, ckey, states, newStates,
+			func() {
+				w.Write([]byte(" "))
+				{
+					ckey := key + "_docs_tx-cond_1"
+					state := &state_tx_h_cond{}
+					if _, ok := states[ckey]; ok {
+						json.Unmarshal([]byte(states[ckey]), state)
+						newStates[ckey] = state
+					} else {
+
+						newStates[ckey] = state
+					}
+					num := state.S_num
+					render_tx_h_cond(w, ckey, states, newStates, num, "tx_h_cond_anon_func_1", ckey)
+				}
+				w.Write([]byte(" "))
+
+			},
+		)
+	}
+	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var num int\n&lt;/script&gt;\n\n&lt;button tx-onclick=&#34;num++&#34;&gt;change&lt;/button&gt;\n&lt;div&gt;\n  &lt;p tx-if=&#34;num % 3 == 0&#34; style=&#34;background: red; color: white&#34;&gt;red&lt;/p&gt;\n  &lt;p tx-else-if=&#34;num % 3 == 1&#34; style=&#34;background: blue; color: white&#34;&gt;blue&lt;/p&gt;\n  &lt;p tx-else style=&#34;background: green; color: white&#34;&gt;green&lt;/p&gt;\n&lt;/div&gt;</code> </pre> <p> You can declare <strong>local variables</strong> and handle errors exactly as you would in regular Go code. Local variables declared in conditionals are available to the element and its descendants, just like in Go. </p> <pre><code tx-ignore=\"\">&lt;p tx-if=&#34;user, err := user.GetUser(); err != nil&#34;&gt;\n  &lt;span tx-if=&#34;err == ErrNotFound&#34;&gt;User not found&lt;/span&gt;\n&lt;/p&gt;\n&lt;p tx-else-if=&#39;user.Name == &#34;&#34;&#39;&gt;user.Name not set&lt;/p&gt;\n&lt;p tx-else&gt;Hi, { user.Name }&lt;/p&gt;</code></pre> <p> A conditional group consists of <strong>consecutive sibling nodes</strong> that share the same parent. Disconnected nodes are not treated as part of the same group. A standalone <code>tx-else-if</code> or <code>tx-else</code> without a preceding <code>tx-if</code> will cause a compilation error. </p> <h3 id=\"loops\">Loops</h3> <p> To repeat elements, use the <code>tx-for</code> attribute. Its value can be any valid Go <code>for</code> statement, including <strong>classic for</strong> or <strong>range for</strong>. </p> <p> Local variables declared in the loop are available to the element and all of its descendants, just like in Go. </p> <p> Always add a <code>tx-key</code> attribute with a unique value for each item. This gives the compiler a unique identifier for the node during updates. </p> "))
+	{
+		ckey := key + "_docs_tx-example-wrapper_6"
+		state := &state_tx_h_example_h_wrapper{}
+		if _, ok := states[ckey]; ok {
+			json.Unmarshal([]byte(states[ckey]), state)
+			newStates[ckey] = state
+		} else {
+			newStates[ckey] = state
+		}
+		render_tx_h_example_h_wrapper(w, ckey, states, newStates,
+			func() {
+				w.Write([]byte(" "))
+				{
+					ckey := key + "_docs_tx-triangle_1"
+					state := &state_tx_h_triangle{}
+					if _, ok := states[ckey]; ok {
+						json.Unmarshal([]byte(states[ckey]), state)
+						newStates[ckey] = state
+					} else {
+						state.S_counter = 5
+						newStates[ckey] = state
+					}
+					counter := state.S_counter
+					render_tx_h_triangle(w, ckey, states, newStates, counter, "tx_h_triangle_anon_func_1", ckey)
+				}
+				w.Write([]byte(" "))
+
+			},
+		)
+	}
+	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var counter int = 5\n&lt;/script&gt;\n\n&lt;div&gt;\n  &lt;span&gt; { counter } &lt;/span&gt;\n  &lt;button tx-onclick=&#34;counter++&#34;&gt;+&lt;/button&gt;\n&lt;/div&gt;\n&lt;div tx-for=&#34;h := 0; h &lt; counter; h++&#34; tx-key=&#34;h&#34;&gt;\n  &lt;span tx-for=&#34;s := 0; s &lt; counter-h-1; s++&#34; tx-key=&#34;s&#34;&gt;_&lt;/span&gt;\n  &lt;span tx-for=&#34;i := 0; i &lt; h*2+1; i++&#34; tx-key=&#34;i&#34;&gt;*&lt;/span&gt;\n&lt;/div&gt;</code> </pre> <pre><code tx-ignore=\"\">&lt;div tx-for=&#34;_, user := range users&#34;&gt;\n  { user.Id }: { user.Name }\n&lt;/div&gt;</code></pre> <h2 id=\"input-binding\">🚧 Input Binding</h2> <p> <strong>This feature is in active development and may change or be removed in the future.</strong> </p> <p> tmplx provides two-way binding (kind of) for <code>&lt;input&gt;</code> elements using the <code>tx-value</code> attribute. The input value is kept in sync with a state variable on the client side. </p> <p> As the user types, the client-side state updates immediately. The displayed value only refreshes after a server round-trip that causes a re-render. Conversely, when another event handler modifies the state, the input value updates automatically on the next render. </p> "))
+	{
+		ckey := key + "_docs_tx-example-wrapper_7"
+		state := &state_tx_h_example_h_wrapper{}
+		if _, ok := states[ckey]; ok {
+			json.Unmarshal([]byte(states[ckey]), state)
+			newStates[ckey] = state
+		} else {
+			newStates[ckey] = state
+		}
+		render_tx_h_example_h_wrapper(w, ckey, states, newStates,
+			func() {
+				w.Write([]byte(" "))
+				{
+					ckey := key + "_docs_tx-greeting_1"
+					state := &state_tx_h_greeting{}
+					if _, ok := states[ckey]; ok {
+						json.Unmarshal([]byte(states[ckey]), state)
+						newStates[ckey] = state
+					} else {
+						state.S_name = ""
+						newStates[ckey] = state
+					}
+					name := state.S_name
+					render_tx_h_greeting(w, ckey, states, newStates, name, "tx_h_greeting_update", ckey)
+				}
+				w.Write([]byte(" "))
+
+			},
+		)
+	}
+	w.Write([]byte(" <pre> <code tx-ignore=\"\">&lt;script type=&#34;text/tmplx&#34;&gt;\n  var name string = &#34;&#34;\n\n  func update() {}\n&lt;/script&gt;\n\n&lt;input type=&#34;text&#34; tx-value=&#34;name&#34; placeholder=&#34;Enter your name&#34; /&gt;\n&lt;button tx-onclick=&#34;update()&#34;&gt;Greet&lt;/button&gt;\n\n&lt;p tx-if=&#39;name != &#34;&#34;&#39;&gt;Hello, { name }&lt;/p&gt;</code></pre> <p> Typing updates the client state instantly, but the greeting only changes after clicking the button, which triggers a server round-trip and re-render. </p> <p> This is a current limitation of server-side re-renders. For smooth live preview, combine tmplx with a client-side library like <a href=\"https://alpinejs.dev/\">Alpine.js</a> (or similar) to handle instant updates locally. </p> <h2 id=\"template\">&lt;template&gt;</h2> <p>docs in progress...</p> <h2 id=\"component\">Component</h2> <p>docs in progress...</p> <h2 id=\"syntax-highlight\">Syntax Highlight</h2> <a href=\"https://github.com/gnituy18/tmplx.nvim\">Neovim Plugin</a> </main> </body></html>"))
 }
 
 type state_index struct {
@@ -606,6 +749,33 @@ var txRoutes []TxRoute = []TxRoute{
 		},
 	},
 	{
+		Pattern: " /tx/tx_h_cond_anon_func_1",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			query := tx_r.URL.Query()
+			txSwap := query.Get("tx-swap")
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, txSwap) {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_tx_h_cond{}
+			json.Unmarshal([]byte(states[txSwap]), &state)
+			num := state.S_num
+			num++
+			render_tx_h_cond(w, txSwap, states, newStates, num, "tx_h_cond_anon_func_1", txSwap)
+			w.Write([]byte("<script id=\"tx-state\" type=\"application/json\">"))
+			newStates[txSwap] = &state_tx_h_cond{
+				S_num: num,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(stateBytes)
+			w.Write([]byte("</script>"))
+		},
+	},
+	{
 		Pattern: " /tx/tx_h_counter_anon_func_1",
 		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			w.Header().Set("Content-Type", "text/html")
@@ -680,6 +850,32 @@ var txRoutes []TxRoute = []TxRoute{
 			w.Write([]byte("<script id=\"tx-state\" type=\"application/json\">"))
 			newStates[txSwap] = &state_tx_h_double{
 				S_val: val,
+			}
+			stateBytes, _ := json.Marshal(newStates)
+			w.Write(stateBytes)
+			w.Write([]byte("</script>"))
+		},
+	},
+	{
+		Pattern: "GET /tx/tx_h_greeting_update",
+		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			query := tx_r.URL.Query()
+			txSwap := query.Get("tx-swap")
+			states := map[string]string{}
+			for k, v := range query {
+				if strings.HasPrefix(k, txSwap) {
+					states[k] = v[0]
+				}
+			}
+			newStates := map[string]any{}
+			state := &state_tx_h_greeting{}
+			json.Unmarshal([]byte(states[txSwap]), &state)
+			name := state.S_name
+			render_tx_h_greeting(w, txSwap, states, newStates, name, "tx_h_greeting_update", txSwap)
+			w.Write([]byte("<script id=\"tx-state\" type=\"application/json\">"))
+			newStates[txSwap] = &state_tx_h_greeting{
+				S_name: name,
 			}
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(stateBytes)
