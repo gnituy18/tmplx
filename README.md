@@ -9,6 +9,33 @@ tmplx is a framework for building full-stack web applications using only Go and 
 
 Developing with tmplx feels like writing a more intuitive version of Go templates where the UI magically becomes reactive.
 
+```html
+<script type="text/tmplx">
+  var list []string
+  var item string = ""
+  
+  func add() {
+    list = append(list, item)
+    item = ""
+  }
+  
+  func remove(i int) {
+    list = append(list[0:i], list[i+1:]...)
+  }
+</script>
+
+<label><input type="text" tx-value="item"></label>
+<button tx-onclick="add()">Add</button>
+<ol>
+  <li 
+    tx-for="i, l := range list"
+    tx-key="l"
+    tx-onclick="remove(i)">
+    { l }
+  </li>
+</ol>
+```
+
 > [!WARNING]
 > The project is in active development, with some of the features incomplete, and bugs or undefined behavior may occur.
 
@@ -17,3 +44,4 @@ Developing with tmplx feels like writing a more intuitive version of Go template
 Website & Demos https://tmplx.org
 
 Docs https://tmplx.org/docs
+
