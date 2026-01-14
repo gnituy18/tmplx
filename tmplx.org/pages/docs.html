@@ -116,10 +116,11 @@
         You use the <code tx-ignore>&lt;script type="text/tmplx"&gt;</code> tag
         to embed Go code and make the page or component dynamic. tmplx uses a
         subset of Go syntax to provide reactive features like
-        <a href="#state">state</a>, <a href="derived">derived</a>, and
-        <a href="event-lhandler">event handlers</a>. At the same time, because
-        the script is valid Go, you can implement any backend logic—such as
-        database queries—directly in the template.
+        <a href="#state">state</a>, <a href="#derived">derived</a>, and
+        <a href="#event-handler">event handler</a>. At the same time, because
+        the script is valid Go, you can
+        <strong>implement backend logic</strong>—such as database
+        queries—directly in the template.
       </p>
       <p>
         tmplx compiles the HTML templates and embedded Go code into Go functions
@@ -217,7 +218,9 @@ func main() {
       </ol>
 
       <p>
-        That's it! Open <a href="http://localhost:8080">http://localhost:8080</a> and you now have a working interactive counter.
+        That's it! Open
+        <a href="http://localhost:8080">http://localhost:8080</a> and you now
+        have a working interactive counter.
       </p>
 
       <h2 id="pages-and-routing">Pages and Routing</h2>
