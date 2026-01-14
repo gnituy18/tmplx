@@ -24,6 +24,7 @@
       <ul>
         <li><a href="#introduction">Introduction</a></li>
         <li><a href="#installing">Installing</a></li>
+        <li><a href="#quick-start">Quick Start</a></li>
         <li><a href="#pages-and-routing">Pages and Routing</a></li>
         <li><a href="#tmplx-script">tmplx Script</a></li>
         <li>
@@ -148,6 +149,76 @@
       </p>
       <p>After installation, verify it works:</p>
       <pre><code tx-ignore>$ tmplx --help</code></pre>
+
+      <h2 id="quick-start">Quick Start</h2>
+      <p>Get a tmplx app running in minutes.</p>
+
+      <ol>
+        <li>
+          <p><strong>Create a project</strong></p>
+          <pre><code tx-ignore>$ mkdir hello-tmplx
+$ cd hello-tmplx
+$ go mod init hello-tmplx
+$ mkdir pages</code></pre>
+        </li>
+
+        <li>
+          <p><strong>Add your first page (pages/index.html)</strong></p>
+          <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;en&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;UTF-8&quot;&gt;
+  &lt;title&gt;Hello tmplx&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;script type=&quot;text/tmplx&quot;&gt;
+    var count int
+  &lt;/script&gt;
+
+  &lt;h1&gt;Counter&lt;/h1&gt;
+
+  &lt;button tx-onclick=&quot;count--&quot;&gt;-&lt;/button&gt;
+  &lt;span&gt;{ count }&lt;/span&gt;
+  &lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+        </li>
+
+        <li>
+          <p><strong>Generate the Go code</strong></p>
+          <pre><code tx-ignore>$ tmplx -out-file tmplx/routes.go</code></pre>
+        </li>
+
+        <li>
+          <p><strong>Create main.go to serve the app</strong></p>
+          <pre><code tx-ignore>package main
+
+import (
+	&quot;log&quot;
+	&quot;net/http&quot;
+
+	&quot;hello-tmplx/tmplx&quot;
+)
+
+func main() {
+	for _, route := range tmplx.Routes() {
+		http.Handle(route.Pattern, route.Handler)
+	}
+
+	log.Fatal(http.ListenAndServe(&quot;:8080&quot;, nil))
+}</code></pre>
+        </li>
+
+        <li>
+          <p><strong>Run the server</strong></p>
+          <pre><code tx-ignore>$ go run .
+&gt; Listening on :8080</code></pre>
+        </li>
+      </ol>
+
+      <p>
+        That's it! Open <a href="http://localhost:8080">http://localhost:8080</a> and you now have a working interactive counter.
+      </p>
 
       <h2 id="pages-and-routing">Pages and Routing</h2>
       <p>
@@ -710,7 +781,6 @@ var m map[string]int = map[string]int{"key": 100}
 &lt;/template&gt;</code>
       </pre>
 
-
       <pre>
         <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
   var posts []Post = []Post{
@@ -727,7 +797,6 @@ var m map[string]int = map[string]int{"key": 100}
   &lt;/article&gt;
 &lt;/template&gt;</code>
       </pre>
-
 
       <h2 id="input-binding">🚧 Input Binding</h2>
       <p>
@@ -773,8 +842,8 @@ var m map[string]int = map[string]int{"key": 100}
       <p>
         This is a current limitation of server-side re-renders. For smooth live
         preview, combine tmplx with a client-side library like
-        <a href="https://alpinejs.dev/">Alpine.js</a> to handle
-        instant updates locally.
+        <a href="https://alpinejs.dev/">Alpine.js</a> to handle instant updates
+        locally.
       </p>
 
       <h2 id="component">Component</h2>
