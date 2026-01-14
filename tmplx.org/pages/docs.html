@@ -542,8 +542,49 @@ var m map[string]int = map[string]int{"key": 100}
   }
 &lt;/script&gt;</code></pre>
 
-      <h2 id="path-parameter">Path Parameter</h2>
-      <p>docs in progress...</p>
+      <h2 id="path-parameter">Path Parameters</h2>
+      <p>
+        You can inject path parameters into states using a
+        <code>//tx:path</code> comment placed directly above the state
+        declaration. This feature works only in
+        <a href="#pages-and-routing">pages</a> and requires the state to be of
+        type <code>string</code>.
+      </p>
+
+      <p>
+        For example, given a route pattern like
+        <code tx-ignore>/blog/post/{post_id}</code>, you can access the
+        <code>post_id</code> parameter as follows:
+      </p>
+
+      <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;script type=&quot;text/tmplx&quot;&gt;
+      // tx:path post_id
+      var postId string
+
+      var post Post
+      
+      func init() {
+        post = db.GetPost(postId)
+      }
+    &lt;/script&gt;
+  &lt;/head&gt;
+
+  &lt;body&gt;
+    &lt;h1&gt;{ post.Title }&lt;/h1&gt;
+    ...
+  &lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+      <p>
+        The value of the <code>post_id</code> path parameter is automatically
+        injected into the <code>postId</code> state during initialization. After
+        that, <code>postId</code> behaves like any other state and can be read
+        or modified as needed.
+      </p>
+
       <h2 id="control-flow">Control Flow</h2>
       <p>docs in progress...</p>
       <h2 id="input-binding">Input Binding</h2>
