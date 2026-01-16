@@ -1,6 +1,5 @@
 # tmplx
 
-## Introduction
 tmplx is a framework for building full-stack web applications using only Go and HTML. Its goal is to make building web apps simple, intuitive, and fun again. It significantly reduces cognitive load by:
 
 - keeping frontend and backend logic close together
