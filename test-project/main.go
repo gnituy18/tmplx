@@ -3,14 +3,12 @@ package main
 import (
 	"log"
 	"net/http"
-
-	"test-project/tmplx"
 )
 
 func main() {
-	for _, r := range tmplx.Routes() {
-		http.HandleFunc(r.Pattern, r.Handler)
+	for _, route := range Routes() {
+		http.HandleFunc(route.Pattern, route.Handler)
 	}
 
-	log.Fatal(http.ListenAndServe(":8081", nil))
+	log.Fatal(http.ListenAndServe(":8082", nil))
 }

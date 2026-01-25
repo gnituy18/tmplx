@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+  const handlerPrefix = "TX_HANDLER_PREFIX"
   let state = JSON.parse(this.getElementById("tx-state").innerHTML)
   let tasks = [];
   let isProcessing = false;
@@ -31,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
               }
             }
 
-            const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
+            const res = await fetch(handlerPrefix + "/" + fun + "?" + searchParams.toString())
             const html = await res.text()
 
             if (txSwap === 'tx_') {

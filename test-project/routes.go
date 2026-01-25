@@ -1,4 +1,4 @@
-package tmplx
+package main
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 )
 
 var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
+  const handlerPrefix = "/tx"
   let state = JSON.parse(this.getElementById("tx-state").innerHTML)
   let tasks = [];
   let isProcessing = false;
@@ -45,7 +46,7 @@ var runtimeScript = `document.addEventListener('DOMContentLoaded', function() {
               }
             }
 
-            const res = await fetch("/tx/" + fun + "?" + searchParams.toString())
+            const res = await fetch(handlerPrefix + "/" + fun + "?" + searchParams.toString())
             const html = await res.text()
 
             if (txSwap === 'tx_') {
@@ -126,11 +127,11 @@ type TxRoute struct {
 	Pattern string
 	Handler http.HandlerFunc
 }
-type state_tx_h_button struct {
+type state_tx_2D_button struct {
 	S_name string `json:"name"`
 }
 
-func render_tx_h_button(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, handleClick, handleClick_swap string) {
+func render_tx_2D_button(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, handleClick, handleClick_swap string) {
 	w.Write([]byte("<template id=\""))
 	fmt.Fprint(w, key)
 	w.Write([]byte("\"></template>  <button tx-onclick=\""))
@@ -144,7 +145,7 @@ func render_tx_h_button(w io.Writer, key string, states map[string]string, newSt
 	w.Write([]byte("\"></template>"))
 }
 
-type state_index struct {
+type state_ struct {
 	S_name           string `json:"name"`
 	S_greeting       string `json:"greeting"`
 	S_path           string `json:"path"`
@@ -153,7 +154,7 @@ type state_index struct {
 	S_str            string `json:"str"`
 }
 
-func render_index(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, greeting string, path string, counter int, counterTimes10 int, str string, addOne, addOne_swap string, appendS, appendS_swap string, index_1, index_1_swap string) {
+func render_(w io.Writer, key string, states map[string]string, newStates map[string]any, name string, greeting string, path string, counter int, counterTimes10 int, str string, addOne, addOne_swap string, appendS, appendS_swap string, _1, _1_swap string) {
 	w.Write([]byte("<html><head> <title> "))
 	fmt.Fprint(w, name)
 	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
@@ -168,8 +169,8 @@ func render_index(w io.Writer, key string, states map[string]string, newStates m
 	fmt.Fprint(w, addOne)
 	w.Write([]byte("\" tx-swap=\""))
 	fmt.Fprint(w, addOne_swap)
-	w.Write([]byte("\">Add 1</button> <button tx-onclick=\"index_index_1\"\" tx-swap=\""))
-	fmt.Fprint(w, index_1_swap)
+	w.Write([]byte("\">Add 1</button> <button tx-onclick=\"__1\"\" tx-swap=\""))
+	fmt.Fprint(w, _1_swap)
 	w.Write([]byte("\">Subtract 1</button> "))
 	if counter%2 == 0 {
 		w.Write([]byte("<p> counter is even </p> "))
@@ -200,10 +201,10 @@ func render_index(w io.Writer, key string, states map[string]string, newStates m
 	w.Write([]byte(" <a href=\"/second-page\">second page</a> </body></html>"))
 }
 
-type state_second_h_page struct {
+type state_second_2D_page struct {
 }
 
-func render_second_h_page(w io.Writer, key string, states map[string]string, newStates map[string]any) {
+func render_second_2D_page(w io.Writer, key string, states map[string]string, newStates map[string]any) {
 	w.Write([]byte("<html><head> <title> "))
 	fmt.Fprint(w, 1+2)
 	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
@@ -213,14 +214,14 @@ func render_second_h_page(w io.Writer, key string, states map[string]string, new
 	w.Write([]byte(" </h1> </body></html>"))
 }
 
-type state__lb_name_rb_ struct {
+type state__7B_name_7D_ struct {
 	S_name string `json:"name"`
 }
 
-func render__lb_name_rb_(w io.Writer, key string, states map[string]string, newStates map[string]any, name string) {
-	w.Write([]byte("<html><head> <title> "))
+func render__7B_name_7D_(w io.Writer, key string, states map[string]string, newStates map[string]any, name string) {
+	w.Write([]byte("<!DOCTYPE html><html><head> <title> "))
 	fmt.Fprint(w, name)
-	w.Write([]byte(" </title> <script id=\"tx-runtime\">"))
+	w.Write([]byte(" </title>  <script id=\"tx-runtime\">"))
 	w.Write([]byte(runtimeScript))
 	w.Write([]byte("</script><script type=\"application/json\" id=\"tx-state\">TX_STATE_JSON</script></head> <body> <h1> Hello, "))
 	w.Write([]byte(html.EscapeString(fmt.Sprint(name))))
@@ -237,7 +238,7 @@ var txRoutes []TxRoute = []TxRoute{
 			var counter int
 			var counterTimes10 int = counter * 10
 			var str string = ""
-			state := &state_index{
+			state := &state_{
 				S_name:    name,
 				S_path:    path,
 				S_counter: counter,
@@ -246,13 +247,13 @@ var txRoutes []TxRoute = []TxRoute{
 			newStates := map[string]any{}
 			newStates["tx_"] = state
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", map[string]string{}, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
+			render_(&buf, "tx_", map[string]string{}, newStates, name, greeting, path, counter, counterTimes10, str, "_addOne", "tx_", "_appendS", "tx_", "__1", "tx_")
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
 	},
 	{
-		Pattern: "GET /tx/index_addOne",
+		Pattern: "GET /tx/_addOne",
 		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			query := tx_r.URL.Query()
 			states := map[string]string{}
@@ -262,7 +263,7 @@ var txRoutes []TxRoute = []TxRoute{
 				}
 			}
 			newStates := map[string]any{}
-			state := &state_index{}
+			state := &state_{}
 			json.Unmarshal([]byte(states["tx_"]), &state)
 			name := state.S_name
 			greeting := fmt.Sprintf("Hello ,%s!", name)
@@ -274,8 +275,8 @@ var txRoutes []TxRoute = []TxRoute{
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
-			newStates["tx_"] = &state_index{
+			render_(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "_addOne", "tx_", "_appendS", "tx_", "__1", "tx_")
+			newStates["tx_"] = &state_{
 				S_name:    name,
 				S_path:    path,
 				S_counter: counter,
@@ -286,7 +287,7 @@ var txRoutes []TxRoute = []TxRoute{
 		},
 	},
 	{
-		Pattern: "GET /tx/index_appendS",
+		Pattern: "GET /tx/_appendS",
 		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			query := tx_r.URL.Query()
 			states := map[string]string{}
@@ -296,7 +297,7 @@ var txRoutes []TxRoute = []TxRoute{
 				}
 			}
 			newStates := map[string]any{}
-			state := &state_index{}
+			state := &state_{}
 			json.Unmarshal([]byte(states["tx_"]), &state)
 			name := state.S_name
 			greeting := fmt.Sprintf("Hello ,%s!", name)
@@ -310,8 +311,8 @@ var txRoutes []TxRoute = []TxRoute{
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
-			newStates["tx_"] = &state_index{
+			render_(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "_addOne", "tx_", "_appendS", "tx_", "__1", "tx_")
+			newStates["tx_"] = &state_{
 				S_name:    name,
 				S_path:    path,
 				S_counter: counter,
@@ -322,7 +323,7 @@ var txRoutes []TxRoute = []TxRoute{
 		},
 	},
 	{
-		Pattern: " /tx/index_index_1",
+		Pattern: " /tx/__1",
 		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			query := tx_r.URL.Query()
 			states := map[string]string{}
@@ -332,7 +333,7 @@ var txRoutes []TxRoute = []TxRoute{
 				}
 			}
 			newStates := map[string]any{}
-			state := &state_index{}
+			state := &state_{}
 			json.Unmarshal([]byte(states["tx_"]), &state)
 			name := state.S_name
 			greeting := fmt.Sprintf("Hello ,%s!", name)
@@ -344,8 +345,8 @@ var txRoutes []TxRoute = []TxRoute{
 			greeting = fmt.Sprintf("Hello ,%s!", name)
 			counterTimes10 = counter * 10
 			var buf bytes.Buffer
-			render_index(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "index_addOne", "tx_", "index_appendS", "tx_", "index_index_1", "tx_")
-			newStates["tx_"] = &state_index{
+			render_(&buf, "tx_", states, newStates, name, greeting, path, counter, counterTimes10, str, "_addOne", "tx_", "_appendS", "tx_", "__1", "tx_")
+			newStates["tx_"] = &state_{
 				S_name:    name,
 				S_path:    path,
 				S_counter: counter,
@@ -358,11 +359,11 @@ var txRoutes []TxRoute = []TxRoute{
 	{
 		Pattern: "GET /second-page",
 		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
-			state := &state_second_h_page{}
+			state := &state_second_2D_page{}
 			newStates := map[string]any{}
 			newStates["tx_"] = state
 			var buf bytes.Buffer
-			render_second_h_page(&buf, "tx_", map[string]string{}, newStates)
+			render_second_2D_page(&buf, "tx_", map[string]string{}, newStates)
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
@@ -371,13 +372,13 @@ var txRoutes []TxRoute = []TxRoute{
 		Pattern: "GET /{name}",
 		Handler: func(w http.ResponseWriter, tx_r *http.Request) {
 			var name string = tx_r.PathValue("name")
-			state := &state__lb_name_rb_{
+			state := &state__7B_name_7D_{
 				S_name: name,
 			}
 			newStates := map[string]any{}
 			newStates["tx_"] = state
 			var buf bytes.Buffer
-			render__lb_name_rb_(&buf, "tx_", map[string]string{}, newStates, name)
+			render__7B_name_7D_(&buf, "tx_", map[string]string{}, newStates, name)
 			stateBytes, _ := json.Marshal(newStates)
 			w.Write(bytes.Replace(buf.Bytes(), []byte("TX_STATE_JSON"), stateBytes, 1))
 		},
