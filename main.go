@@ -1705,11 +1705,49 @@ func condState(n *html.Node) (CondState, string) {
 
 func goIdent(s string) string {
 	var b strings.Builder
-	b.Grow(len(s) * 4)
-	for i, r := range s {
-		if unicode.IsLetter(r) || r == '_' || (i > 0 && unicode.IsDigit(r)) {
+	b.Grow(len(s) * 3)
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		switch {
+		case unicode.IsLetter(r) || r == '_' || (i > 0 && unicode.IsDigit(r)):
 			b.WriteRune(r)
-		} else {
+		case r == '{' && i+2 < len(runes) && runes[i+1] == '$' && runes[i+2] == '}':
+			b.WriteString("_EX_")
+			i += 2
+		case r == '/':
+			b.WriteString("_S_")
+		case r == '-':
+			b.WriteString("_H_")
+		case r == '.':
+			b.WriteString("_O_")
+		case r == ':':
+			b.WriteString("_C_")
+		case r == '@':
+			b.WriteString("_A_")
+		case r == '!':
+			b.WriteString("_B_")
+		case r == '~':
+			b.WriteString("_T_")
+		case r == '*':
+			b.WriteString("_K_")
+		case r == '+':
+			b.WriteString("_P_")
+		case r == '=':
+			b.WriteString("_E_")
+		case r == '&':
+			b.WriteString("_N_")
+		case r == '?':
+			b.WriteString("_Q_")
+		case r == '#':
+			b.WriteString("_F_")
+		case r == '$':
+			b.WriteString("_D_")
+		case r == '{':
+			b.WriteString("_L_")
+		case r == '}':
+			b.WriteString("_R_")
+		default:
 			fmt.Fprintf(&b, "_%X_", r)
 		}
 	}
