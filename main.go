@@ -15,7 +15,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -30,8 +29,8 @@ import (
 const (
 	mimeType = "text/tmplx"
 
-	txComtPath   = "tx:path"
-	txComtMethod = "tx:method"
+	txCommentPath   = "tx:path"
+	txCommentMethod = "tx:method"
 
 	txIgnoreKey  = "tx-ignore"
 	txForKey     = "tx-for"
@@ -43,7 +42,7 @@ const (
 )
 
 var (
-	errModuleNotFound = errors.New("not a go project (or any of the parent directories): go.mod")
+	errModuleNotFound = errors.New("cannot find go.mod: not in a Go module (missing go.mod in current or parent directories)")
 
 	pagesDir          string
 	componentsDir     string
@@ -51,11 +50,6 @@ var (
 	outputPackageName string
 	handlerPrefix     string
 
-	componentNameCharSet = map[rune]struct{}{
-		'a': {}, 'b': {}, 'c': {}, 'd': {}, 'e': {}, 'f': {}, 'g': {}, 'h': {}, 'i': {}, 'j': {},
-		'k': {}, 'l': {}, 'm': {}, 'n': {}, 'o': {}, 'p': {}, 'q': {}, 'r': {}, 's': {}, 't': {},
-		'u': {}, 'v': {}, 'w': {}, 'x': {}, 'y': {}, 'z': {}, '0': {}, '1': {}, '2': {}, '3': {},
-		'4': {}, '5': {}, '6': {}, '7': {}, '8': {}, '9': {}, '-': {}, '_': {}}
 	componentNames = []string{}
 	components     = map[string]*Component{}
 )
@@ -70,28 +64,28 @@ func main() {
 		log.Fatalf("fatal: %v\n", err)
 	}
 
-	flag.StringVar(&componentsDir, "components-dir", filepath.Join(root, "./components"), "directory containing reusable components")
-	flag.StringVar(&pagesDir, "pages-dir", filepath.Join(root, "./pages"), "directory containing pages.")
-	flag.StringVar(&outputFilePath, "output-file", "./routes.go", "path to the generated Go file")
+	flag.StringVar(&componentsDir, "components-dir", filepath.Join(root, "components"), "directory containing reusable components")
+	flag.StringVar(&pagesDir, "pages-dir", filepath.Join(root, "pages"), "directory containing pages")
+	flag.StringVar(&outputFilePath, "output-file", filepath.Join(root, "routes.go"), "path to the generated Go file")
 	flag.StringVar(&outputPackageName, "package-name", "main", "package name for the generated Go code")
-	flag.StringVar(&handlerPrefix, "handler-prefix", "/tx", "path prefix for event handler URLs")
+	flag.StringVar(&handlerPrefix, "handler-prefix", "/tx/", "path prefix for event handler URLs")
 	flag.Parse()
 	componentsDir = filepath.Clean(componentsDir)
 	pagesDir = filepath.Clean(pagesDir)
 	outputFilePath = filepath.Clean(outputFilePath)
-	if outputPackageName == "" {
-		log.Fatal("error: --package-name is required and must be a non-empty string")
+	if !(token.IsIdentifier(outputPackageName) && !token.IsKeyword(outputPackageName)) {
+		log.Fatalf("error: %q is not a valid Go package name\n", outputPackageName)
 	}
 
 	merr := newMultiError()
 	if exist, err := dirExist(componentsDir); err != nil {
 		log.Fatalf("fatal: %v\n", err)
 	} else if !exist {
-		log.Printf("warning: components directory not found (%s) - skipping component loading\n", componentsDir)
+		log.Printf("warning: components directory not found (%s) — skipping component loading\n", componentsDir)
 	} else {
-		if err := filepath.WalkDir(componentsDir, func(path string, entry fs.DirEntry, err error) error {
+		if err := filepath.WalkDir(componentsDir, func(filePath string, entry fs.DirEntry, err error) error {
 			if err != nil {
-				merr.append(fmt.Errorf("%s: cannot access: %w", path, err))
+				merr.append(fmt.Errorf("%s: cannot access: %w", filePath, err))
 				return nil
 			}
 
@@ -99,38 +93,38 @@ func main() {
 				return nil
 			}
 
-			if ext := filepath.Ext(path); ext != ".html" {
+			if filepath.Ext(filePath) != ".html" {
 				return nil
 			}
 
-			relPath, _ := filepath.Rel(componentsDir, path)
+			relPath, _ := filepath.Rel(componentsDir, filePath)
 			relPath = filepath.ToSlash(relPath)
-			basePath, _ := strings.CutSuffix(relPath, ".html")
+			stemPath, _ := strings.CutSuffix(relPath, ".html")
 
-			surfix := strings.ToLower(strings.ReplaceAll(basePath, "/", "-"))
-			if surfix == "" {
-				merr.append(fmt.Errorf("%s: invalid component name — filename cannot be just .html", path))
+			if stemPath == "" {
+				merr.append(fmt.Errorf("%s: invalid component name — filename cannot be just .html", filePath))
 				return nil
 			}
 
-			name := "tx-" + surfix
-
-			for _, r := range name {
-				if _, found := componentNameCharSet[r]; !found {
-					merr.append(fmt.Errorf("%s: invalid character %q in component <%s> — allowed: a-z, 0-9, -, _ (rename file/dir to avoid uppercase/special chars)", path, r, name))
+			ident := strings.ReplaceAll(stemPath, "/", "-")
+			for _, r := range ident {
+				if !isValidComponentNameRune(r) {
+					merr.append(fmt.Errorf("%s: invalid character %q in component <tx-%s> — allowed: a-z, 0-9, -, _ (rename file/dir to avoid uppercase/special chars)", filePath, r, ident))
 					return nil
 				}
 			}
 
+			name := "tx-" + ident
+
 			if comp, ok := components[name]; ok {
-				merr.append(fmt.Errorf("%s: duplicate component <%s> — already defined in %s", path, name, comp.FilePath))
+				merr.append(fmt.Errorf("%s: duplicate component <%s> — already defined in %s", filePath, name, comp.FilePath))
 				return nil
 			}
 
 			componentNames = append(componentNames, name)
 			components[name] = &Component{
 				Type:     CompTypeComp,
-				FilePath: path,
+				FilePath: filePath,
 				RelPath:  relPath,
 				Name:     name,
 				GoIdent:  goIdent(name),
@@ -138,22 +132,23 @@ func main() {
 
 			return nil
 		}); err != nil {
-			log.Fatalf("%s: walk failed: %v\n", componentsDir, err)
+			log.Fatalf("fatal: %s: walk failed: %v\n", componentsDir, err)
 		}
 	}
 
 	pages := []*Component{}
+	pageNames := map[string]string{}
 	exist, err := dirExist(pagesDir)
 	if err != nil {
-		log.Fatalf("%s: cannot access pages directory: %v", pagesDir, err)
+		log.Fatalf("fatal: %s: cannot access pages directory: %v\n", pagesDir, err)
 	}
 	if !exist {
-		log.Fatalf("%s: pages directory not found", pagesDir)
+		log.Fatalf("error: %s: pages directory not found\n", pagesDir)
 	}
 
-	if err := filepath.WalkDir(pagesDir, func(p string, entry fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(pagesDir, func(filePath string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			merr.append(fmt.Errorf("%s: cannot access: %v", p, err))
+			merr.append(fmt.Errorf("%s: cannot access: %w", filePath, err))
 			return nil
 		}
 
@@ -161,42 +156,45 @@ func main() {
 			return nil
 		}
 
-		if ext := filepath.Ext(p); ext != ".html" {
+		if filepath.Ext(filePath) != ".html" {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(pagesDir, p)
+		relPath, _ := filepath.Rel(pagesDir, filePath)
 		relPath = filepath.ToSlash(relPath)
 
-		dir, _ := strings.CutSuffix(relPath, entry.Name())
+		urlDir, _ := strings.CutSuffix(relPath, entry.Name())
 		baseName, _ := strings.CutSuffix(entry.Name(), ".html")
-		switch baseName {
-		case "":
-			merr.append(fmt.Errorf("%s: invalid page name — filename cannot be just .html", p))
+		if baseName == "" {
+			merr.append(fmt.Errorf("%s: invalid page name — filename cannot be just .html", filePath))
 			return nil
-		case "index":
-			baseName = ""
 		}
 
-		pageName := path.Join(dir, baseName)
+		urlPath := "/" + urlDir
+		if baseName != "index" {
+			urlPath += baseName
+		}
 
-		urlPath := "/" + pageName
 		if strings.HasSuffix(urlPath, "/") {
 			urlPath += "{$}"
 		}
 
+		if existingFile, ok := pageNames[urlPath]; ok {
+			merr.append(fmt.Errorf("%s: duplicate page %s — already defined in %s", filePath, urlPath, existingFile))
+			return nil
+		}
+		pageNames[urlPath] = filePath
 		pages = append(pages, &Component{
 			Type:     CompTypePage,
-			FilePath: p,
+			FilePath: filePath,
 			RelPath:  relPath,
-			Name:     pageName,
-			GoIdent:  goIdent(pageName),
-			UrlPath:  urlPath,
+			Name:     urlPath,
+			GoIdent:  goIdent(urlPath),
 		})
 
 		return nil
 	}); err != nil {
-		log.Fatalf("%s: walk failed: %v\n", pagesDir, err)
+		log.Fatalf("fatal: %s: walk failed: %v\n", pagesDir, err)
 	}
 	merr.exitOnErrors()
 
@@ -443,7 +441,7 @@ type TxRoute struct {
 	out.WriteString("var txRoutes []TxRoute = []TxRoute{\n")
 	for _, page := range pages {
 		out.WriteString("{\n")
-		out.WriteString("Pattern: \"GET " + page.UrlPath + "\",\n")
+		out.WriteString("Pattern: \"GET " + page.Name + "\",\n")
 		out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
@@ -498,7 +496,7 @@ type TxRoute struct {
 
 			f := page.Funcs[funcName]
 			out.WriteString("{\n")
-			out.WriteString(fmt.Sprintf("Pattern: \"%s %s/%s\",\n", f.Method, handlerPrefix, page.funcId(funcName)))
+			out.WriteString(fmt.Sprintf("Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(funcName)))
 			out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("query := tx_r.URL.Query()\n")
 			out.WriteString("states := map[string]string{}\n")
@@ -569,7 +567,7 @@ type TxRoute struct {
 			}
 
 			out.WriteString("{\n")
-			out.WriteString(fmt.Sprintf("Pattern: \"%s %s/%s\",\n", f.Method, handlerPrefix, comp.funcId(funcName)))
+			out.WriteString(fmt.Sprintf("Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, comp.funcId(funcName)))
 			out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("w.Header().Set(\"Content-Type\", \"text/html\")\n")
 			out.WriteString("query := tx_r.URL.Query()\n")
@@ -686,7 +684,6 @@ type Component struct {
 	RelPath  string
 
 	Name    string
-	UrlPath string
 	GoIdent string
 
 	TmplxScriptNode  *html.Node
@@ -885,7 +882,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				for _, list := range d.Doc.List {
 					comments := parseComments(list.Text)
 					for _, comment := range comments {
-						if comment.Name == txComtMethod {
+						if comment.Name == txCommentMethod {
 							method = comment.Value
 						}
 					}
@@ -1708,22 +1705,13 @@ func condState(n *html.Node) (CondState, string) {
 
 func goIdent(s string) string {
 	var b strings.Builder
-	b.Grow(len(s) * 6)
+	b.Grow(len(s) * 4)
 	for i, r := range s {
-		if i == 0 {
-			if unicode.IsLetter(r) || r == '_' {
-				b.WriteRune(r)
-			} else {
-				fmt.Fprintf(&b, "_%X_", r)
-			}
+		if unicode.IsLetter(r) || r == '_' || (i > 0 && unicode.IsDigit(r)) {
+			b.WriteRune(r)
 		} else {
-			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
-				b.WriteRune(r)
-			} else {
-				fmt.Fprintf(&b, "_%X_", r)
-			}
+			fmt.Fprintf(&b, "_%X_", r)
 		}
-
 	}
 	return b.String()
 }
@@ -1920,22 +1908,26 @@ func parseComments(text string) []Comment {
 	lines := strings.SplitSeq(text, "\n")
 	for line := range lines {
 		str := strings.TrimSpace(line)
-		if strings.HasPrefix(str, txComtPath) {
-			val := strings.TrimSpace(str[len(txComtPath):])
+		if strings.HasPrefix(str, txCommentPath) {
+			val := strings.TrimSpace(str[len(txCommentPath):])
 			comments = append(comments, Comment{
 				Name:  CommentPath,
 				Value: val,
 			})
-		} else if strings.HasPrefix(str, txComtMethod) {
-			val := strings.TrimSpace(str[len(txComtMethod):])
+		} else if strings.HasPrefix(str, txCommentMethod) {
+			val := strings.TrimSpace(str[len(txCommentMethod):])
 			comments = append(comments, Comment{
-				Name:  txComtMethod,
+				Name:  txCommentMethod,
 				Value: val,
 			})
 		}
 	}
 
 	return comments
+}
+
+func isValidComponentNameRune(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_'
 }
 
 func findModuleRoot() (string, error) {
