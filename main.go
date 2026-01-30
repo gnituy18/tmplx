@@ -13,6 +13,7 @@ import (
 	"go/token"
 	"io/fs"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -50,8 +51,7 @@ var (
 	outputPackageName string
 	handlerPrefix     string
 
-	componentNames = []string{}
-	components     = map[string]*Component{}
+	components = map[string]*Component{}
 )
 
 func main() {
@@ -121,7 +121,6 @@ func main() {
 				return nil
 			}
 
-			componentNames = append(componentNames, name)
 			components[name] = &Component{
 				Type:     CompTypeComp,
 				FilePath: filePath,
@@ -183,6 +182,7 @@ func main() {
 			merr.append(fmt.Errorf("%s: duplicate page %s — already defined in %s", filePath, urlPath, existingFile))
 			return nil
 		}
+
 		pageNames[urlPath] = filePath
 		pages = append(pages, &Component{
 			Type:     CompTypePage,
@@ -199,9 +199,12 @@ func main() {
 	merr.exitOnErrors()
 
 	var wg sync.WaitGroup
-	for _, name := range componentNames {
+	componentNames := maps.Keys(components)
+	for name := range componentNames {
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
+
 			comp := components[name]
 			file, err := os.Open(comp.FilePath)
 			if err != nil {
@@ -230,13 +233,13 @@ func main() {
 				if node.DataAtom == atom.Script && found && val == mimeType {
 					if comp.TmplxScriptNode != nil {
 						merr.append(comp.errf("multiple <script type=\"%s\"> node found", mimeType))
-						continue
+						return
 					}
 					comp.TmplxScriptNode = node
 				} else if node.DataAtom == atom.Style {
 					if comp.StyleNode != nil {
 						merr.append(comp.errf("multiple <style> node found"))
-						continue
+						return
 					}
 					comp.StyleNode = node
 				} else {
@@ -250,32 +253,29 @@ func main() {
 			comp.Slots = map[string]struct{}{}
 
 			merr.concat(comp.parseSlots(comp.TemplateNode, false))
-
-			wg.Done()
 		}()
 	}
 	wg.Wait()
 	merr.exitOnErrors()
 
-	for _, name := range componentNames {
+	for name := range componentNames {
 		wg.Add(1)
 		comp := components[name]
 		go func() {
+			defer wg.Done()
 			comp.ChildCompsIdGen = map[string]*IdGen{}
-			for _, name = range componentNames {
-				comp.ChildCompsIdGen[name] = newIdGen(comp.Name + "_" + name)
+			for childName := range componentNames {
+				comp.ChildCompsIdGen[childName] = newIdGen(comp.Name + "_" + childName)
 			}
 
 			comp.AnonFuncNameGen = newIdGen("anon_func")
 			comp.writeStrLit("<template id=\"")
 			comp.writeExpr("key")
-			comp.writeStrLit("\">")
-			comp.writeStrLit("</template>")
+			comp.writeStrLit("\"></template>")
 			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
 			comp.writeStrLit("<template id=\"")
 			comp.writeExpr("key + \"_e\"")
-			comp.writeStrLit("\">")
-			comp.writeStrLit("</template>")
+			comp.writeStrLit("\"></template>")
 
 			if len(comp.CurrRenderFuncContent) > 0 {
 				comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
@@ -283,10 +283,9 @@ func main() {
 					Content: comp.CurrRenderFuncContent,
 				})
 			}
-
-			wg.Done()
 		}()
 	}
+
 	for _, page := range pages {
 		wg.Add(1)
 		go func() {
@@ -344,7 +343,7 @@ func main() {
 			merr.concat(page.parseTmplxScript())
 
 			page.ChildCompsIdGen = map[string]*IdGen{}
-			for _, name := range componentNames {
+			for name := range componentNames {
 				page.ChildCompsIdGen[name] = newIdGen(page.Name + "_" + name)
 			}
 
@@ -385,7 +384,7 @@ type TxRoute struct {
 	Handler	http.HandlerFunc
 }
 `)
-	for _, name := range componentNames {
+	for name := range componentNames {
 		comp := components[name]
 		out.WriteString(fmt.Sprintf("type state_%s struct {\n", comp.GoIdent))
 		for _, varName := range comp.VarNames {
@@ -554,7 +553,7 @@ type TxRoute struct {
 			out.WriteString("},\n")
 		}
 	}
-	for _, name := range componentNames {
+	for name := range componentNames {
 		comp := components[name]
 		for _, funcName := range comp.FuncNames {
 			if funcName == "init" {
@@ -666,7 +665,7 @@ type TxRoute struct {
 		if _, err := file.Write(formatted); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("%s generated successfully (%d pages, %d components)\n", outputFilePath, len(pages), len(componentNames))
+		log.Printf("%s generated successfully (%d pages, %d components)\n", outputFilePath, len(pages), len(components))
 	}
 
 }
@@ -1855,52 +1854,51 @@ func isChildNodeRawText(name string) bool {
 	return false
 }
 
+type MultiError struct {
+	errs []error
+	mux  sync.Mutex
+}
+
 func newMultiError(errs ...error) *MultiError {
-	me := &MultiError{
-		Errs: []error{},
-	}
+	me := &MultiError{}
 	for _, err := range errs {
 		if err != nil {
-			me.Errs = append(me.Errs, err)
+			me.errs = append(me.errs, err)
 		}
 	}
 	return me
 }
 
-type MultiError struct {
-	Errs []error
-	Mux  sync.Mutex
-}
-
 func (me *MultiError) append(errs ...error) {
-	me.Mux.Lock()
+	me.mux.Lock()
+	defer me.mux.Unlock()
 	for _, err := range errs {
 		if err != nil {
-			me.Errs = append(me.Errs, err)
+			me.errs = append(me.errs, err)
 		}
 	}
-	me.Mux.Unlock()
 }
 
 func (me *MultiError) concat(other *MultiError) {
 	if other == nil {
 		return
 	}
+	other.mux.Lock()
+	errs := make([]error, len(other.errs))
+	copy(errs, other.errs)
+	other.mux.Unlock()
 
-	if other.Errs == nil {
-		return
-	}
-
-	me.append(other.Errs...)
+	me.append(errs...)
 }
 
 func (me *MultiError) exitOnErrors() {
-	if len(me.Errs) == 0 {
+	me.mux.Lock()
+	defer me.mux.Unlock()
+	if len(me.errs) == 0 {
 		return
 	}
-
 	log.Println("error:")
-	for _, err := range me.Errs {
+	for _, err := range me.errs {
 		log.Println(err)
 	}
 	os.Exit(1)
