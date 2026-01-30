@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
               }
             }
 
-            const res = await fetch(handlerPrefix + "/" + fun + "?" + searchParams.toString())
+            const res = await fetch(handlerPrefix + fun + "?" + searchParams.toString())
             const html = await res.text()
 
             if (txSwap === 'tx_') {
