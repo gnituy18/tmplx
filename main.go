@@ -1366,12 +1366,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					}
 
 					comp.writeStrLit(comp.funcId(decl.Name.Name))
-					comp.writeStrLit(`"`)
+					comp.writeStrLit("\"")
 
-					comp.writeStrLit(`"`)
 					comp.writeStrLit(" tx-swap=\"")
 					comp.writeExpr(decl.Name.Name + "_swap")
-					comp.writeStrLit(`"`)
+					comp.writeStrLit("\"")
 
 				} else if attr.Key == "tx-value" {
 					if comp.Vars[attr.Val] == nil {
