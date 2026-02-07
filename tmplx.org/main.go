@@ -4,25 +4,26 @@ import (
 	"log"
 	"net/http"
 	"os"
-
-	"tmplx.org/tmplx"
 )
 
 func main() {
 	env := os.Getenv("ENV")
-	cert := os.Getenv("CERT")
-	pk := os.Getenv("PK")
 
-	for _, th := range tmplx.Routes() {
-		http.HandleFunc(th.Pattern, th.Handler)
+	for _, route := range Routes() {
+		http.HandleFunc(route.Pattern, route.Handler)
 	}
+	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./assets"))))
 
-	fs := http.FileServer(http.Dir("./assets"))
-	http.Handle("/", http.StripPrefix("/", fs))
 	if env == "prod" {
-		go http.ListenAndServe(":80", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http80 := http.NewServeMux()
+		http80.Handle("/.well-known/acme-challenge/", http.StripPrefix("/.well-known/acme-challenge/", http.FileServer(http.Dir("/var/www/letsencrypt"))))
+		http80.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://"+r.Host+r.URL.String(), http.StatusMovedPermanently)
-		}))
+		})
+		go http.ListenAndServe(":80", http80)
+
+		cert := os.Getenv("CERT")
+		pk := os.Getenv("PK")
 		log.Fatal(http.ListenAndServeTLS(":443", cert, pk, nil))
 	} else {
 		log.Fatal(http.ListenAndServe(":8080", nil))
