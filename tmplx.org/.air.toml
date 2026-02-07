@@ -5,10 +5,10 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/main"
-  cmd = "tmplx -out-file=./tmplx/routes.go && go build -o ./tmp/main ."
+  cmd = "tmplx && go build -o ./tmp/main ."
   delay = 1000
   exclude_dir = ["tmp", "tmplx"]
-  exclude_file = []
+  exclude_file = ["routes.go"]
   exclude_regex = []
   exclude_unchanged = false
   follow_symlink = false

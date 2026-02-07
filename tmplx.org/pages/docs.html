@@ -228,7 +228,12 @@ func main() {
         A <strong>page</strong> is a standalone HTML file that has its own URL
         in your web app.
       </p>
-      <p>All pages are placed in the <strong>pages</strong> directory.</p>
+      <p>
+        All pages are placed in the <strong>pages</strong> directory. Default
+        pages location is <code>./pages</code>. Change it with the
+        <code>-pages</code> flag:
+      </p>
+      <pre><code tx-ignore>$ tmplx -pages="/some/other/location"</code></pre>
       <p>
         tmplx uses <strong>filesystem-based routing</strong>. The route for a
         page is the relative path of the HTML file inside the
@@ -281,19 +286,14 @@ func main() {
       <p>
         These patterns are compatible with Go's
         <code tx-ignore>net/http.ServeMux</code> (Go 1.22+). The parameter
-        values are available in page initialisation through tmplx comments.
+        values are available in page initialisation through
+        <code><a href="#path-parameter">tx:path</a></code> comments.
       </p>
       <p>
         tmplx compiles all pages into a single Go file you can import into your
         Go project. The pages directory can be outside your project, but keeping
         it inside is recommended.
       </p>
-
-      <p>
-        Default pages location: <code>./pages</code>. Change it with the
-        <code>-pages</code> flag:
-      </p>
-      <pre><code tx-ignore>$ tmplx -pages="/some/other/location"</code></pre>
 
       <h2 id="tmplx-script">tmplx Script</h2>
       <p>
@@ -850,7 +850,127 @@ var m map[string]int = map[string]int{"key": 100}
       </p>
 
       <h2 id="component">Component</h2>
-      <p>docs in progress...</p>
+
+      <p>
+        Components are reusable UI building blocks that encapsulate HTML, state,
+        and behavior.
+      </p>
+
+      <p>
+        Create a component by placing an <code>.html</code> file in the
+        <code>components</code> directory (default: <code>./components</code>).
+        tmplx automatically registers it as a custom element with the tag name
+        <code>tx-</code> followed by the lowercase kebab-case version of the
+        relative path (without the <code>.html</code> extension).
+      </p>
+
+      <p>Examples:</p>
+
+      <ul>
+        <li>
+          <code>components/Button.html</code> → <code>&lt;tx-button&gt;</code>
+        </li>
+        <li>
+          <code>components/user/Card.html</code> →
+          <code>&lt;tx-user-card&gt;</code>
+        </li>
+        <li>
+          <code>components/todo/List.html</code> →
+          <code>&lt;tx-todo-list&gt;</code>
+        </li>
+      </ul>
+
+      <p>
+        Components can contain their own
+        <code>&lt;script type="text/tmplx"&gt;</code> for local state and logic,
+        and can be used in pages or nested inside other components.
+      </p>
+
+      <h3 id="props">Props</h3>
+
+      <p>
+        Pass data to a component via attributes. Inside the component, declare
+        matching state variables with <code>// tx:prop</code> comments to make
+        them reactive to prop changes.
+      </p>
+
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  // tx:prop
+  var title string
+
+  // tx:prop
+  var count int = 0
+&lt;/script&gt;
+
+&lt;h3&gt;{ title }&lt;/h3&gt;
+&lt;span&gt;{ count }&lt;/span&gt;
+&lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;</code></pre>
+
+      <p>Usage:</p>
+
+      <pre><code tx-ignore>&lt;tx-my-component title=&quot;Hello&quot; count=&quot;5&quot;&gt;&lt;/tx-my-component&gt;</code></pre>
+
+      <h3 id="slot">&lt;slot&gt;</h3>
+
+      <p>
+        Use <code>&lt;slot&gt;</code> to define insertion points for child
+        content. Name slots for multiple insertion points.
+      </p>
+
+      <pre><code tx-ignore>&lt;template&gt;
+  &lt;div class=&quot;card&quot;&gt;
+    &lt;slot name=&quot;header&quot;&gt;Default Header&lt;/slot&gt;
+    &lt;div class=&quot;body&quot;&gt;
+      &lt;slot&gt;Default Body&lt;/slot&gt;
+    &lt;/div&gt;
+    &lt;slot name=&quot;footer&quot;&gt;&lt;/slot&gt;
+  &lt;/div&gt;
+&lt;/template&gt;</code></pre>
+
+      <p>Usage:</p>
+
+      <pre><code tx-ignore>&lt;tx-card&gt;
+  &lt;h2 slot=&quot;header&quot;&gt;Custom Title&lt;/h2&gt;
+  &lt;p&gt;Custom content&lt;/p&gt;
+  &lt;div slot=&quot;footer&quot;&gt;Actions&lt;/div&gt;
+&lt;/tx-card&gt;</code></pre>
+
+      <p>
+        Unnamed slots receive content without a <code>slot</code> attribute.
+        Fallback content inside <code>&lt;slot&gt;</code> renders when no
+        matching content is provided.
+      </p>
+
+      <h3 id="props">Props</h3>
+
+<p>Pass data to components via attributes. These become initial values for matching state variables.</p>
+
+<p>tmplx matches attribute names (kebab-case) to state variable names (camelCase conversion). Only top-level <code>var</code> declarations without initializers can receive props.</p>
+
+<pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var title string     // receives "title" attribute
+  var count int        // receives "count" attribute, defaults to 0
+&lt;/script&gt;
+
+&lt;h3&gt;{ title }&lt;/h3&gt;
+&lt;span&gt;{ count }&lt;/span&gt;
+&lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;</code></pre>
+
+<p>Usage:</p>
+
+<pre><code tx-ignore>&lt;tx-counter title=&quot;Clicks&quot; count=&quot;5&quot;&gt;&lt;/tx-counter&gt;</code></pre>
+
+<p>Current best way (no special syntax): declare receivable vars without initializer. Local state gets default or explicit initializer. Props override only on initial render.</p>
+
+<p>Alternative ideas using pure Go:</p>
+
+<ul>
+  <li><code tx-ignore>var Props struct { Title string; Count int }</code> — compiler could auto-populate matching fields.</li>
+  <li>Reserve prefix like <code>var PropTitle string</code> — convention-based.</li>
+  <li>Comment marker <code>// tx:prop</code> — explicit, zero runtime cost (current draft approach).</li>
+</ul>
+
+<p>Comment marker is cleanest: distinguishes external props from internal state without name conflicts or conventions.</p>
 
       <h2 id="syntax-highlight">Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>
