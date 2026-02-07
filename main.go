@@ -31,6 +31,7 @@ const (
 	mimeType = "text/tmplx"
 
 	txCommentPath   = "tx:path"
+	txCommentProp   = "tx:prop"
 	txCommentMethod = "tx:method"
 
 	txIgnoreKey  = "tx-ignore"
@@ -43,7 +44,7 @@ const (
 )
 
 var (
-	errModuleNotFound = errors.New("cannot find go.mod: not in a Go module (missing go.mod in current or parent directories)")
+	errModuleNotFound = errors.New("no go.mod found in current or parent directories")
 
 	pagesDir          string
 	componentsDir     string
@@ -61,7 +62,7 @@ func main() {
 	if errors.Is(err, errModuleNotFound) {
 		log.Fatalf("error: %v\n", err)
 	} else if err != nil {
-		log.Fatalf("fatal: %v\n", err)
+		log.Fatalf("error: %v\n", err)
 	}
 
 	flag.StringVar(&componentsDir, "components-dir", filepath.Join(root, "components"), "directory containing reusable components")
@@ -74,14 +75,14 @@ func main() {
 	pagesDir = filepath.Clean(pagesDir)
 	outputFilePath = filepath.Clean(outputFilePath)
 	if !(token.IsIdentifier(outputPackageName) && !token.IsKeyword(outputPackageName)) {
-		log.Fatalf("error: %q is not a valid Go package name\n", outputPackageName)
+		log.Fatalf("%q is not a valid Go package name\n", outputPackageName)
 	}
 
 	merr := newMultiError()
 	if exist, err := dirExist(componentsDir); err != nil {
-		log.Fatalf("fatal: %v\n", err)
+		log.Fatalf("error: %v\n", err)
 	} else if !exist {
-		log.Printf("warning: components directory not found (%s) — skipping component loading\n", componentsDir)
+		log.Printf("no components directory at %s, skipping\n", componentsDir)
 	} else {
 		if err := filepath.WalkDir(componentsDir, func(filePath string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -102,14 +103,14 @@ func main() {
 			stemPath, _ := strings.CutSuffix(relPath, ".html")
 
 			if stemPath == "" {
-				merr.append(fmt.Errorf("%s: invalid component name — filename cannot be just .html", filePath))
+				merr.append(fmt.Errorf("%s: invalid filename: .html (missing name before extension)", filePath))
 				return nil
 			}
 
 			ident := strings.ReplaceAll(stemPath, "/", "-")
 			for _, r := range ident {
 				if !isValidComponentNameRune(r) {
-					merr.append(fmt.Errorf("%s: invalid character %q in component <tx-%s> — allowed: a-z, 0-9, -, _ (rename file/dir to avoid uppercase/special chars)", filePath, r, ident))
+					merr.append(fmt.Errorf("%s: invalid character %q in <tx-%s>: use only a-z, 0-9, -, _", filePath, r, ident))
 					return nil
 				}
 			}
@@ -117,7 +118,7 @@ func main() {
 			name := "tx-" + ident
 
 			if comp, ok := components[name]; ok {
-				merr.append(fmt.Errorf("%s: duplicate component <%s> — already defined in %s", filePath, name, comp.FilePath))
+				merr.append(fmt.Errorf("%s: duplicate component <%s>, first defined in %s", filePath, name, comp.FilePath))
 				return nil
 			}
 
@@ -131,7 +132,7 @@ func main() {
 
 			return nil
 		}); err != nil {
-			log.Fatalf("fatal: %s: walk failed: %v\n", componentsDir, err)
+			log.Fatalf("error: %s: walk failed: %v\n", componentsDir, err)
 		}
 	}
 
@@ -139,10 +140,10 @@ func main() {
 	pageNames := map[string]string{}
 	exist, err := dirExist(pagesDir)
 	if err != nil {
-		log.Fatalf("fatal: %s: cannot access pages directory: %v\n", pagesDir, err)
+		log.Fatalf("error: %s: cannot access pages directory: %v\n", pagesDir, err)
 	}
 	if !exist {
-		log.Fatalf("error: %s: pages directory not found\n", pagesDir)
+		log.Fatalf("pages directory not found: %s\n", pagesDir)
 	}
 
 	if err := filepath.WalkDir(pagesDir, func(filePath string, entry fs.DirEntry, err error) error {
@@ -165,7 +166,7 @@ func main() {
 		urlDir, _ := strings.CutSuffix(relPath, entry.Name())
 		baseName, _ := strings.CutSuffix(entry.Name(), ".html")
 		if baseName == "" {
-			merr.append(fmt.Errorf("%s: invalid page name — filename cannot be just .html", filePath))
+			merr.append(fmt.Errorf("%s: invalid filename: .html (missing name before extension)", filePath))
 			return nil
 		}
 
@@ -179,7 +180,7 @@ func main() {
 		}
 
 		if existingFile, ok := pageNames[urlPath]; ok {
-			merr.append(fmt.Errorf("%s: duplicate page %s — already defined in %s", filePath, urlPath, existingFile))
+			merr.append(fmt.Errorf("%s: duplicate page route %s, first defined in %s", filePath, urlPath, existingFile))
 			return nil
 		}
 
@@ -194,7 +195,7 @@ func main() {
 
 		return nil
 	}); err != nil {
-		log.Fatalf("fatal: %s: walk failed: %v\n", pagesDir, err)
+		log.Fatalf("error: %s: walk failed: %v\n", pagesDir, err)
 	}
 	merr.exitOnErrors()
 
@@ -208,7 +209,7 @@ func main() {
 			comp := components[name]
 			file, err := os.Open(comp.FilePath)
 			if err != nil {
-				merr.append(comp.errf("open file failed: %w", err))
+				merr.append(comp.errf("cannot open file: %w", err))
 				return
 			}
 			defer file.Close()
@@ -219,7 +220,7 @@ func main() {
 				Type:     html.ElementNode,
 			})
 			if err != nil {
-				merr.append(comp.errf("parse html failed: %w", err))
+				merr.append(comp.errf("invalid HTML: %w", err))
 				return
 			}
 
@@ -232,13 +233,13 @@ func main() {
 				val, found := hasAttr(node, "type")
 				if node.DataAtom == atom.Script && found && val == mimeType {
 					if comp.TmplxScriptNode != nil {
-						merr.append(comp.errf("multiple <script type=\"%s\"> node found", mimeType))
+						merr.append(comp.errf("multiple <script type=\"%s\"> elements (only one allowed)", mimeType))
 						return
 					}
 					comp.TmplxScriptNode = node
 				} else if node.DataAtom == atom.Style {
 					if comp.StyleNode != nil {
-						merr.append(comp.errf("multiple <style> node found"))
+						merr.append(comp.errf("multiple <style> elements (only one allowed)"))
 						return
 					}
 					comp.StyleNode = node
@@ -291,14 +292,14 @@ func main() {
 		go func() {
 			file, err := os.Open(page.FilePath)
 			if err != nil {
-				merr.append(page.errf("open page file failed: %w", err))
+				merr.append(page.errf("cannot open file: %w", err))
 				return
 			}
 			defer file.Close()
 
 			page.TemplateNode, err = html.Parse(file)
 			if err != nil {
-				merr.append(page.errf("parse html failed: %w", err))
+				merr.append(page.errf("invalid HTML: %w", err))
 				return
 			}
 
@@ -371,7 +372,7 @@ func main() {
 	for _, page := range pages {
 		for _, im := range page.Imports {
 			if _, err := out.WriteString(astToSource(im) + "\n"); err != nil {
-				log.Fatalln(fmt.Errorf("imports WriteString failed: %w", err))
+				log.Fatalln(fmt.Errorf("write imports: %w", err))
 			}
 		}
 	}
@@ -389,7 +390,9 @@ type TxRoute struct {
 		out.WriteString(fmt.Sprintf("type state_%s struct {\n", comp.GoIdent))
 		for _, varName := range comp.VarNames {
 			v := comp.Vars[varName]
-			out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
+			if v.Type == VarTypeState || v.Type == VarTypeProp {
+				out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
+			}
 		}
 		out.WriteString("}\n")
 
@@ -419,7 +422,9 @@ type TxRoute struct {
 		out.WriteString(fmt.Sprintf("type state_%s struct {\n", page.GoIdent))
 		for _, varName := range page.VarNames {
 			v := page.Vars[varName]
-			out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
+			if v.Type == VarTypeState {
+				out.WriteString(fmt.Sprintf("%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
+			}
 		}
 		out.WriteString("}\n")
 
@@ -457,20 +462,17 @@ type TxRoute struct {
 			}
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
-				if v.Type != VarTypeDerived {
-					continue
+				if v.Type == VarTypeDerived {
+					out.WriteString(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
 				}
-
-				out.WriteString(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
 			}
 		}
 		out.WriteString(fmt.Sprintf("state := &state_%s{\n", page.GoIdent))
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
-			if v.Type == VarTypeDerived {
-				continue
+			if v.Type == VarTypeState {
+				out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
 			}
-			out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
 		}
 		out.WriteString("}\n")
 		out.WriteString("newStates := map[string]any{}\n")
@@ -582,7 +584,7 @@ type TxRoute struct {
 			out.WriteString("json.Unmarshal([]byte(states[txSwap]), &state)\n")
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
-				if v.Type == VarTypeState {
+				if v.Type == VarTypeState || v.Type == VarTypeProp {
 					out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
 				} else if v.Type == VarTypeDerived {
 					out.WriteString(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
@@ -618,7 +620,7 @@ type TxRoute struct {
 			out.WriteString(fmt.Sprintf("newStates[txSwap] = &state_%s{\n", comp.GoIdent))
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
-				if v.Type == VarTypeState {
+				if v.Type == VarTypeState || v.Type == VarTypeProp {
 					out.WriteString(fmt.Sprintf("%s: %s,\n", v.StructField, v.Name))
 				}
 			}
@@ -643,7 +645,7 @@ type TxRoute struct {
 			log.Printf("%d: %s\n", lineNum, scanner.Text())
 			lineNum++
 		}
-		log.Fatalln(fmt.Errorf("format output file failed: %w", err))
+		log.Fatalln(fmt.Errorf("format generated code: %w", err))
 	}
 
 	if outputFilePath == "" {
@@ -689,6 +691,7 @@ type Component struct {
 	Imports          []*ast.ImportSpec
 	VarNames         []string
 	Vars             map[string]*Var
+	SavedVarsLen     int
 	FuncNames        []string
 	Funcs            map[string]*Func
 	AnonFuncNameGen  *IdGen
@@ -707,7 +710,7 @@ type Component struct {
 }
 
 func (comp *Component) errf(msg string, a ...any) error {
-	return fmt.Errorf("comp:"+comp.RelPath+": "+msg, a...)
+	return fmt.Errorf(comp.RelPath+": "+msg, a...)
 }
 
 func (comp *Component) parseTmplxScript() *MultiError {
@@ -723,21 +726,21 @@ func (comp *Component) parseTmplxScript() *MultiError {
 		// TODO: save position into errors
 		scriptAst, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+comp.TmplxScriptNode.FirstChild.Data, parser.ParseComments)
 		if err != nil {
-			merr.append(comp.errf("parse tmplx script failed: %w", err))
+			merr.append(comp.errf("syntax error in <script type=\"text/tmplx\">: %w", err))
 			return merr
 		}
 
 		for _, decl := range scriptAst.Decls {
 			switch d := decl.(type) {
 			case *ast.BadDecl:
-				merr.append(comp.errf("bad declaration: %s", astToSource(decl)))
+				merr.append(comp.errf("invalid declaration: %s", astToSource(decl)))
 			case *ast.GenDecl:
 				switch d.Tok {
 				case token.IMPORT:
 					for _, spec := range d.Specs {
 						s, ok := spec.(*ast.ImportSpec)
 						if !ok {
-							merr.append(comp.errf("not a import spec: %s", astToSource(spec)))
+							merr.append(comp.errf("invalid import: %s", astToSource(spec)))
 							continue
 						}
 
@@ -745,23 +748,23 @@ func (comp *Component) parseTmplxScript() *MultiError {
 					}
 				case token.VAR:
 					if len(d.Specs) > 1 {
-						merr.append(comp.errf("var declaration must be single-variable: %s", astToSource(d)))
+						merr.append(comp.errf("declare one variable per var statement: %s", astToSource(d)))
 						continue
 					}
 
 					spec := d.Specs[0]
 					s, ok := spec.(*ast.ValueSpec)
 					if !ok {
-						merr.append(comp.errf("not a value spec: %s", astToSource(spec)))
+						merr.append(comp.errf("invalid variable declaration: %s", astToSource(spec)))
 						continue
 					}
 
 					if s.Type == nil {
-						merr.append(comp.errf("must specify a type in declaration: %s", astToSource(spec)))
+						merr.append(comp.errf("missing type annotation: %s", astToSource(spec)))
 					}
 
 					if len(s.Names) > 1 {
-						merr.append(comp.errf("var declaration must be single-variable: %s", astToSource(spec)))
+						merr.append(comp.errf("declare one variable per var statement: %s", astToSource(spec)))
 						continue
 					}
 
@@ -773,6 +776,9 @@ func (comp *Component) parseTmplxScript() *MultiError {
 						TypeExpr:    s.Type,
 					}
 
+					isProp := false
+					isPath := false
+
 					if d.Doc != nil {
 						comments := []Comment{}
 						for _, comment := range d.Doc.List {
@@ -780,7 +786,10 @@ func (comp *Component) parseTmplxScript() *MultiError {
 						}
 
 						for _, comment := range comments {
-							if comment.Name == CommentPath {
+							if comment.Name == CommentProp {
+								isProp = true
+							} else if comment.Name == CommentPath {
+								isPath = true
 								comp.Vars[ident.Name].InitExpr = &ast.CallExpr{
 									Fun: &ast.SelectorExpr{
 										X:   &ast.Ident{Name: "tx_r"},
@@ -793,20 +802,30 @@ func (comp *Component) parseTmplxScript() *MultiError {
 										},
 									},
 								}
-								break
 							}
 						}
+					}
 
+					if isProp && isPath {
+						merr.append(comp.errf("cannot combine //tx:prop and //tx:path on %s", ident.Name))
+					} else if isProp {
+						if comp.Type == CompTypePage {
+							merr.append(comp.errf("//tx:prop on %s: pages cannot have props", ident.Name))
+						}
+						if len(s.Values) == 1 {
+							comp.Vars[ident.Name].InitExpr = s.Values[0]
+						}
+						comp.Vars[ident.Name].Type = VarTypeProp
+					} else if isPath {
 						if len(s.Values) > 0 {
-							merr.append(comp.errf("no init value if path value assigned: %s", astToSource(spec)))
+							merr.append(comp.errf("//tx:path variable cannot have an initial value: %s", astToSource(spec)))
 						}
 
 						if astToSource(s.Type) != "string" {
-							merr.append(comp.errf("binding path value need this var type to be 'string': %s", astToSource(spec)))
+							merr.append(comp.errf("//tx:path variable must be type string: %s", astToSource(spec)))
 						}
 
 						comp.Vars[ident.Name].Type = VarTypeState
-
 					} else if len(s.Values) == 1 || len(s.Values) == 0 {
 
 						found := false
@@ -839,7 +858,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 						}
 
 					} else if len(s.Values) > 1 {
-						merr.append(comp.errf("var declaration must be single-variable: %s", astToSource(spec)))
+						merr.append(comp.errf("declare one variable per var statement: %s", astToSource(spec)))
 					}
 
 				}
@@ -853,17 +872,17 @@ func (comp *Component) parseTmplxScript() *MultiError {
 			}
 
 			if d.Recv != nil {
-				merr.append(comp.errf("%s: no method declaration", d.Name))
+				merr.append(comp.errf("%s: methods (func with receiver) not allowed, use plain functions", d.Name))
 			}
 
 			if d.Type.Results != nil {
-				merr.append(comp.errf("%s: functions must not have return values", d.Name))
+				merr.append(comp.errf("%s: return values not allowed", d.Name))
 			}
 
 			for _, field := range d.Type.Params.List {
 				for _, name := range field.Names {
 					if comp.Vars[name.Name] != nil {
-						merr.append(comp.errf("%s: cannot use state names as handler parameter names: %s", d.Name, name.Name))
+						merr.append(comp.errf("%s: parameter %s shadows a state variable", d.Name, name.Name))
 					}
 				}
 			}
@@ -872,7 +891,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				deriveds := []string{}
 				comp.modifiedDerived(d.Body, &deriveds)
 				for _, derived := range deriveds {
-					merr.append(comp.errf("%s: derived state cannot be modified: %s", d.Name, derived))
+					merr.append(comp.errf("%s: cannot assign to %s (derived/prop is read-only)", d.Name, derived))
 				}
 			}
 
@@ -894,6 +913,12 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				Name:   d.Name.Name,
 				Decl:   d,
 			}
+		}
+	}
+
+	for _, v := range comp.Vars {
+		if v.Type == VarTypeState || v.Type == VarTypeProp {
+			comp.SavedVarsLen++
 		}
 	}
 
@@ -954,7 +979,7 @@ func (comp *Component) modifiedDerived(node ast.Node, md *[]string) {
 					return false
 				}
 
-				if v.Type != VarTypeDerived {
+				if v.Type != VarTypeDerived && v.Type != VarTypeProp {
 					return false
 				}
 
@@ -984,30 +1009,65 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		comp.writeStrLit(">")
 		return nil
 	case html.TextNode:
-		if isChildNodeRawText(node.Parent.Data) {
-			if _, found := hasAttr(node.Parent, txIgnoreKey); found || node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style {
+		_, hasTxIgnore := hasAttr(node.Parent, txIgnoreKey)
+		isScriptOrStyle := node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style
+		isRawText := isChildNodeRawText(node.Parent.Data)
+
+		// Skip interpolation for tx-ignore or script/style tags
+		if hasTxIgnore || isScriptOrStyle {
+			if isRawText {
 				comp.writeStrLit(node.Data)
-				return nil
 			} else {
-				return newMultiError(comp.parseTmplStr(node.Data, false))
-			}
-
-		} else {
-			if _, found := hasAttr(node.Parent, txIgnoreKey); found {
 				comp.writeStrLit(html.EscapeString(node.Data))
-				return nil
-			} else {
-
-				return newMultiError(comp.parseTmplStr(node.Data, true))
 			}
+			return nil
 		}
+
+		// Parse with escaping based on whether parent is raw text
+		return newMultiError(comp.parseTmplStr(node.Data, !isRawText))
 	case html.ElementNode:
+		// handle component
 		if components[node.Data] != nil {
 			childComp := components[node.Data]
+
+			// Validate that attributes on the component tag are actual props, not state variables
+			for _, attr := range node.Attr {
+				if attr.Key == txIfKey || attr.Key == txElseIfKey || attr.Key == txElseKey || attr.Key == txForKey || attr.Key == txKeyKey || attr.Key == "slot" {
+					continue
+				}
+				if _, ok := childComp.Funcs[attr.Key]; ok {
+					continue
+				}
+
+				v, ok := childComp.Vars[attr.Key]
+				if !ok {
+					merr.append(comp.errf("<%s %s=\"...\">: %s is not a prop or function in component %s", node.Data, attr.Key, attr.Key, childComp.Name))
+					continue
+				}
+
+				if v.Type != VarTypeProp {
+					merr.append(comp.errf("<%s %s=\"...\">: %s is a state variable, not a prop; use //tx:prop to declare it as a prop", node.Data, attr.Key, attr.Key))
+					continue
+				}
+
+				parentVar, ok := comp.Vars[attr.Val]
+				if !ok {
+					continue
+				}
+
+				// Type check: if attr.Val is a variable in parent, compare types
+				propType := astToSource(v.TypeExpr)
+				parentType := astToSource(parentVar.TypeExpr)
+				if propType != parentType {
+					merr.append(comp.errf("<%s %s=\"%s\">: type mismatch; prop %s expects %s but got %s", node.Data, attr.Key, attr.Val, attr.Key, propType, parentType))
+					continue
+				}
+			}
 
 			id := comp.ChildCompsIdGen[childComp.Name].next()
 
 			comp.writeGo("{\n")
+			// create key for component
 			if len(forKeys) > 0 {
 				comp.writeGo("key := key")
 				for _, key := range forKeys {
@@ -1016,46 +1076,77 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				comp.writeGo("\n")
 			}
 			comp.writeGo(fmt.Sprintf("ckey := key + \"_%s\"\n", id))
-			comp.writeGo(fmt.Sprintf("state := &state_%s{}\n", childComp.GoIdent))
-			comp.writeGo("if _, ok := states[ckey]; ok {\n")
-			comp.writeGo("json.Unmarshal([]byte(states[ckey]), state)\n")
-			comp.writeGo("newStates[ckey] = state")
-			comp.writeGo("} else {\n")
+			comp.writeGo(fmt.Sprintf("tx_state := &state_%s{}\n", childComp.GoIdent))
+			comp.writeGo("tx_old_state, tx_old_state_exist := states[ckey]\n")
+			comp.writeGo("if tx_old_state_exist {\n")
+			comp.writeGo("json.Unmarshal([]byte(tx_old_state), tx_state)\n")
+			comp.writeGo("}\n")
 			for _, varName := range childComp.VarNames {
 				v := childComp.Vars[varName]
-				if v.Type == VarTypeState {
+				if v.Type == VarTypeProp {
 					if val, found := hasAttr(node, varName); found {
-						comp.writeGo(fmt.Sprintf("state.%s = %s\n", v.StructField, val))
+						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, val))
 					} else if v.InitExpr != nil {
-						comp.writeGo(fmt.Sprintf("state.%s = %s\n", v.StructField, astToSource(v.InitExpr)))
+						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
 					} else {
-						comp.writeGo("\n")
+						comp.writeGo(fmt.Sprintf("var %s %s\n", v.Name, astToSource(v.TypeExpr)))
+					}
+					comp.writeGo(fmt.Sprintf("tx_state.%s = %s\n", v.StructField, v.Name))
+				}
+			}
+
+			if childComp.SavedVarsLen > 0 {
+				initStrs := ""
+				for _, varName := range childComp.VarNames {
+					v := childComp.Vars[varName]
+					if v.Type == VarTypeState {
+						if v.InitExpr != nil {
+							initStrs += fmt.Sprintf("tx_state.%s = %s\n", v.StructField, astToSource(v.InitExpr))
+						}
+					}
+				}
+
+				if initStrs != "" {
+					comp.writeGo("if !tx_old_state_exist {\n")
+					comp.writeGo(initStrs)
+					comp.writeGo("}\n")
+				}
+
+				for _, varName := range childComp.VarNames {
+					v := childComp.Vars[varName]
+					if v.Type == VarTypeState {
+						comp.writeGo(fmt.Sprintf("%s := tx_state.%s\n", v.Name, v.StructField))
 					}
 				}
 			}
-			comp.writeGo("newStates[ckey] = state\n")
-			comp.writeGo("}\n")
-			for _, name := range childComp.VarNames {
-				v := childComp.Vars[name]
-				if v.Type == VarTypeState {
-					comp.writeGo(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
-				} else if v.Type == VarTypeDerived {
+
+			for _, varName := range childComp.VarNames {
+				v := childComp.Vars[varName]
+				if v.Type == VarTypeDerived {
 					comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
 				}
 			}
+
 			if f, ok := childComp.Funcs["init"]; ok {
+				comp.writeGo("if !tx_old_state_exist {\n")
 				for _, stmt := range f.Decl.Body.List {
 					comp.writeGo(astToSource(stmt) + "\n")
 				}
 				for _, name := range childComp.VarNames {
 					v := childComp.Vars[name]
-					if v.Type != VarTypeDerived {
-						continue
+					if v.Type == VarTypeDerived {
+						comp.writeGo(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
 					}
-
-					comp.writeGo(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
 				}
+				for _, name := range childComp.VarNames {
+					v := childComp.Vars[name]
+					if v.Type == VarTypeState {
+						comp.writeGo(fmt.Sprintf("tx_state.%s = %s\n", v.StructField, v.Name))
+					}
+				}
+				comp.writeGo("}\n")
 			}
+			comp.writeGo("newStates[ckey] = tx_state\n")
 			params := []string{}
 			for _, varName := range childComp.VarNames {
 				params = append(params, varName)
@@ -1066,12 +1157,12 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					if f, ok := comp.Funcs[val]; ok {
 						params = append(params, f.Name, f.Name+"_swap")
 					} else {
-						merr.append(comp.errf("func not declared: %s", val))
+						merr.append(comp.errf("undefined function: %s", val))
 					}
 				} else {
 					f := childComp.Funcs[funcName]
 					if f.Decl.Body == nil {
-						merr.append(comp.errf("prop func: %s must be assigned in comp: %s", funcName, childComp.Name))
+						merr.append(comp.errf("function %s has no body in %s and must be passed as a prop", funcName, childComp.Name))
 					} else {
 						params = append(params, fmt.Sprintf("\"%s\"", childComp.funcId(f.Name)), "ckey")
 					}
@@ -1130,6 +1221,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			return merr
 		}
 
+		// handle slot
 		if node.DataAtom == atom.Slot {
 			renderSlotFuncName := "render_default_slot"
 			if name, found := hasAttr(node, "name"); found {
@@ -1167,6 +1259,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			return merr
 		}
 
+		// handle non-template tags
 		if node.DataAtom != atom.Template {
 			comp.writeStrLit("<")
 			comp.writeStrLit(node.Data)
@@ -1195,7 +1288,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 									}
 
 									if len(params) != len(callExpr.Args) {
-										merr.append(comp.errf("params length not match: %s", astToSource(callExpr)))
+										merr.append(comp.errf("wrong number of arguments: %s", astToSource(callExpr)))
 										continue
 									}
 
@@ -1221,7 +1314,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 										})
 
 										if foundVar {
-											merr.append(comp.errf("state and derived variables cannot be used as function parameters: %s", callExpr.Args[i]))
+											merr.append(comp.errf("cannot pass state/derived variable as event handler argument: %s", callExpr.Args[i]))
 											continue
 										}
 
@@ -1249,20 +1342,20 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					funcName := comp.AnonFuncNameGen.next()
 					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
 					if err != nil {
-						merr.append(comp.errf("parse inline statement failed: %s", attr.Val))
+						merr.append(comp.errf("invalid inline handler: %s", attr.Val))
 						continue
 					}
 
 					decl, ok := fileAst.Decls[0].(*ast.FuncDecl)
 					if !ok {
-						merr.append(comp.errf("parse inline statement failed: %s", attr.Val))
+						merr.append(comp.errf("invalid inline handler: %s", attr.Val))
 						continue
 					}
 
 					modifiedDerived := []string{}
 					comp.modifiedDerived(decl, &modifiedDerived)
 					if len(modifiedDerived) > 0 {
-						merr.append(comp.errf("derived cannot be modified: %v", modifiedDerived))
+						merr.append(comp.errf("cannot assign to derived/prop variable in handler: %v", modifiedDerived))
 						continue
 					}
 
@@ -1282,7 +1375,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 				} else if attr.Key == "tx-value" {
 					if comp.Vars[attr.Val] == nil {
-						merr.append(comp.errf("cannot find var %s", attr.Val))
+						merr.append(comp.errf("undefined variable: %s", attr.Val))
 						continue
 					}
 
@@ -1305,7 +1398,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					if isIgnore {
 						comp.writeStrLit(attr.Val)
 					} else if err := comp.parseTmplStr(attr.Val, false); err != nil {
-						merr.append(comp.errf("parse attr value failed: %s", attr.Val))
+						merr.append(comp.errf("invalid expression in attribute: %s", attr.Val))
 					}
 					comp.writeStrLit(`"`)
 				}
@@ -1314,7 +1407,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			// https://html.spec.whatwg.org/#void-elements
 			if isVoidElement(node.Data) {
 				if node.FirstChild != nil {
-					merr.append(comp.errf("invalid void elements: %s" + node.Data))
+					merr.append(comp.errf("void element <%s> cannot have children", node.Data))
 				}
 
 				comp.writeStrLit("/>")
@@ -1331,7 +1424,6 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		if val, found := hasAttr(node, "id"); node.DataAtom == atom.Script && found && val == txRuntimeVal {
 			comp.writeGo("w.Write([]byte(runtimeScript))\n")
 		} else {
-
 			var prevCondState CondState
 			for c := node.FirstChild; c != nil; c = c.NextSibling {
 				hasFor := false
@@ -1342,7 +1434,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					switch prevCondState {
 					case CondStateDefault:
 						if currCondState == CondStateElseIf || currCondState == CondStateElse {
-							merr.append(comp.errf("detect tx-else-if or tx-else right after non-cond node: %s", c.Data))
+							merr.append(comp.errf("tx-else-if/tx-else on <%s> without preceding tx-if", c.Data))
 						}
 					case CondStateIf:
 						if currCondState <= prevCondState {
@@ -1354,7 +1446,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 						}
 					case CondStateElse:
 						if currCondState == CondStateElseIf || currCondState == CondStateElse {
-							merr.append(comp.errf("detect tx-else-if or tx-else right after tx-else: %s", c.Data))
+							merr.append(comp.errf("tx-else-if/tx-else on <%s> after tx-else (nothing can follow tx-else)", c.Data))
 						}
 						comp.writeGo("\n}\n")
 					}
@@ -1374,7 +1466,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					if stmt, ok := hasAttr(c, txForKey); ok {
 						val, found := hasAttr(c, txKeyKey)
 						if !found {
-							merr.append(comp.errf("tx-for loop must have tx-key attr"))
+							merr.append(comp.errf("tx-for requires a tx-key attribute"))
 						} else {
 							hasFor = true
 							forKey = val
@@ -1464,7 +1556,7 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 
 				_, err := parser.ParseExpr(string(trimmedCurrExpr))
 				if err != nil {
-					return comp.errf("parse expression error: %s: %w", string(trimmedCurrExpr), err)
+					return comp.errf("invalid expression {%s}: %w", string(trimmedCurrExpr), err)
 				}
 
 				if escape {
@@ -1524,10 +1616,10 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 	}
 
 	if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-		return comp.errf("unclosed quote in expression: %s", str)
+		return comp.errf("unclosed quote in: %s", str)
 	}
 	if braceStack != 0 {
-		return comp.errf("unclosed brace in expression: %s", str)
+		return comp.errf("unclosed { in: %s", str)
 	}
 
 	return nil
@@ -1542,7 +1634,7 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
 	isSlot := node.DataAtom == atom.Slot
 	if isSlot {
 		if inSlot {
-			merr.append(comp.errf("no nested slots"))
+			merr.append(comp.errf("<slot> cannot be nested inside another <slot>"))
 		}
 
 		slotName := ""
@@ -1555,9 +1647,9 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
 			comp.Slots[slotName] = struct{}{}
 		} else {
 			if slotName == "" {
-				merr.append(comp.errf("multiple <slot>"))
+				merr.append(comp.errf("duplicate default <slot> (only one allowed)"))
 			} else {
-				merr.append(comp.errf("multiple <slot name=\"%s\" >", slotName))
+				merr.append(comp.errf("duplicate <slot name=\"%s\"> (only one allowed)", slotName))
 			}
 		}
 	}
@@ -1601,6 +1693,7 @@ type VarType int
 const (
 	VarTypeState = iota + 1
 	VarTypeDerived
+	VarTypeProp
 )
 
 type Var struct {
@@ -1897,7 +1990,7 @@ func (me *MultiError) exitOnErrors() {
 	if len(me.errs) == 0 {
 		return
 	}
-	log.Println("error:")
+	log.Printf("%d error(s):\n", len(me.errs))
 	for _, err := range me.errs {
 		log.Println(err)
 	}
@@ -1925,6 +2018,7 @@ type CommentName string
 const (
 	CommentMethod CommentName = "method"
 	CommentPath   CommentName = "path"
+	CommentProp   CommentName = "prop"
 )
 
 type Comment struct {
@@ -1944,7 +2038,11 @@ func parseComments(text string) []Comment {
 	lines := strings.SplitSeq(text, "\n")
 	for line := range lines {
 		str := strings.TrimSpace(line)
-		if strings.HasPrefix(str, txCommentPath) {
+		if str == txCommentProp {
+			comments = append(comments, Comment{
+				Name: CommentProp,
+			})
+		} else if strings.HasPrefix(str, txCommentPath) {
 			val := strings.TrimSpace(str[len(txCommentPath):])
 			comments = append(comments, Comment{
 				Name:  CommentPath,
