@@ -16,7 +16,7 @@ func main() {
 
 	if env == "prod" {
 		http80 := http.NewServeMux()
-		http80.Handle("/.well-known/acme-challenge/", http.StripPrefix("/.well-known/acme-challenge/", http.FileServer(http.Dir("/var/www/letsencrypt"))))
+		http80.Handle("/.well-known/", http.FileServer(http.Dir("/var/www/letsencrypt")))
 		http80.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://"+r.Host+r.URL.String(), http.StatusMovedPermanently)
 		})
