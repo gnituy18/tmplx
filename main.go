@@ -271,11 +271,11 @@ func main() {
 
 			comp.AnonFuncNameGen = newIdGen("anon_func")
 			comp.writeStrLit("<template id=\"")
-			comp.writeExpr("key")
+			comp.writeExpr("tx_key")
 			comp.writeStrLit("\"></template>")
 			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
 			comp.writeStrLit("<template id=\"")
-			comp.writeExpr("key + \"_e\"")
+			comp.writeExpr("tx_key + \"_e\"")
 			comp.writeStrLit("\"></template>")
 
 			if len(comp.CurrRenderFuncContent) > 0 {
@@ -407,13 +407,13 @@ type TxRoute struct {
 		}
 		for _, slotName := range comp.SlotNames {
 			if slotName != "" {
-				paramsStr += fmt.Sprintf(",render_slot_%s func()", slotName)
+				paramsStr += fmt.Sprintf(",tx_render_slot_%s func()", slotName)
 			} else {
-				paramsStr += ",render_default_slot func()"
+				paramsStr += ",tx_render_default_slot func()"
 			}
 		}
 
-		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr))
+		out.WriteString(fmt.Sprintf("func render_%s(tx_w io.Writer, tx_key string, tx_states map[string]string, tx_newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr))
 		comp.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -437,7 +437,7 @@ type TxRoute struct {
 			f := page.Funcs[funcName]
 			params = append(params, fmt.Sprintf("%s, %s string", f.Name, f.Name+"_swap"))
 		}
-		out.WriteString(fmt.Sprintf("func render_%s(w io.Writer, key string, states map[string]string, newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", ")))
+		out.WriteString(fmt.Sprintf("func render_%s(tx_w io.Writer, tx_key string, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", ")))
 		page.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -446,7 +446,7 @@ type TxRoute struct {
 	for _, page := range pages {
 		out.WriteString("{\n")
 		out.WriteString("Pattern: \"GET " + page.Name + "\",\n")
-		out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
+		out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
 			out.WriteString(fmt.Sprintf("var %s %s", v.Name, astToSource(v.TypeExpr)))
@@ -467,7 +467,7 @@ type TxRoute struct {
 				}
 			}
 		}
-		out.WriteString(fmt.Sprintf("state := &state_%s{\n", page.GoIdent))
+		out.WriteString(fmt.Sprintf("tx_state := &state_%s{\n", page.GoIdent))
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
 			if v.Type == VarTypeState {
@@ -475,10 +475,10 @@ type TxRoute struct {
 			}
 		}
 		out.WriteString("}\n")
-		out.WriteString("newStates := map[string]any{}\n")
-		out.WriteString("newStates[\"tx_\"] = state\n")
-		out.WriteString("var buf bytes.Buffer\n")
-		out.WriteString(fmt.Sprintf("render_%s(&buf, \"tx_\", map[string]string{}, newStates", page.GoIdent))
+		out.WriteString("tx_newStates := map[string]any{}\n")
+		out.WriteString("tx_newStates[\"tx_\"] = tx_state\n")
+		out.WriteString("var tx_buf bytes.Buffer\n")
+		out.WriteString(fmt.Sprintf("render_%s(&tx_buf, \"tx_\", map[string]string{}, tx_newStates", page.GoIdent))
 		for _, name := range page.VarNames {
 			out.WriteString(fmt.Sprintf(", %s", name))
 		}
@@ -486,8 +486,8 @@ type TxRoute struct {
 			out.WriteString(fmt.Sprintf(", \"%s\", \"tx_\"", page.funcId(name)))
 		}
 		out.WriteString(")\n")
-		out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
-		out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateBytes, 1))\n")
+		out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+		out.WriteString("tx_w.Write(bytes.Replace(tx_buf.Bytes(), []byte(\"TX_STATE_JSON\"), tx_stateBytes, 1))\n")
 		out.WriteString("},\n")
 		out.WriteString("},\n")
 		for _, funcName := range page.FuncNames {
@@ -498,21 +498,21 @@ type TxRoute struct {
 			f := page.Funcs[funcName]
 			out.WriteString("{\n")
 			out.WriteString(fmt.Sprintf("Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(funcName)))
-			out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
-			out.WriteString("query := tx_r.URL.Query()\n")
-			out.WriteString("states := map[string]string{}\n")
-			out.WriteString("for k, v := range query {\n")
+			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
+			out.WriteString("tx_query := tx_r.URL.Query()\n")
+			out.WriteString("tx_states := map[string]string{}\n")
+			out.WriteString("for k, v := range tx_query {\n")
 			out.WriteString("if strings.HasPrefix(k, \"tx_\") {\n")
-			out.WriteString("states[k] = v[0]\n")
+			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
-			out.WriteString("newStates := map[string]any{}\n")
-			out.WriteString(fmt.Sprintf("state := &state_%s{}\n", page.GoIdent))
-			out.WriteString("json.Unmarshal([]byte(states[\"tx_\"]), &state)\n")
+			out.WriteString("tx_newStates := map[string]any{}\n")
+			out.WriteString(fmt.Sprintf("tx_state := &state_%s{}\n", page.GoIdent))
+			out.WriteString("json.Unmarshal([]byte(tx_states[\"tx_\"]), &tx_state)\n")
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				if v.Type == VarTypeState {
-					out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+					out.WriteString(fmt.Sprintf("%s := tx_state.%s\n", v.Name, v.StructField))
 				} else if v.Type == VarTypeDerived {
 					out.WriteString(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
 				}
@@ -520,7 +520,7 @@ type TxRoute struct {
 			for _, list := range f.Decl.Type.Params.List {
 				for _, ident := range list.Names {
 					out.WriteString(fmt.Sprintf("var %s %s\n", ident.Name, astToSource(list.Type)))
-					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
+					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(tx_query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
 				}
 			}
 			for _, stmt := range f.Decl.Body.List {
@@ -532,8 +532,8 @@ type TxRoute struct {
 					out.WriteString(fmt.Sprintf("%s = %s\n", v.Name, astToSource(v.InitExpr)))
 				}
 			}
-			out.WriteString("var buf bytes.Buffer\n")
-			out.WriteString(fmt.Sprintf("render_%s(&buf, \"tx_\", states, newStates", page.GoIdent))
+			out.WriteString("var tx_buf bytes.Buffer\n")
+			out.WriteString(fmt.Sprintf("render_%s(&tx_buf, \"tx_\", tx_states, tx_newStates", page.GoIdent))
 			for _, name := range page.VarNames {
 				out.WriteString(fmt.Sprintf(", %s", name))
 			}
@@ -541,7 +541,7 @@ type TxRoute struct {
 				out.WriteString(fmt.Sprintf(", \"%s\", \"tx_\"", page.funcId(name)))
 			}
 			out.WriteString(")\n")
-			out.WriteString(fmt.Sprintf("newStates[\"tx_\"] = &state_%s{\n", page.GoIdent))
+			out.WriteString(fmt.Sprintf("tx_newStates[\"tx_\"] = &state_%s{\n", page.GoIdent))
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				if v.Type == VarTypeState {
@@ -549,8 +549,8 @@ type TxRoute struct {
 				}
 			}
 			out.WriteString("}\n")
-			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
-			out.WriteString("w.Write(bytes.Replace(buf.Bytes(), []byte(\"TX_STATE_JSON\"), stateBytes, 1))\n")
+			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+			out.WriteString("tx_w.Write(bytes.Replace(tx_buf.Bytes(), []byte(\"TX_STATE_JSON\"), tx_stateBytes, 1))\n")
 			out.WriteString("},\n")
 			out.WriteString("},\n")
 		}
@@ -569,23 +569,23 @@ type TxRoute struct {
 
 			out.WriteString("{\n")
 			out.WriteString(fmt.Sprintf("Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, comp.funcId(funcName)))
-			out.WriteString("Handler: func(w http.ResponseWriter, tx_r *http.Request) {\n")
-			out.WriteString("w.Header().Set(\"Content-Type\", \"text/html\")\n")
-			out.WriteString("query := tx_r.URL.Query()\n")
-			out.WriteString("txSwap := query.Get(\"tx-swap\")\n")
-			out.WriteString("states := map[string]string{}\n")
-			out.WriteString("for k, v := range query {\n")
-			out.WriteString("if strings.HasPrefix(k, txSwap) {\n")
-			out.WriteString("states[k] = v[0]\n")
+			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
+			out.WriteString("tx_w.Header().Set(\"Content-Type\", \"text/html\")\n")
+			out.WriteString("tx_query := tx_r.URL.Query()\n")
+			out.WriteString("tx_swap := tx_query.Get(\"tx-swap\")\n")
+			out.WriteString("tx_states := map[string]string{}\n")
+			out.WriteString("for k, v := range tx_query {\n")
+			out.WriteString("if strings.HasPrefix(k, tx_swap) {\n")
+			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
-			out.WriteString("newStates := map[string]any{}\n")
-			out.WriteString(fmt.Sprintf("state := &state_%s{}\n", comp.GoIdent))
-			out.WriteString("json.Unmarshal([]byte(states[txSwap]), &state)\n")
+			out.WriteString("tx_newStates := map[string]any{}\n")
+			out.WriteString(fmt.Sprintf("tx_state := &state_%s{}\n", comp.GoIdent))
+			out.WriteString("json.Unmarshal([]byte(tx_states[tx_swap]), &tx_state)\n")
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
 				if v.Type == VarTypeState || v.Type == VarTypeProp {
-					out.WriteString(fmt.Sprintf("%s := state.%s\n", v.Name, v.StructField))
+					out.WriteString(fmt.Sprintf("%s := tx_state.%s\n", v.Name, v.StructField))
 				} else if v.Type == VarTypeDerived {
 					out.WriteString(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
 				}
@@ -593,7 +593,7 @@ type TxRoute struct {
 			for _, list := range f.Decl.Type.Params.List {
 				for _, ident := range list.Names {
 					out.WriteString(fmt.Sprintf("var %s %s\n", ident.Name, astToSource(list.Type)))
-					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
+					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(tx_query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
 				}
 			}
 
@@ -608,16 +608,16 @@ type TxRoute struct {
 				}
 			}
 
-			out.WriteString(fmt.Sprintf("render_%s(w, txSwap, states, newStates", comp.GoIdent))
+			out.WriteString(fmt.Sprintf("render_%s(tx_w, tx_swap, tx_states, tx_newStates", comp.GoIdent))
 			for _, name := range comp.VarNames {
 				out.WriteString(fmt.Sprintf(", %s", name))
 			}
 			for _, name := range comp.FuncNames {
-				out.WriteString(fmt.Sprintf(", \"%s\", txSwap", comp.funcId(name)))
+				out.WriteString(fmt.Sprintf(", \"%s\", tx_swap", comp.funcId(name)))
 			}
 			out.WriteString(")\n")
-			out.WriteString("w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
-			out.WriteString(fmt.Sprintf("newStates[txSwap] = &state_%s{\n", comp.GoIdent))
+			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
+			out.WriteString(fmt.Sprintf("tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent))
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
 				if v.Type == VarTypeState || v.Type == VarTypeProp {
@@ -625,9 +625,9 @@ type TxRoute struct {
 				}
 			}
 			out.WriteString("}\n")
-			out.WriteString("stateBytes, _ := json.Marshal(newStates)\n")
-			out.WriteString("w.Write(stateBytes)\n")
-			out.WriteString("w.Write([]byte(\"</script>\"))\n")
+			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+			out.WriteString("tx_w.Write(tx_stateBytes)\n")
+			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
 			out.WriteString("},\n")
 			out.WriteString("},\n")
 		}
@@ -1069,15 +1069,15 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			comp.writeGo("{\n")
 			// create key for component
 			if len(forKeys) > 0 {
-				comp.writeGo("key := key")
+				comp.writeGo("tx_key := tx_key")
 				for _, key := range forKeys {
 					comp.writeGo(` + "-" + fmt.Sprint(` + key + ")")
 				}
 				comp.writeGo("\n")
 			}
-			comp.writeGo(fmt.Sprintf("ckey := key + \"_%s\"\n", id))
+			comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
 			comp.writeGo(fmt.Sprintf("tx_state := &state_%s{}\n", childComp.GoIdent))
-			comp.writeGo("tx_old_state, tx_old_state_exist := states[ckey]\n")
+			comp.writeGo("tx_old_state, tx_old_state_exist := tx_states[tx_ckey]\n")
 			comp.writeGo("if tx_old_state_exist {\n")
 			comp.writeGo("json.Unmarshal([]byte(tx_old_state), tx_state)\n")
 			comp.writeGo("}\n")
@@ -1146,7 +1146,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 				comp.writeGo("}\n")
 			}
-			comp.writeGo("newStates[ckey] = tx_state\n")
+			comp.writeGo("tx_newStates[tx_ckey] = tx_state\n")
 			params := []string{}
 			for _, varName := range childComp.VarNames {
 				params = append(params, varName)
@@ -1164,12 +1164,12 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					if f.Decl.Body == nil {
 						merr.append(comp.errf("function %s has no body in %s and must be passed as a prop", funcName, childComp.Name))
 					} else {
-						params = append(params, fmt.Sprintf("\"%s\"", childComp.funcId(f.Name)), "ckey")
+						params = append(params, fmt.Sprintf("\"%s\"", childComp.funcId(f.Name)), "tx_ckey")
 					}
 				}
 			}
 
-			comp.writeGo(fmt.Sprintf("render_%s(w, ckey, states, newStates", childComp.GoIdent))
+			comp.writeGo(fmt.Sprintf("render_%s(tx_w, tx_ckey, tx_states, tx_newStates", childComp.GoIdent))
 			for _, param := range params {
 				comp.writeGo(", " + param)
 			}
@@ -1223,9 +1223,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 		// handle slot
 		if node.DataAtom == atom.Slot {
-			renderSlotFuncName := "render_default_slot"
+			renderSlotFuncName := "tx_render_default_slot"
 			if name, found := hasAttr(node, "name"); found {
-				renderSlotFuncName = "render_slot_" + name
+				renderSlotFuncName = "tx_render_slot_" + name
 			}
 
 			comp.writeGo(fmt.Sprintf("if %s != nil {\n", renderSlotFuncName))
@@ -1381,7 +1381,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					comp.writeStrLit(fmt.Sprintf("tx-value=\"%s\"", attr.Val))
 
 					comp.writeStrLit(" tx-swap=\"")
-					comp.writeExpr("key")
+					comp.writeExpr("tx_key")
 					comp.writeStrLit(`"`)
 
 					comp.writeStrLit("value=\"")
@@ -1421,7 +1421,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		// 2: else-if
 		// 3: else
 		if val, found := hasAttr(node, "id"); node.DataAtom == atom.Script && found && val == txRuntimeVal {
-			comp.writeGo("w.Write([]byte(runtimeScript))\n")
+			comp.writeGo("tx_w.Write([]byte(runtimeScript))\n")
 		} else {
 			var prevCondState CondState
 			for c := node.FirstChild; c != nil; c = c.NextSibling {
@@ -1668,19 +1668,19 @@ func (comp *Component) implRenderFunc(out *strings.Builder) {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeStrLit:
-			if _, err := fmt.Fprintf(out, "w.Write([]byte(%s))\n", strconv.Quote(string(tmpl.Content))); err != nil {
+			if _, err := fmt.Fprintf(out, "tx_w.Write([]byte(%s))\n", strconv.Quote(string(tmpl.Content))); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeExpr:
-			if _, err := fmt.Fprintf(out, "fmt.Fprint(w, %s)\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "fmt.Fprint(tx_w, %s)\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeHtmlEscapeExpr:
-			if _, err := fmt.Fprintf(out, "w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "tx_w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeUrlEscapeExpr:
-			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\nw.Write([]byte(url.QueryEscape(string(param))))}\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\ntx_w.Write([]byte(url.QueryEscape(string(param))))}\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		}
