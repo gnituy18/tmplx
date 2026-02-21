@@ -413,7 +413,7 @@ type TxRoute struct {
 			}
 		}
 
-		out.WriteString(fmt.Sprintf("func render_%s(tx_w io.Writer, tx_key string, tx_states map[string]string, tx_newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr))
+		out.WriteString(fmt.Sprintf("func render_%s(tx_w *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr))
 		comp.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -437,7 +437,7 @@ type TxRoute struct {
 			f := page.Funcs[funcName]
 			params = append(params, fmt.Sprintf("%s, %s string", f.Name, f.Name+"_swap"))
 		}
-		out.WriteString(fmt.Sprintf("func render_%s(tx_w io.Writer, tx_key string, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", ")))
+		out.WriteString(fmt.Sprintf("func render_%s(tx_w *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", ")))
 		page.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -608,7 +608,8 @@ type TxRoute struct {
 				}
 			}
 
-			out.WriteString(fmt.Sprintf("render_%s(tx_w, tx_swap, tx_states, tx_newStates", comp.GoIdent))
+			out.WriteString("var tx_buf bytes.Buffer\n")
+			out.WriteString(fmt.Sprintf("render_%s(&tx_buf, tx_swap, tx_states, tx_newStates", comp.GoIdent))
 			for _, name := range comp.VarNames {
 				out.WriteString(fmt.Sprintf(", %s", name))
 			}
@@ -616,6 +617,7 @@ type TxRoute struct {
 				out.WriteString(fmt.Sprintf(", \"%s\", tx_swap", comp.funcId(name)))
 			}
 			out.WriteString(")\n")
+			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
 			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
 			out.WriteString(fmt.Sprintf("tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent))
 			for _, name := range comp.VarNames {
@@ -1361,8 +1363,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 					comp.FuncNames = append(comp.FuncNames, decl.Name.Name)
 					comp.Funcs[decl.Name.Name] = &Func{
-						Name: decl.Name.Name,
-						Decl: decl,
+						Method: http.MethodGet,
+						Name:   decl.Name.Name,
+						Decl:   decl,
 					}
 
 					comp.writeStrLit(comp.funcId(decl.Name.Name))
@@ -1421,7 +1424,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		// 2: else-if
 		// 3: else
 		if val, found := hasAttr(node, "id"); node.DataAtom == atom.Script && found && val == txRuntimeVal {
-			comp.writeGo("tx_w.Write([]byte(runtimeScript))\n")
+			comp.writeGo("tx_w.WriteString(runtimeScript)\n")
 		} else {
 			var prevCondState CondState
 			for c := node.FirstChild; c != nil; c = c.NextSibling {
@@ -1661,14 +1664,21 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
 }
 
 func (comp *Component) implRenderFunc(out *strings.Builder) {
-	for _, tmpl := range comp.RenderFuncCodes {
+	codes := comp.RenderFuncCodes
+	for i := 0; i < len(codes); i++ {
+		tmpl := codes[i]
 		switch tmpl.Type {
 		case RenderFuncTypeGo:
 			if _, err := out.WriteString(string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeStrLit:
-			if _, err := fmt.Fprintf(out, "tx_w.Write([]byte(%s))\n", strconv.Quote(string(tmpl.Content))); err != nil {
+			combined := string(tmpl.Content)
+			for i+1 < len(codes) && codes[i+1].Type == RenderFuncTypeStrLit {
+				i++
+				combined += string(codes[i].Content)
+			}
+			if _, err := fmt.Fprintf(out, "tx_w.WriteString(%s)\n", strconv.Quote(combined)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeExpr:
@@ -1676,11 +1686,11 @@ func (comp *Component) implRenderFunc(out *strings.Builder) {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeHtmlEscapeExpr:
-			if _, err := fmt.Fprintf(out, "tx_w.Write([]byte(html.EscapeString(fmt.Sprint(%s))))\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "tx_w.WriteString(html.EscapeString(fmt.Sprint(%s)))\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeUrlEscapeExpr:
-			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\ntx_w.Write([]byte(url.QueryEscape(string(param))))}\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\ntx_w.WriteString(url.QueryEscape(string(param)))}\n", string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		}
