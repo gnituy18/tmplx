@@ -499,9 +499,9 @@ type TxRoute struct {
 			out.WriteString("{\n")
 			out.WriteString(fmt.Sprintf("Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(funcName)))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
-			out.WriteString("tx_query := tx_r.URL.Query()\n")
+			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_states := map[string]string{}\n")
-			out.WriteString("for k, v := range tx_query {\n")
+			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if strings.HasPrefix(k, \"tx_\") {\n")
 			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
@@ -520,7 +520,7 @@ type TxRoute struct {
 			for _, list := range f.Decl.Type.Params.List {
 				for _, ident := range list.Names {
 					out.WriteString(fmt.Sprintf("var %s %s\n", ident.Name, astToSource(list.Type)))
-					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(tx_query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
+					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(tx_r.PostFormValue(\"%s\")), &%s)\n", ident.Name, ident.Name))
 				}
 			}
 			for _, stmt := range f.Decl.Body.List {
@@ -571,10 +571,10 @@ type TxRoute struct {
 			out.WriteString(fmt.Sprintf("Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, comp.funcId(funcName)))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_w.Header().Set(\"Content-Type\", \"text/html\")\n")
-			out.WriteString("tx_query := tx_r.URL.Query()\n")
-			out.WriteString("tx_swap := tx_query.Get(\"tx-swap\")\n")
+			out.WriteString("tx_r.ParseForm()\n")
+			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
 			out.WriteString("tx_states := map[string]string{}\n")
-			out.WriteString("for k, v := range tx_query {\n")
+			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if strings.HasPrefix(k, tx_swap) {\n")
 			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
@@ -593,7 +593,7 @@ type TxRoute struct {
 			for _, list := range f.Decl.Type.Params.List {
 				for _, ident := range list.Names {
 					out.WriteString(fmt.Sprintf("var %s %s\n", ident.Name, astToSource(list.Type)))
-					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(tx_query.Get(\"%s\")), &%s)\n", ident.Name, ident.Name))
+					out.WriteString(fmt.Sprintf("json.Unmarshal([]byte(tx_r.PostFormValue(\"%s\")), &%s)\n", ident.Name, ident.Name))
 				}
 			}
 
@@ -897,7 +897,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				}
 			}
 
-			method := http.MethodGet
+			method := http.MethodPost
 			if d.Doc != nil {
 				for _, list := range d.Doc.List {
 					comments := parseComments(list.Text)
@@ -1363,7 +1363,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 					comp.FuncNames = append(comp.FuncNames, decl.Name.Name)
 					comp.Funcs[decl.Name.Name] = &Func{
-						Method: http.MethodGet,
+						Method: http.MethodPost,
 						Name:   decl.Name.Name,
 						Decl:   decl,
 					}
