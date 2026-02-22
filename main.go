@@ -269,13 +269,13 @@ func main() {
 			}
 
 			comp.AnonFuncNameGen = newIdGen("anon_func")
-			comp.writeStrLit("<template id=\"")
+			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key")
-			comp.writeStrLit("\"></template>")
+			comp.writeStrLit("-->")
 			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
-			comp.writeStrLit("<template id=\"")
+			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key + \"_e\"")
-			comp.writeStrLit("\"></template>")
+			comp.writeStrLit("-->")
 
 			if len(comp.CurrRenderFuncContent) > 0 {
 				comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
