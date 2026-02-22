@@ -30,9 +30,8 @@ import (
 const (
 	mimeType = "text/tmplx"
 
-	txCommentPath   = "tx:path"
-	txCommentProp   = "tx:prop"
-	txCommentMethod = "tx:method"
+	txCommentPath = "tx:path"
+	txCommentProp = "tx:prop"
 
 	txIgnoreKey  = "tx-ignore"
 	txForKey     = "tx-for"
@@ -897,21 +896,9 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				}
 			}
 
-			method := http.MethodPost
-			if d.Doc != nil {
-				for _, list := range d.Doc.List {
-					comments := parseComments(list.Text)
-					for _, comment := range comments {
-						if comment.Name == txCommentMethod {
-							method = comment.Value
-						}
-					}
-				}
-			}
-
 			comp.FuncNames = append(comp.FuncNames, d.Name.Name)
 			comp.Funcs[d.Name.Name] = &Func{
-				Method: method,
+				Method: http.MethodPost,
 				Name:   d.Name.Name,
 				Decl:   d,
 			}
@@ -1507,9 +1494,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 }
 
 func (comp *Component) parseTmplStr(str string, escape bool) error {
-	str = "'" + str + "'"
-	str = strings.Join(strings.Fields(str), " ")
-	str = str[1 : len(str)-1]
+	str = strings.TrimSpace(str)
+	if str == "" {
+		return nil
+	}
 
 	braceStack := 0
 	isInDoubleQuote := false
@@ -1518,7 +1506,6 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 	skipNext := false
 
 	expr := []byte{}
-	res := []byte{}
 	for _, r := range str {
 		if skipNext {
 			expr = append(expr, []byte(string(r))...)
@@ -1532,6 +1519,7 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 			} else {
 				comp.writeStrLit(string(r))
 			}
+			continue
 		}
 
 		switch r {
@@ -1545,9 +1533,7 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 				expr = append(expr, byte(r))
 			}
 		case '}':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInSingleQuote || isInBackQuote {
+			if isInDoubleQuote || isInSingleQuote || isInBackQuote {
 				expr = append(expr, byte(r))
 			} else if braceStack == 1 {
 				braceStack--
@@ -1572,47 +1558,35 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 				expr = append(expr, byte(r))
 			}
 		case '"':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInSingleQuote || isInBackQuote {
+			if isInSingleQuote || isInBackQuote {
 				expr = append(expr, byte(r))
 			} else {
 				isInDoubleQuote = !isInDoubleQuote
 				expr = append(expr, byte(r))
 			}
 		case '\'':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInBackQuote {
+			if isInDoubleQuote || isInBackQuote {
 				expr = append(expr, byte(r))
 			} else {
 				isInSingleQuote = !isInSingleQuote
 				expr = append(expr, byte(r))
 			}
 		case '`':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInSingleQuote {
+			if isInDoubleQuote || isInSingleQuote {
 				expr = append(expr, byte(r))
 			} else {
 				isInBackQuote = !isInBackQuote
 				expr = append(expr, byte(r))
 			}
 		case '\\':
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else if isInDoubleQuote || isInSingleQuote {
+			if isInDoubleQuote || isInSingleQuote {
 				skipNext = true
 				expr = append(expr, byte(r))
 			} else {
 				expr = append(expr, byte(r))
 			}
 		default:
-			if braceStack == 0 {
-				res = append(res, byte(r))
-			} else {
-				expr = append(expr, byte(r))
-			}
+			expr = append(expr, byte(r))
 		}
 
 	}
@@ -2025,9 +1999,8 @@ func (id *IdGen) next() string {
 type CommentName string
 
 const (
-	CommentMethod CommentName = "method"
-	CommentPath   CommentName = "path"
-	CommentProp   CommentName = "prop"
+	CommentPath CommentName = "path"
+	CommentProp CommentName = "prop"
 )
 
 type Comment struct {
@@ -2055,12 +2028,6 @@ func parseComments(text string) []Comment {
 			val := strings.TrimSpace(str[len(txCommentPath):])
 			comments = append(comments, Comment{
 				Name:  CommentPath,
-				Value: val,
-			})
-		} else if strings.HasPrefix(str, txCommentMethod) {
-			val := strings.TrimSpace(str[len(txCommentMethod):])
-			comments = append(comments, Comment{
-				Name:  txCommentMethod,
 				Value: val,
 			})
 		}
