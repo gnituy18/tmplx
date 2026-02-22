@@ -4,6 +4,13 @@ document.addEventListener('DOMContentLoaded', function() {
   let tasks = [];
   let isProcessing = false;
 
+  const findComment = (text) => {
+    const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_COMMENT)
+    while (walker.nextNode()) {
+      if (walker.currentNode.nodeValue === text) return walker.currentNode
+    }
+  }
+
   const init = (cn) => {
     for (let attr of cn.attributes) {
       if (attr.name === 'tx-value' && cn.tagName === 'INPUT') {
@@ -49,8 +56,8 @@ document.addEventListener('DOMContentLoaded', function() {
             state = { ...state, ...newStates }
             comp.removeChild(txState)
             const range = document.createRange()
-            const start = document.getElementById(txSwap)
-            const end = document.getElementById(txSwap + '_e')
+            const start = findComment('tx:' + txSwap)
+            const end = findComment('tx:' + txSwap + '_e')
             range.setStartBefore(start);
             range.setEndAfter(end);
             range.deleteContents();
@@ -76,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const addHandler = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType !== Node.ELEMENT_NODE) {
       return
     }
 
