@@ -13,16 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const init = (cn) => {
     for (let attr of cn.attributes) {
-      if (attr.name === 'tx-value' && cn.tagName === 'INPUT') {
-        cn.addEventListener('input', (e) => {
-          const txSwap = cn.getAttribute("tx-swap")
-          const txValue = cn.getAttribute("tx-value")
-          if (txValue) {
-            state[txSwap][txValue] = e.target.value
-            return
-          }
-        })
-      } else if (attr.name.startsWith('tx-on')) {
+      if (attr.name.startsWith('tx-on')) {
         const [fun, params] = attr.value.split("?")
         const searchParams = new URLSearchParams(params)
         let eventName = attr.name.slice(5)
@@ -92,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
       NodeFilter.SHOW_ELEMENT,
       (n) => {
         for (let attr of n.attributes) {
-          if (attr.name.startsWith('tx-on') || attr.name === 'tx-value') {
+          if (attr.name.startsWith('tx-on')) {
             return NodeFilter.FILTER_ACCEPT;
           }
         }
