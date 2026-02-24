@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,9 +59,7 @@ func main() {
 	log.SetFlags(0)
 
 	root, err := findModuleRoot()
-	if errors.Is(err, errModuleNotFound) {
-		log.Fatalf("error: %v\n", err)
-	} else if err != nil {
+	if err != nil {
 		log.Fatalf("error: %v\n", err)
 	}
 
@@ -199,8 +198,8 @@ func main() {
 	merr.exitOnErrors()
 
 	var wg sync.WaitGroup
-	componentNames := maps.Keys(components)
-	for name := range componentNames {
+	componentNames := slices.Sorted(maps.Keys(components))
+	for _, name := range componentNames {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -247,7 +246,11 @@ func main() {
 				}
 			}
 
-			merr.concat(comp.parseTmplxScript())
+			scriptErrs := comp.parseTmplxScript()
+			merr.concat(scriptErrs)
+			if len(scriptErrs.errs) > 0 {
+				return
+			}
 
 			comp.SlotNames = []string{}
 			comp.Slots = map[string]struct{}{}
@@ -258,13 +261,13 @@ func main() {
 	wg.Wait()
 	merr.exitOnErrors()
 
-	for name := range componentNames {
+	for _, name := range componentNames {
 		wg.Add(1)
 		comp := components[name]
 		go func() {
 			defer wg.Done()
 			comp.ChildCompsIdGen = map[string]*IdGen{}
-			for childName := range componentNames {
+			for _, childName := range componentNames {
 				comp.ChildCompsIdGen[childName] = newIdGen(comp.Name + "_" + childName)
 			}
 
@@ -277,12 +280,7 @@ func main() {
 			comp.writeExpr("tx_key + \"_e\"")
 			comp.writeStrLit("-->")
 
-			if len(comp.CurrRenderFuncContent) > 0 {
-				comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
-					Type:    comp.CurrRenderFuncType,
-					Content: comp.CurrRenderFuncContent,
-				})
-			}
+			comp.flushRenderFunc()
 		}()
 	}
 
@@ -304,14 +302,6 @@ func main() {
 				return
 			}
 
-			for node := range page.TemplateNode.Descendants() {
-				if isTmplxScriptNode(node) {
-					page.TmplxScriptNode = node
-					break
-				}
-			}
-			cleanUpTmplxScript(page.TemplateNode)
-
 			txStateNode := &html.Node{
 				Type:     html.ElementNode,
 				DataAtom: atom.Script,
@@ -327,8 +317,13 @@ func main() {
 				Data: "TX_STATE_JSON",
 			})
 
+			var foundScript, foundHead bool
 			for node := range page.TemplateNode.Descendants() {
-				if node.DataAtom == atom.Head {
+				if !foundScript && isTmplxScriptNode(node) {
+					page.TmplxScriptNode = node
+					foundScript = true
+				}
+				if !foundHead && node.DataAtom == atom.Head {
 					node.AppendChild(txStateNode)
 					node.AppendChild(&html.Node{
 						Type:     html.ElementNode,
@@ -338,9 +333,13 @@ func main() {
 							{Key: "id", Val: txRuntimeVal},
 						},
 					})
+					foundHead = true
+				}
+				if foundScript && foundHead {
 					break
 				}
 			}
+			cleanUpTmplxScript(page.TemplateNode)
 
 			scriptErrs := page.parseTmplxScript()
 			merr.concat(scriptErrs)
@@ -349,19 +348,14 @@ func main() {
 			}
 
 			page.ChildCompsIdGen = map[string]*IdGen{}
-			for name := range componentNames {
+			for _, name := range componentNames {
 				page.ChildCompsIdGen[name] = newIdGen(page.Name + "_" + name)
 			}
 
 			page.AnonFuncNameGen = newIdGen(page.GoIdent)
 			merr.concat(page.parseTmpl(page.TemplateNode, []string{}))
 
-			if len(page.CurrRenderFuncContent) > 0 {
-				page.RenderFuncCodes = append(page.RenderFuncCodes, RenderFunc{
-					Type:    page.CurrRenderFuncType,
-					Content: page.CurrRenderFuncContent,
-				})
-			}
+			page.flushRenderFunc()
 
 		}()
 	}
@@ -380,6 +374,13 @@ func main() {
 			}
 		}
 	}
+	for _, name := range componentNames {
+		for _, im := range components[name].Imports {
+			if _, err := out.WriteString(astToSource(im) + "\n"); err != nil {
+				log.Fatalln(fmt.Errorf("write imports: %w", err))
+			}
+		}
+	}
 
 	out.WriteString(")\n")
 	out.WriteString("var runtimeScript = `" + strings.Replace(runtimeScript, "TX_HANDLER_PREFIX", handlerPrefix, 1) + "`\n")
@@ -389,13 +390,13 @@ type TxRoute struct {
 	Handler	http.HandlerFunc
 }
 `)
-	for name := range componentNames {
+	for _, name := range componentNames {
 		comp := components[name]
 		fmt.Fprintf(&out, "type state_%s struct {\n", comp.GoIdent)
 		for _, varName := range comp.VarNames {
 			v := comp.Vars[varName]
 			if v.Type == VarTypeState || v.Type == VarTypeProp {
-				(fmt.Fprintf(&out, "%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name))
+				fmt.Fprintf(&out, "%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name)
 			}
 		}
 		out.WriteString("}\n")
@@ -560,7 +561,7 @@ type TxRoute struct {
 			out.WriteString("},\n")
 		}
 	}
-	for name := range componentNames {
+	for _, name := range componentNames {
 		comp := components[name]
 		for _, funcName := range comp.FuncNames {
 			if funcName == "init" {
@@ -656,27 +657,20 @@ type TxRoute struct {
 		log.Fatalln(fmt.Errorf("format generated code: %w", err))
 	}
 
-	if outputFilePath == "" {
-		if _, err := os.Stdout.Write(formatted); err != nil {
-			log.Fatalln(err)
-		}
-	} else {
-		outputFilePath = filepath.Clean(outputFilePath)
-		dir := filepath.Dir(outputFilePath)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			log.Fatalln(err)
-		}
-		file, err := os.OpenFile(outputFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		defer file.Close()
-
-		if _, err := file.Write(formatted); err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("%s generated successfully (%d pages, %d components)\n", outputFilePath, len(pages), len(components))
+	dir := filepath.Dir(outputFilePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Fatalln(err)
 	}
+	file, err := os.OpenFile(outputFilePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer file.Close()
+
+	if _, err := file.Write(formatted); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%s generated successfully (%d pages, %d components)\n", outputFilePath, len(pages), len(components))
 
 }
 
@@ -719,6 +713,15 @@ type Component struct {
 
 func (comp *Component) errf(msg string, a ...any) error {
 	return fmt.Errorf(comp.RelPath+": "+msg, a...)
+}
+
+func (comp *Component) flushRenderFunc() {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			Content: comp.CurrRenderFuncContent,
+		})
+	}
 }
 
 func (comp *Component) parseTmplxScript() *MultiError {
