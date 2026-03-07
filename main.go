@@ -339,6 +339,10 @@ func main() {
 					break
 				}
 			}
+			if !foundHead {
+				merr.append(page.errf("page must have a <head> element (required for state and runtime script injection)"))
+				return
+			}
 			cleanUpTmplxScript(page.TemplateNode)
 
 			scriptErrs := page.parseTmplxScript()
@@ -538,6 +542,14 @@ type TxRoute struct {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
+			fmt.Fprintf(&out, "tx_newStates[\"tx_\"] = &state_%s{\n", page.GoIdent)
+			for _, name := range page.VarNames {
+				v := page.Vars[name]
+				if v.Type == VarTypeState {
+					fmt.Fprintf(&out, "%s: %s,\n", v.StructField, v.Name)
+				}
+			}
+			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 			fmt.Fprintf(&out, "render_%s(&tx_buf, \"tx_\", tx_states, tx_newStates", page.GoIdent)
 			for _, name := range page.VarNames {
@@ -547,14 +559,6 @@ type TxRoute struct {
 				fmt.Fprintf(&out, ", \"%s\", \"tx_\"", page.funcId(name))
 			}
 			out.WriteString(")\n")
-			fmt.Fprintf(&out, "tx_newStates[\"tx_\"] = &state_%s{\n", page.GoIdent)
-			for _, name := range page.VarNames {
-				v := page.Vars[name]
-				if v.Type == VarTypeState {
-					fmt.Fprintf(&out, "%s: %s,\n", v.StructField, v.Name)
-				}
-			}
-			out.WriteString("}\n")
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
 			out.WriteString("tx_w.Write(bytes.Replace(tx_buf.Bytes(), []byte(\"TX_STATE_JSON\"), tx_stateBytes, 1))\n")
 			out.WriteString("},\n")
@@ -576,7 +580,6 @@ type TxRoute struct {
 			out.WriteString("{\n")
 			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, comp.funcId(funcName))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
-			out.WriteString("tx_w.Header().Set(\"Content-Type\", \"text/html\")\n")
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
 			out.WriteString("tx_states := map[string]string{}\n")
