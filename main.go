@@ -272,6 +272,8 @@ func main() {
 			}
 
 			comp.AnonFuncNameGen = newIdGen("anon_func")
+			comp.currBuf = "tx_w"
+			comp.CurrBufName = "tx_w"
 			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key")
 			comp.writeStrLit("-->")
@@ -312,11 +314,7 @@ func main() {
 				},
 			}
 
-			txStateNode.AppendChild(&html.Node{
-				Type: html.TextNode,
-				Data: "TX_STATE_JSON",
-			})
-
+	
 			var foundScript, foundHead bool
 			for node := range page.TemplateNode.Descendants() {
 				if !foundScript && isTmplxScriptNode(node) {
@@ -357,6 +355,8 @@ func main() {
 			}
 
 			page.AnonFuncNameGen = newIdGen(page.GoIdent)
+			page.currBuf = "tx_w1"
+			page.CurrBufName = "tx_w1"
 			merr.concat(page.parseTmpl(page.TemplateNode, []string{}))
 
 			page.flushRenderFunc()
@@ -446,7 +446,7 @@ type TxRoute struct {
 			f := page.Funcs[funcName]
 			params = append(params, fmt.Sprintf("%s, %s string", f.Name, f.Name+"_swap"))
 		}
-		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
+		fmt.Fprintf(&out, "func render_%s(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
 		page.implRenderFunc(&out)
 		out.WriteString("}\n")
 	}
@@ -486,8 +486,8 @@ type TxRoute struct {
 		out.WriteString("}\n")
 		out.WriteString("tx_newStates := map[string]any{}\n")
 		out.WriteString("tx_newStates[\"tx_\"] = tx_state\n")
-		out.WriteString("var tx_buf bytes.Buffer\n")
-		fmt.Fprintf(&out, "render_%s(&tx_buf, \"tx_\", map[string]string{}, tx_newStates", page.GoIdent)
+		out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
+		fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, \"tx_\", map[string]string{}, tx_newStates", page.GoIdent)
 		for _, name := range page.VarNames {
 			fmt.Fprintf(&out, ", %s", name)
 		}
@@ -496,7 +496,9 @@ type TxRoute struct {
 		}
 		out.WriteString(")\n")
 		out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
-		out.WriteString("tx_w.Write(bytes.Replace(tx_buf.Bytes(), []byte(\"TX_STATE_JSON\"), tx_stateBytes, 1))\n")
+		out.WriteString("tx_w.Write(tx_buf1.Bytes())\n")
+		out.WriteString("tx_w.Write(tx_stateBytes)\n")
+		out.WriteString("tx_w.Write(tx_buf2.Bytes())\n")
 		out.WriteString("},\n")
 		out.WriteString("},\n")
 		for _, funcName := range page.FuncNames {
@@ -550,8 +552,8 @@ type TxRoute struct {
 				}
 			}
 			out.WriteString("}\n")
-			out.WriteString("var tx_buf bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf, \"tx_\", tx_states, tx_newStates", page.GoIdent)
+			out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
+			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, \"tx_\", tx_states, tx_newStates", page.GoIdent)
 			for _, name := range page.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
@@ -560,7 +562,9 @@ type TxRoute struct {
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
-			out.WriteString("tx_w.Write(bytes.Replace(tx_buf.Bytes(), []byte(\"TX_STATE_JSON\"), tx_stateBytes, 1))\n")
+			out.WriteString("tx_w.Write(tx_buf1.Bytes())\n")
+			out.WriteString("tx_w.Write(tx_stateBytes)\n")
+			out.WriteString("tx_w.Write(tx_buf2.Bytes())\n")
 			out.WriteString("},\n")
 			out.WriteString("},\n")
 		}
@@ -707,6 +711,8 @@ type Component struct {
 	Slots           map[string]struct{}
 	ChildCompsIdGen map[string]*IdGen
 
+	currBuf               string
+	CurrBufName           string
 	CurrRenderFuncType    RenderFuncType
 	CurrRenderFuncContent []byte
 	RenderFuncCodes       []RenderFunc
@@ -722,6 +728,7 @@ func (comp *Component) flushRenderFunc() {
 	if len(comp.CurrRenderFuncContent) > 0 {
 		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
 			Type:    comp.CurrRenderFuncType,
+			BufName: comp.CurrBufName,
 			Content: comp.CurrRenderFuncContent,
 		})
 	}
@@ -1172,7 +1179,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 			}
 
-			comp.writeGo(fmt.Sprintf("render_%s(tx_w, tx_ckey, tx_states, tx_newStates", childComp.GoIdent))
+			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, tx_states, tx_newStates", childComp.GoIdent, comp.currBuf))
 			for _, param := range params {
 				comp.writeGo(", " + param)
 			}
@@ -1409,8 +1416,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		// 1: if
 		// 2: else-if
 		// 3: else
-		if val, found := hasAttr(node, "id"); node.DataAtom == atom.Script && found && val == txRuntimeVal {
-			comp.writeGo("tx_w.WriteString(runtimeScript)\n")
+		txNodeId, _ := hasAttr(node, "id")
+		if node.DataAtom == atom.Script && txNodeId == txRuntimeVal {
+			comp.writeGo(comp.currBuf + ".WriteString(runtimeScript)\n")
+		} else if node.DataAtom == atom.Script && txNodeId == "tx-state" {
+			comp.writeSplit()
 		} else {
 			var prevCondState CondState
 			for c := node.FirstChild; c != nil; c = c.NextSibling {
@@ -1637,34 +1647,27 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
 }
 
 func (comp *Component) implRenderFunc(out *strings.Builder) {
-	codes := comp.RenderFuncCodes
-	for i := 0; i < len(codes); i++ {
-		tmpl := codes[i]
+	for _, tmpl := range comp.RenderFuncCodes {
+		buf := tmpl.BufName
 		switch tmpl.Type {
 		case RenderFuncTypeGo:
 			if _, err := out.WriteString(string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeStrLit:
-			var combined strings.Builder
-			combined.Write(tmpl.Content)
-			for i+1 < len(codes) && codes[i+1].Type == RenderFuncTypeStrLit {
-				i++
-				combined.Write(codes[i].Content)
-			}
-			if _, err := fmt.Fprintf(out, "tx_w.WriteString(%s)\n", strconv.Quote(combined.String())); err != nil {
+			if _, err := fmt.Fprintf(out, "%s.WriteString(%s)\n", buf, strconv.Quote(string(tmpl.Content))); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeExpr:
-			if _, err := fmt.Fprintf(out, "fmt.Fprint(tx_w, %s)\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "fmt.Fprint(%s, %s)\n", buf, string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeHtmlEscapeExpr:
-			if _, err := fmt.Fprintf(out, "tx_w.WriteString(html.EscapeString(fmt.Sprint(%s)))\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "%s.WriteString(html.EscapeString(fmt.Sprint(%s)))\n", buf, string(tmpl.Content)); err != nil {
 				log.Fatalln(err)
 			}
 		case RenderFuncTypeUrlEscapeExpr:
-			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\ntx_w.WriteString(url.QueryEscape(string(param)))}\n", string(tmpl.Content)); err != nil {
+			if _, err := fmt.Fprintf(out, "if param, err := json.Marshal(%s); err != nil {\nlog.Panic(err)\n} else {\n%s.WriteString(url.QueryEscape(string(param)))}\n", string(tmpl.Content), buf); err != nil {
 				log.Fatalln(err)
 			}
 		}
@@ -1709,6 +1712,7 @@ const (
 
 type RenderFunc struct {
 	Type    RenderFuncType
+	BufName string
 	Content []byte
 }
 
@@ -1717,11 +1721,13 @@ func (comp *Component) writeTmpl(t RenderFuncType, content string) {
 		if len(comp.CurrRenderFuncContent) != 0 {
 			comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
 				Type:    comp.CurrRenderFuncType,
+				BufName: comp.CurrBufName,
 				Content: comp.CurrRenderFuncContent,
 			})
 		}
 
 		comp.CurrRenderFuncType = t
+		comp.CurrBufName = comp.currBuf
 		comp.CurrRenderFuncContent = []byte{}
 	}
 
@@ -1746,6 +1752,20 @@ func (comp *Component) writeHtmlEscapeExpr(content string) {
 
 func (comp *Component) writeUrlEscapeExpr(content string) {
 	comp.writeTmpl(RenderFuncTypeUrlEscapeExpr, content)
+}
+
+func (comp *Component) writeSplit() {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			BufName: comp.CurrBufName,
+			Content: comp.CurrRenderFuncContent,
+		})
+	}
+	comp.currBuf = "tx_w2"
+	comp.CurrBufName = "tx_w2"
+	comp.CurrRenderFuncType = 0
+	comp.CurrRenderFuncContent = []byte{}
 }
 
 func (comp *Component) funcId(funcName string) string {
