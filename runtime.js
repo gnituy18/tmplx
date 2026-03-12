@@ -15,14 +15,13 @@ document.addEventListener('DOMContentLoaded', function() {
     for (let attr of cn.attributes) {
       if (attr.name.startsWith('tx-on')) {
         const [fun, params] = attr.value.split("?")
-        const searchParams = new URLSearchParams(params)
         let eventName = attr.name.slice(5)
 
         cn.addEventListener(eventName, () => {
           tasks.push(async () => {
+            const searchParams = new URLSearchParams(params)
             const txSwap = cn.getAttribute("tx-swap")
             searchParams.append("tx-swap", txSwap)
-
 
             for (let key in state) {
               if (key.startsWith(txSwap)) {
