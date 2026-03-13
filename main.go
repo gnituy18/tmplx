@@ -677,6 +677,14 @@ type TxRoute struct {
 				}
 			}
 
+			fmt.Fprintf(&out, "tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent)
+			for _, name := range comp.VarNames {
+				v := comp.Vars[name]
+				if v.Type == VarTypeState || v.Type == VarTypeProp {
+					fmt.Fprintf(&out, "%s: %s,\n", v.StructField, v.Name)
+				}
+			}
+			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_states, tx_newStates", comp.GoIdent)
 			for _, name := range comp.VarNames {
@@ -688,14 +696,6 @@ type TxRoute struct {
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
 			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
-			fmt.Fprintf(&out, "tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent)
-			for _, name := range comp.VarNames {
-				v := comp.Vars[name]
-				if v.Type == VarTypeState || v.Type == VarTypeProp {
-					fmt.Fprintf(&out, "%s: %s,\n", v.StructField, v.Name)
-				}
-			}
-			out.WriteString("}\n")
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
@@ -735,6 +735,14 @@ type TxRoute struct {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
+			fmt.Fprintf(&out, "tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent)
+			for _, name := range comp.VarNames {
+				v := comp.Vars[name]
+				if v.Type == VarTypeState || v.Type == VarTypeProp {
+					fmt.Fprintf(&out, "%s: %s,\n", v.StructField, v.Name)
+				}
+			}
+			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_states, tx_newStates", comp.GoIdent)
 			for _, name := range comp.VarNames {
@@ -746,14 +754,6 @@ type TxRoute struct {
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
 			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
-			fmt.Fprintf(&out, "tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent)
-			for _, name := range comp.VarNames {
-				v := comp.Vars[name]
-				if v.Type == VarTypeState || v.Type == VarTypeProp {
-					fmt.Fprintf(&out, "%s: %s,\n", v.StructField, v.Name)
-				}
-			}
-			out.WriteString("}\n")
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
