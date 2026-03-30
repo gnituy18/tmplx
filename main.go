@@ -11,10 +11,14 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
+	"golang.org/x/tools/imports"
 	"io/fs"
 	"log"
 	"maps"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,9 +26,6 @@ import (
 	"strings"
 	"sync"
 	"unicode"
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
-	"golang.org/x/tools/imports"
 )
 
 const (
@@ -125,6 +126,7 @@ func main() {
 				RelPath:  relPath,
 				Name:     name,
 				GoIdent:  goIdent(name),
+				UrlIdent: url.PathEscape(name),
 			}
 
 			return nil
@@ -188,6 +190,7 @@ func main() {
 			RelPath:  relPath,
 			Name:     urlPath,
 			GoIdent:  goIdent(urlPath),
+			UrlIdent: url.PathEscape(urlPath),
 		})
 
 		return nil
@@ -266,13 +269,12 @@ func main() {
 		go func() {
 			defer wg.Done()
 			comp.ChildCompsIdGen = map[string]*IdGen{}
-			for _, childName := range componentNames {
-				comp.ChildCompsIdGen[childName] = newIdGen(comp.Name + "_" + childName)
+			for _, name := range componentNames {
+				comp.ChildCompsIdGen[name] = newIdGen(name)
 			}
 
 			comp.AnonFuncNameGen = newIdGen("anon_func")
-			comp.currBuf = "tx_w"
-			comp.CurrBufName = "tx_w"
+			comp.CurrBuf = "tx_w"
 			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key")
 			comp.writeStrLit("-->")
@@ -313,7 +315,6 @@ func main() {
 				},
 			}
 
-	
 			var foundScript, foundHead bool
 			for node := range page.TemplateNode.Descendants() {
 				if !foundScript && isTmplxScriptNode(node) {
@@ -350,12 +351,11 @@ func main() {
 
 			page.ChildCompsIdGen = map[string]*IdGen{}
 			for _, name := range componentNames {
-				page.ChildCompsIdGen[name] = newIdGen(page.Name + "_" + name)
+				page.ChildCompsIdGen[name] = newIdGen(name)
 			}
 
 			page.AnonFuncNameGen = newIdGen(page.GoIdent)
-			page.currBuf = "tx_w1"
-			page.CurrBufName = "tx_w1"
+			page.CurrBuf = "tx_w1"
 			merr.concat(page.parseTmpl(page.TemplateNode, []string{}))
 
 			page.flushRenderFunc()
@@ -387,18 +387,12 @@ func main() {
 
 	out.WriteString(")\n")
 	out.WriteString("var runtimeScript = `" + strings.Replace(runtimeScript, "TX_HANDLER_PREFIX", handlerPrefix, 1) + "`\n")
-	out.WriteString(`
-type TxRoute struct {
-        Pattern	string
-	Handler	http.HandlerFunc
-}
-`)
+	out.WriteString("var slotRenderers = map[string]any{}\n")
 	for _, name := range componentNames {
 		comp := components[name]
 		fmt.Fprintf(&out, "type state_%s struct {\n", comp.GoIdent)
 		for _, varName := range comp.VarNames {
-			v := comp.Vars[varName]
-			if v.Type == VarTypeState || v.Type == VarTypeProp {
+			if v := comp.Vars[varName]; v.Type == VarTypeState || v.Type == VarTypeProp {
 				fmt.Fprintf(&out, "%s %s `json:\"%s\"`\n", v.StructField, astToSource(v.TypeExpr), v.Name)
 			}
 		}
@@ -415,15 +409,26 @@ type TxRoute struct {
 		}
 		for _, slotName := range comp.SlotNames {
 			if slotName != "" {
-				fmt.Fprintf(&paramsStr, ",tx_render_slot_%s func()", slotName)
+				fmt.Fprintf(&paramsStr, ", tx_render_slot_%s func()", slotName)
 			} else {
-				paramsStr.WriteString(",tx_render_default_slot func()")
+				paramsStr.WriteString(", tx_render_default_slot func()")
 			}
 		}
 
-		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
-		comp.implRenderFunc(&out)
+		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, parent string, tx_states map[string]string, tx_newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
+		writeRenderCodes(&out, comp.RenderFuncCodes)
 		out.WriteString("}\n")
+		for _, sf := range comp.SlotRenderFuncs {
+			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any", sf.Ident)
+			var paramsStr strings.Builder
+			for _, varName := range comp.VarNames {
+				v := comp.Vars[varName]
+				fmt.Fprintf(&paramsStr, ",%s %s", v.Name, astToSource(v.TypeExpr))
+			}
+			fmt.Fprintf(&out, "%s) {", paramsStr.String())
+			writeRenderCodes(&out, sf.Codes)
+			out.WriteString("}\n")
+		}
 	}
 
 	for _, page := range pages {
@@ -443,12 +448,43 @@ type TxRoute struct {
 		}
 		for _, funcName := range page.FuncNames {
 			f := page.Funcs[funcName]
-			params = append(params, fmt.Sprintf("%s, %s string", f.Name, f.Name+"_swap"))
+			params = append(params, fmt.Sprintf("%s string", f.Name))
 		}
-		fmt.Fprintf(&out, "func render_%s(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
-		page.implRenderFunc(&out)
+		fmt.Fprintf(&out, "func render_%s(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
+		writeRenderCodes(&out, page.RenderFuncCodes)
 		out.WriteString("}\n")
+		for _, sf := range page.SlotRenderFuncs {
+			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_states map[string]string, tx_newStates map[string]any", sf.Ident)
+			var paramsStr strings.Builder
+			for _, varName := range page.VarNames {
+				v := page.Vars[varName]
+				fmt.Fprintf(&paramsStr, ",%s %s", v.Name, astToSource(v.TypeExpr))
+			}
+			fmt.Fprintf(&out, "%s) {", paramsStr.String())
+			writeRenderCodes(&out, sf.Codes)
+			out.WriteString("}\n")
+		}
 	}
+
+	out.WriteString("func init() {\n")
+	for _, name := range componentNames {
+		comp := components[name]
+		for _, sf := range comp.SlotRenderFuncs {
+			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = render_slot_%s\n", sf.UrlIdent, sf.Ident)
+		}
+	}
+	for _, page := range pages {
+		for _, sf := range page.SlotRenderFuncs {
+			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = render_slot_%s\n", sf.UrlIdent, sf.Ident)
+		}
+	}
+	out.WriteString("}\n\n")
+	out.WriteString(`type TxRoute struct {
+        Pattern	string
+	Handler	http.HandlerFunc
+}
+
+`)
 
 	out.WriteString("var txRoutes []TxRoute = []TxRoute{\n")
 	for _, page := range pages {
@@ -484,14 +520,14 @@ type TxRoute struct {
 		}
 		out.WriteString("}\n")
 		out.WriteString("tx_newStates := map[string]any{}\n")
-		out.WriteString("tx_newStates[\"tx_\"] = tx_state\n")
+		out.WriteString("tx_newStates[\"page\"] = tx_state\n")
 		out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
-		fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, \"tx_\", map[string]string{}, tx_newStates", page.GoIdent)
+		fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, map[string]string{}, tx_newStates", page.GoIdent)
 		for _, name := range page.VarNames {
 			fmt.Fprintf(&out, ", %s", name)
 		}
 		for _, name := range page.FuncNames {
-			fmt.Fprintf(&out, ", \"%s\", \"tx_\"", page.funcId(name))
+			fmt.Fprintf(&out, ", \"%s\"", page.funcId(name))
 		}
 		out.WriteString(")\n")
 		out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
@@ -512,13 +548,13 @@ type TxRoute struct {
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if strings.HasPrefix(k, \"tx_\") {\n")
+			out.WriteString("if strings.HasPrefix(k, \"page\") {\n")
 			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
 			out.WriteString("tx_newStates := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
-			out.WriteString("json.Unmarshal([]byte(tx_states[\"tx_\"]), &tx_state)\n")
+			out.WriteString("json.Unmarshal([]byte(tx_states[\"page\"]), &tx_state)\n")
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				switch v.Type {
@@ -543,7 +579,7 @@ type TxRoute struct {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
-			fmt.Fprintf(&out, "tx_newStates[\"tx_\"] = &state_%s{\n", page.GoIdent)
+			fmt.Fprintf(&out, "tx_newStates[\"page\"] = &state_%s{\n", page.GoIdent)
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				if v.Type == VarTypeState {
@@ -552,12 +588,12 @@ type TxRoute struct {
 			}
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, \"tx_\", tx_states, tx_newStates", page.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, tx_states, tx_newStates", page.GoIdent)
 			for _, name := range page.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
 			for _, name := range page.FuncNames {
-				fmt.Fprintf(&out, ", \"%s\", \"tx_\"", page.funcId(name))
+				fmt.Fprintf(&out, ", \"%s\"", page.funcId(name))
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
@@ -574,13 +610,13 @@ type TxRoute struct {
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if strings.HasPrefix(k, \"tx_\") {\n")
+			out.WriteString("if strings.HasPrefix(k, \"page\") {\n")
 			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
 			out.WriteString("tx_newStates := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
-			out.WriteString("json.Unmarshal([]byte(tx_states[\"tx_\"]), &tx_state)\n")
+			out.WriteString("json.Unmarshal([]byte(tx_states[\"page\"]), &tx_state)\n")
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				switch v.Type {
@@ -599,7 +635,7 @@ type TxRoute struct {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
-			fmt.Fprintf(&out, "tx_newStates[\"tx_\"] = &state_%s{\n", page.GoIdent)
+			fmt.Fprintf(&out, "tx_newStates[\"page\"] = &state_%s{\n", page.GoIdent)
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				if v.Type == VarTypeState {
@@ -608,12 +644,12 @@ type TxRoute struct {
 			}
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, \"tx_\", tx_states, tx_newStates", page.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, tx_states, tx_newStates", page.GoIdent)
 			for _, name := range page.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
 			for _, name := range page.FuncNames {
-				fmt.Fprintf(&out, ", \"%s\", \"tx_\"", page.funcId(name))
+				fmt.Fprintf(&out, ", \"%s\"", page.funcId(name))
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
@@ -641,6 +677,7 @@ type TxRoute struct {
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
+			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
 			out.WriteString("tx_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if strings.HasPrefix(k, tx_swap) {\n")
@@ -686,12 +723,16 @@ type TxRoute struct {
 			}
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_states, tx_newStates", comp.GoIdent)
+
+			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_states, tx_newStates", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
 			for _, name := range comp.FuncNames {
 				fmt.Fprintf(&out, ", \"%s\", tx_swap", comp.funcId(name))
+			}
+			for range comp.SlotNames {
+				out.WriteString(", nil")
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
@@ -708,6 +749,7 @@ type TxRoute struct {
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
+			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
 			out.WriteString("tx_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if strings.HasPrefix(k, tx_swap) {\n")
@@ -744,12 +786,16 @@ type TxRoute struct {
 			}
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_states, tx_newStates", comp.GoIdent)
+
+			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_states, tx_newStates", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
 			for _, name := range comp.FuncNames {
 				fmt.Fprintf(&out, ", \"%s\", tx_swap", comp.funcId(name))
+			}
+			for range comp.SlotNames {
+				out.WriteString(", nil")
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
@@ -806,30 +852,30 @@ type Component struct {
 	FilePath string
 	RelPath  string
 
-	Name    string
-	GoIdent string
+	Name     string
+	GoIdent  string
+	UrlIdent string
 
-	TmplxScriptNode  *html.Node
-	Imports          []*ast.ImportSpec
-	VarNames         []string
-	Vars             map[string]*Var
-	SavedVarsLen     int
-	FuncNames        []string
-	Funcs            map[string]*Func
-	AnonFuncs        []*Func
-	AnonFuncNameGen  *IdGen
-	InputFuncHandler bool
+	TmplxScriptNode *html.Node
+	Imports         []*ast.ImportSpec
+	VarNames        []string
+	Vars            map[string]*Var
+	SavedVarsLen    int
+	FuncNames       []string
+	Funcs           map[string]*Func
+	AnonFuncs       []*Func
+	AnonFuncNameGen *IdGen
 
 	TemplateNode    *html.Node
 	SlotNames       []string
 	Slots           map[string]struct{}
 	ChildCompsIdGen map[string]*IdGen
 
-	currBuf               string
-	CurrBufName           string
+	CurrBuf               string
 	CurrRenderFuncType    RenderFuncType
 	CurrRenderFuncContent []byte
 	RenderFuncCodes       []RenderFunc
+	SlotRenderFuncs       []SlotRenderFunc
 
 	StyleNode *html.Node
 }
@@ -842,10 +888,43 @@ func (comp *Component) flushRenderFunc() {
 	if len(comp.CurrRenderFuncContent) > 0 {
 		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
 			Type:    comp.CurrRenderFuncType,
-			BufName: comp.CurrBufName,
+			Buf:     comp.CurrBuf,
 			Content: comp.CurrRenderFuncContent,
 		})
 	}
+}
+
+func (comp *Component) saveRenderState() ([]RenderFunc, string) {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			Buf:     comp.CurrBuf,
+			Content: comp.CurrRenderFuncContent,
+		})
+	}
+
+	saved := comp.RenderFuncCodes
+	savedCurrBuf := comp.CurrBuf
+	comp.RenderFuncCodes = []RenderFunc{}
+	comp.CurrRenderFuncType = 0
+	comp.CurrRenderFuncContent = []byte{}
+	return saved, savedCurrBuf
+}
+
+func (comp *Component) collectAndRestoreRenderState(savedCodes []RenderFunc, savedCurrBuf string) []RenderFunc {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			Buf:     comp.CurrBuf,
+			Content: comp.CurrRenderFuncContent,
+		})
+	}
+	collected := comp.RenderFuncCodes
+	comp.RenderFuncCodes = savedCodes
+	comp.CurrRenderFuncType = 0
+	comp.CurrRenderFuncContent = []byte{}
+	comp.CurrBuf = savedCurrBuf
+	return collected
 }
 
 func (comp *Component) parseTmplxScript() *MultiError {
@@ -1150,7 +1229,6 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		// Parse with escaping based on whether parent is raw text
 		return newMultiError(comp.parseTmplStr(node.Data, !isRawText))
 	case html.ElementNode:
-		// handle component
 		if components[node.Data] != nil {
 			childComp := components[node.Data]
 
@@ -1192,14 +1270,18 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 			comp.writeGo("{\n")
 			// create key for component
-			if len(forKeys) > 0 {
-				comp.writeGo("tx_key := tx_key")
-				for _, key := range forKeys {
-					comp.writeGo(` + "-" + fmt.Sprint(` + key + ")")
+			if comp.Type == CompTypePage {
+				comp.writeGo(fmt.Sprintf("tx_ckey := \"%s\"\n", id))
+			} else {
+				if len(forKeys) > 0 {
+					comp.writeGo("tx_key := tx_key")
+					for _, key := range forKeys {
+						comp.writeGo(` + ":" + fmt.Sprint(` + key + ")")
+					}
+					comp.writeGo("\n")
 				}
-				comp.writeGo("\n")
+				comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
 			}
-			comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
 			comp.writeGo(fmt.Sprintf("tx_state := &state_%s{}\n", childComp.GoIdent))
 			comp.writeGo("tx_old_state, tx_old_state_exist := tx_states[tx_ckey]\n")
 			comp.writeGo("if tx_old_state_exist {\n")
@@ -1293,7 +1375,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 			}
 
-			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, tx_states, tx_newStates", childComp.GoIdent, comp.currBuf))
+			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, \"%s\", tx_states, tx_newStates", childComp.GoIdent, comp.CurrBuf, comp.Name))
 			for _, param := range params {
 				comp.writeGo(", " + param)
 			}
@@ -1330,23 +1412,43 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			if len(childComp.SlotNames) > 0 {
 				comp.writeGo(",\n")
 			}
+
+			parentBuf := comp.CurrBuf
 			for _, slotName := range childComp.SlotNames {
-				n, ok := slotNodes[slotName]
-				if ok {
-					comp.writeGo("func() {\n")
+				if n, ok := slotNodes[slotName]; ok {
+					slotRenderFuncIdent := fmt.Sprintf("%s_%s_%d_%s", comp.GoIdent, childComp.GoIdent, comp.ChildCompsIdGen[childComp.Name].Curr, slotName)
+					slotRenderFuncUrlIdent := fmt.Sprintf("%s_%s_%d_%s", comp.UrlIdent, childComp.UrlIdent, comp.ChildCompsIdGen[childComp.Name].Curr, slotName)
+
+					savedCodes, savedCurrBuf := comp.saveRenderState()
+					comp.CurrBuf = "tx_w"
 					merr.concat(comp.parseTmpl(n, forKeys))
-					comp.writeGo("\n},\n")
+					slotCodes := comp.collectAndRestoreRenderState(savedCodes, savedCurrBuf)
+
+					comp.SlotRenderFuncs = append(comp.SlotRenderFuncs, SlotRenderFunc{
+						Ident:    slotRenderFuncIdent,
+						UrlIdent: slotRenderFuncUrlIdent,
+						Codes:    slotCodes,
+					})
+
+					var paramsStr strings.Builder
+					for _, varName := range comp.VarNames {
+						v := comp.Vars[varName]
+						fmt.Fprintf(&paramsStr, ", %s", v.Name)
+					}
+
+					if comp.Type == CompTypePage {
+						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_states, tx_newStates%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
+					} else {
+						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_key, tx_states, tx_newStates%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
+					}
 				} else {
-					comp.writeGo("nil,\n")
+					comp.writeGo("func() {},\n")
 				}
 			}
 			comp.writeGo(")\n")
 			comp.writeGo("}\n")
 			return merr
-		}
-
-		// handle slot
-		if node.DataAtom == atom.Slot {
+		} else if node.DataAtom == atom.Slot {
 			renderSlotFuncName := "tx_render_default_slot"
 			if name, found := hasAttr(node, "name"); found {
 				renderSlotFuncName = "tx_render_slot_" + name
@@ -1354,9 +1456,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 			comp.writeGo(fmt.Sprintf("if %s != nil {\n", renderSlotFuncName))
 			comp.writeGo(fmt.Sprintf("%s()\n", renderSlotFuncName))
-			comp.writeGo("} else {\n")
 
 			if node.FirstChild != nil {
+				comp.writeGo("} else {\n")
 				children := &html.Node{
 					Type:     html.ElementNode,
 					DataAtom: atom.Template,
@@ -1375,16 +1477,10 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					})
 				}
 				merr.concat(comp.parseTmpl(children, forKeys))
-			} else {
-				comp.writeStrLit(" ")
 			}
-
 			comp.writeGo("\n}\n")
 			return merr
-		}
-
-		// handle non-template tags
-		if node.DataAtom != atom.Template {
+		} else if node.DataAtom != atom.Template {
 			comp.writeStrLit("<")
 			comp.writeStrLit(node.Data)
 
@@ -1400,6 +1496,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					comp.writeStrLit(attr.Key)
 					comp.writeStrLit(`="`)
 
+					// Check if it's a function call
 					if expr, err := parser.ParseExpr(attr.Val); err == nil {
 						if callExpr, ok := expr.(*ast.CallExpr); ok {
 							if ident, ok := callExpr.Fun.(*ast.Ident); ok {
@@ -1454,8 +1551,18 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 									comp.writeStrLit(`"`)
 									comp.writeStrLit(" tx-swap=\"")
-									comp.writeExpr(fun.Name + "_swap")
+									if comp.Type == CompTypePage {
+										comp.writeStrLit("page")
+									} else {
+										comp.writeExpr(fun.Name + "_swap")
+									}
 									comp.writeStrLit(`"`)
+
+									if len(comp.SlotNames) > 0 {
+										comp.writeStrLit(" tx-parent=\"")
+										comp.writeExpr("parent")
+										comp.writeStrLit("\"")
+									}
 
 									continue
 								}
@@ -1493,8 +1600,18 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					comp.writeStrLit("\"")
 
 					comp.writeStrLit(" tx-swap=\"")
-					comp.writeExpr("tx_key")
+					if comp.Type == CompTypePage {
+						comp.writeStrLit("page")
+					} else {
+						comp.writeExpr("tx_key")
+					}
 					comp.writeStrLit("\"")
+
+					if len(comp.SlotNames) > 0 {
+						comp.writeStrLit(" tx-parent=\"")
+						comp.writeExpr("parent")
+						comp.writeStrLit("\"")
+					}
 
 				} else {
 					if attr.Namespace != "" {
@@ -1531,7 +1648,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		// 3: else
 		txNodeId, _ := hasAttr(node, "id")
 		if node.DataAtom == atom.Script && txNodeId == txRuntimeVal {
-			comp.writeGo(comp.currBuf + ".WriteString(runtimeScript)\n")
+			comp.writeGo(comp.CurrBuf + ".WriteString(runtimeScript)\n")
 		} else if node.DataAtom == atom.Script && txNodeId == "tx-state" {
 			comp.writeSplit()
 		} else {
@@ -1759,9 +1876,15 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
 	return merr
 }
 
-func (comp *Component) implRenderFunc(out *strings.Builder) {
-	for _, tmpl := range comp.RenderFuncCodes {
-		buf := tmpl.BufName
+type SlotRenderFunc struct {
+	Ident    string
+	UrlIdent string
+	Codes    []RenderFunc
+}
+
+func writeRenderCodes(out *strings.Builder, codes []RenderFunc) {
+	for _, tmpl := range codes {
+		buf := tmpl.Buf
 		switch tmpl.Type {
 		case RenderFuncTypeGo:
 			if _, err := out.WriteString(string(tmpl.Content)); err != nil {
@@ -1820,12 +1943,11 @@ const (
 	RenderFuncTypeExpr
 	RenderFuncTypeHtmlEscapeExpr
 	RenderFuncTypeUrlEscapeExpr
-	RenderFuncTypeComp
 )
 
 type RenderFunc struct {
 	Type    RenderFuncType
-	BufName string
+	Buf     string
 	Content []byte
 }
 
@@ -1834,13 +1956,12 @@ func (comp *Component) writeTmpl(t RenderFuncType, content string) {
 		if len(comp.CurrRenderFuncContent) != 0 {
 			comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
 				Type:    comp.CurrRenderFuncType,
-				BufName: comp.CurrBufName,
+				Buf:     comp.CurrBuf,
 				Content: comp.CurrRenderFuncContent,
 			})
 		}
 
 		comp.CurrRenderFuncType = t
-		comp.CurrBufName = comp.currBuf
 		comp.CurrRenderFuncContent = []byte{}
 	}
 
@@ -1867,23 +1988,21 @@ func (comp *Component) writeUrlEscapeExpr(content string) {
 	comp.writeTmpl(RenderFuncTypeUrlEscapeExpr, content)
 }
 
-
 func (comp *Component) writeSplit() {
 	if len(comp.CurrRenderFuncContent) > 0 {
 		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
 			Type:    comp.CurrRenderFuncType,
-			BufName: comp.CurrBufName,
+			Buf:     comp.CurrBuf,
 			Content: comp.CurrRenderFuncContent,
 		})
 	}
-	comp.currBuf = "tx_w2"
-	comp.CurrBufName = "tx_w2"
+	comp.CurrBuf = "tx_w2"
 	comp.CurrRenderFuncType = 0
 	comp.CurrRenderFuncContent = []byte{}
 }
 
 func (comp *Component) funcId(funcName string) string {
-	return comp.GoIdent + "_" + funcName
+	return comp.UrlIdent + "_" + funcName
 }
 
 type CondState int
