@@ -76,6 +76,7 @@ func main() {
 		log.Fatalf("%q is not a valid Go package name\n", outputPackageName)
 	}
 
+	// 1.
 	merr := newMultiError()
 	if exist, err := dirExist(componentsDir); err != nil {
 		log.Fatalf("error: %v\n", err)
@@ -126,7 +127,7 @@ func main() {
 				RelPath:  relPath,
 				Name:     name,
 				GoIdent:  goIdent(name),
-				UrlIdent: url.PathEscape(name),
+				UrlIdent: name,
 			}
 
 			return nil
@@ -199,6 +200,7 @@ func main() {
 	}
 	merr.exitOnErrors()
 
+	// 2. parse component script and slot
 	var wg sync.WaitGroup
 	componentNames := slices.Sorted(maps.Keys(components))
 	for _, name := range componentNames {
@@ -263,6 +265,7 @@ func main() {
 	wg.Wait()
 	merr.exitOnErrors()
 
+	// 3. parse pages and components template
 	for _, name := range componentNames {
 		wg.Add(1)
 		comp := components[name]
@@ -273,7 +276,7 @@ func main() {
 				comp.ChildCompsIdGen[name] = newIdGen(name)
 			}
 
-			comp.AnonFuncNameGen = newIdGen("anon_func")
+			comp.AnonFuncNameGen = newIdGen("af")
 			comp.CurrBuf = "tx_w"
 			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key")
@@ -376,6 +379,7 @@ func main() {
 	wg.Wait()
 	merr.exitOnErrors()
 
+	// 4.
 	var out strings.Builder
 	out.WriteString("package " + outputPackageName + "\n")
 	out.WriteString("import(\n")
@@ -690,7 +694,7 @@ func main() {
 			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
 			out.WriteString("tx_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if strings.HasPrefix(k, tx_swap) {\n")
+			out.WriteString("if k != \"tx-swap\" && k != \"tx-parent\" {\n")
 			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
@@ -762,7 +766,7 @@ func main() {
 			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
 			out.WriteString("tx_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if strings.HasPrefix(k, tx_swap) {\n")
+			out.WriteString("if k != \"tx-swap\" && k != \"tx-parent\" {\n")
 			out.WriteString("tx_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
@@ -1444,7 +1448,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			for _, slotName := range childComp.SlotNames {
 				if n, ok := slotNodes[slotName]; ok {
 					slotRenderFuncIdent := fmt.Sprintf("%s_%s_%d_%s", comp.GoIdent, childComp.GoIdent, comp.ChildCompsIdGen[childComp.Name].Curr, slotName)
-					slotRenderFuncUrlIdent := fmt.Sprintf("%s_%s_%d_%s", comp.UrlIdent, childComp.UrlIdent, comp.ChildCompsIdGen[childComp.Name].Curr, slotName)
+					slotRenderFuncUrlIdent := fmt.Sprintf("%s_%s_%s", comp.UrlIdent, childComp.UrlIdent, comp.ChildCompsIdGen[childComp.Name].curr(), slotName)
 
 					savedCodes, savedCurrBuf := comp.saveRenderState()
 					comp.CurrBuf = "tx_w"
@@ -1598,7 +1602,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					}
 
 					funcName := comp.AnonFuncNameGen.next()
-					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
+					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc f() {\n%s\n}", attr.Val), 0)
 					if err != nil {
 						merr.append(comp.errf("invalid inline handler: %s", attr.Val))
 						continue
@@ -1619,7 +1623,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 					comp.AnonFuncs = append(comp.AnonFuncs, &Func{
 						Method: http.MethodPost,
-						Name:   decl.Name.Name,
+						Name:   funcName,
 						Decl:   decl,
 					})
 
@@ -2282,7 +2286,11 @@ type IdGen struct {
 
 func (id *IdGen) next() string {
 	id.Curr++
-	return fmt.Sprintf("%s_%d", id.Prefix, id.Curr)
+	return id.curr()
+}
+
+func (id *IdGen) curr() string {
+	return fmt.Sprintf("%s-%d", id.Prefix, id.Curr)
 }
 
 func findModuleRoot() (string, error) {
