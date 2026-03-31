@@ -429,7 +429,7 @@ func main() {
 			}
 		}
 
-		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, parent string, tx_curr_states map[string]string, tx_next_states map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
+		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, tx_parent string, tx_curr_states map[string]string, tx_next_states map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
 		writeRenderCodes(&out, comp.RenderFuncCodes)
 		out.WriteString("}\n")
 		for _, sf := range comp.SlotRenderFuncs {
@@ -1591,7 +1591,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 									if len(comp.SlotNames) > 0 {
 										comp.writeStrLit(" tx-parent=\"")
-										comp.writeExpr("parent")
+										comp.writeExpr("tx_parent")
 										comp.writeStrLit("\"")
 									}
 
@@ -1640,7 +1640,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 					if len(comp.SlotNames) > 0 {
 						comp.writeStrLit(" tx-parent=\"")
-						comp.writeExpr("parent")
+						comp.writeExpr("tx_parent")
 						comp.writeStrLit("\"")
 					}
 
