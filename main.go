@@ -1448,7 +1448,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			for _, slotName := range childComp.SlotNames {
 				if n, ok := slotNodes[slotName]; ok {
 					slotRenderFuncIdent := fmt.Sprintf("%s_%s_%d_%s", comp.GoIdent, childComp.GoIdent, comp.ChildCompsIdGen[childComp.Name].Curr, slotName)
-					slotRenderFuncUrlIdent := fmt.Sprintf("%s_%s_%s", comp.UrlIdent, childComp.UrlIdent, comp.ChildCompsIdGen[childComp.Name].curr(), slotName)
+					slotRenderFuncUrlIdent := fmt.Sprintf("%s_%s_%s", comp.UrlIdent, comp.ChildCompsIdGen[childComp.Name].curr(), slotName)
 
 					savedCodes, savedCurrBuf := comp.saveRenderState()
 					comp.CurrBuf = "tx_w"
