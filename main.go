@@ -429,11 +429,11 @@ func main() {
 			}
 		}
 
-		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, parent string, tx_states map[string]string, tx_newStates map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
+		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, parent string, tx_curr_states map[string]string, tx_next_states map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
 		writeRenderCodes(&out, comp.RenderFuncCodes)
 		out.WriteString("}\n")
 		for _, sf := range comp.SlotRenderFuncs {
-			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_key string, tx_states map[string]string, tx_newStates map[string]any", sf.Ident)
+			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_key string, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
 			var paramsStr strings.Builder
 			for _, varName := range comp.VarNames {
 				v := comp.Vars[varName]
@@ -464,11 +464,11 @@ func main() {
 			f := page.Funcs[funcName]
 			params = append(params, fmt.Sprintf("%s string", f.Name))
 		}
-		fmt.Fprintf(&out, "func render_%s(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_states map[string]string, tx_newStates map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
+		fmt.Fprintf(&out, "func render_%s(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_curr_states map[string]string, tx_next_states map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
 		writeRenderCodes(&out, page.RenderFuncCodes)
 		out.WriteString("}\n")
 		for _, sf := range page.SlotRenderFuncs {
-			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_states map[string]string, tx_newStates map[string]any", sf.Ident)
+			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
 			var paramsStr strings.Builder
 			for _, varName := range page.VarNames {
 				v := page.Vars[varName]
@@ -533,10 +533,10 @@ func main() {
 			}
 		}
 		out.WriteString("}\n")
-		out.WriteString("tx_newStates := map[string]any{}\n")
-		out.WriteString("tx_newStates[\"page\"] = tx_state\n")
+		out.WriteString("tx_next_states := map[string]any{}\n")
+		out.WriteString("tx_next_states[\"page\"] = tx_state\n")
 		out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
-		fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, map[string]string{}, tx_newStates", page.GoIdent)
+		fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, map[string]string{}, tx_next_states", page.GoIdent)
 		for _, name := range page.VarNames {
 			fmt.Fprintf(&out, ", %s", name)
 		}
@@ -544,7 +544,7 @@ func main() {
 			fmt.Fprintf(&out, ", \"%s\"", page.funcId(name))
 		}
 		out.WriteString(")\n")
-		out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+		out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 		out.WriteString("tx_w.Write(tx_buf1.Bytes())\n")
 		out.WriteString("tx_w.Write(tx_stateBytes)\n")
 		out.WriteString("tx_w.Write(tx_buf2.Bytes())\n")
@@ -560,15 +560,15 @@ func main() {
 			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(funcName))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
-			out.WriteString("tx_states := map[string]string{}\n")
+			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if strings.HasPrefix(k, \"page\") {\n")
-			out.WriteString("tx_states[k] = v[0]\n")
+			out.WriteString("tx_curr_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
-			out.WriteString("tx_newStates := map[string]any{}\n")
+			out.WriteString("tx_next_states := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
-			out.WriteString("json.Unmarshal([]byte(tx_states[\"page\"]), &tx_state)\n")
+			out.WriteString("json.Unmarshal([]byte(tx_curr_states[\"page\"]), &tx_state)\n")
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				switch v.Type {
@@ -593,7 +593,7 @@ func main() {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
-			fmt.Fprintf(&out, "tx_newStates[\"page\"] = &state_%s{\n", page.GoIdent)
+			fmt.Fprintf(&out, "tx_next_states[\"page\"] = &state_%s{\n", page.GoIdent)
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				if v.Type == VarTypeState {
@@ -602,7 +602,7 @@ func main() {
 			}
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, tx_states, tx_newStates", page.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, tx_curr_states, tx_next_states", page.GoIdent)
 			for _, name := range page.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
@@ -610,7 +610,7 @@ func main() {
 				fmt.Fprintf(&out, ", \"%s\"", page.funcId(name))
 			}
 			out.WriteString(")\n")
-			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 			out.WriteString("tx_w.Write(tx_buf1.Bytes())\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write(tx_buf2.Bytes())\n")
@@ -622,15 +622,15 @@ func main() {
 			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(f.Name))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
-			out.WriteString("tx_states := map[string]string{}\n")
+			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if strings.HasPrefix(k, \"page\") {\n")
-			out.WriteString("tx_states[k] = v[0]\n")
+			out.WriteString("tx_curr_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
-			out.WriteString("tx_newStates := map[string]any{}\n")
+			out.WriteString("tx_next_states := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
-			out.WriteString("json.Unmarshal([]byte(tx_states[\"page\"]), &tx_state)\n")
+			out.WriteString("json.Unmarshal([]byte(tx_curr_states[\"page\"]), &tx_state)\n")
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				switch v.Type {
@@ -649,7 +649,7 @@ func main() {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
-			fmt.Fprintf(&out, "tx_newStates[\"page\"] = &state_%s{\n", page.GoIdent)
+			fmt.Fprintf(&out, "tx_next_states[\"page\"] = &state_%s{\n", page.GoIdent)
 			for _, name := range page.VarNames {
 				v := page.Vars[name]
 				if v.Type == VarTypeState {
@@ -658,7 +658,7 @@ func main() {
 			}
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf1, tx_buf2 bytes.Buffer\n")
-			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, tx_states, tx_newStates", page.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf1, &tx_buf2, tx_curr_states, tx_next_states", page.GoIdent)
 			for _, name := range page.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
@@ -666,7 +666,7 @@ func main() {
 				fmt.Fprintf(&out, ", \"%s\"", page.funcId(name))
 			}
 			out.WriteString(")\n")
-			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 			out.WriteString("tx_w.Write(tx_buf1.Bytes())\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write(tx_buf2.Bytes())\n")
@@ -692,15 +692,15 @@ func main() {
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
 			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
-			out.WriteString("tx_states := map[string]string{}\n")
+			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if k != \"tx-swap\" && k != \"tx-parent\" {\n")
-			out.WriteString("tx_states[k] = v[0]\n")
+			out.WriteString("tx_curr_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
-			out.WriteString("tx_newStates := map[string]any{}\n")
+			out.WriteString("tx_next_states := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", comp.GoIdent)
-			out.WriteString("json.Unmarshal([]byte(tx_states[tx_swap]), &tx_state)\n")
+			out.WriteString("json.Unmarshal([]byte(tx_curr_states[tx_swap]), &tx_state)\n")
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
 				switch v.Type {
@@ -728,7 +728,7 @@ func main() {
 				}
 			}
 
-			fmt.Fprintf(&out, "tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent)
+			fmt.Fprintf(&out, "tx_next_states[tx_swap] = &state_%s{\n", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
 				if v.Type == VarTypeState || v.Type == VarTypeProp {
@@ -738,7 +738,7 @@ func main() {
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 
-			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_states, tx_newStates", comp.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_curr_states, tx_next_states", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
@@ -751,7 +751,7 @@ func main() {
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
 			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
-			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
 			out.WriteString("},\n")
@@ -764,15 +764,15 @@ func main() {
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
 			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
-			out.WriteString("tx_states := map[string]string{}\n")
+			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
 			out.WriteString("if k != \"tx-swap\" && k != \"tx-parent\" {\n")
-			out.WriteString("tx_states[k] = v[0]\n")
+			out.WriteString("tx_curr_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
-			out.WriteString("tx_newStates := map[string]any{}\n")
+			out.WriteString("tx_next_states := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", comp.GoIdent)
-			out.WriteString("json.Unmarshal([]byte(tx_states[tx_swap]), &tx_state)\n")
+			out.WriteString("json.Unmarshal([]byte(tx_curr_states[tx_swap]), &tx_state)\n")
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
 				switch v.Type {
@@ -791,7 +791,7 @@ func main() {
 					fmt.Fprintf(&out, "%s = %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
-			fmt.Fprintf(&out, "tx_newStates[tx_swap] = &state_%s{\n", comp.GoIdent)
+			fmt.Fprintf(&out, "tx_next_states[tx_swap] = &state_%s{\n", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				v := comp.Vars[name]
 				if v.Type == VarTypeState || v.Type == VarTypeProp {
@@ -801,7 +801,7 @@ func main() {
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 
-			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_states, tx_newStates", comp.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_curr_states, tx_next_states", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
@@ -814,7 +814,7 @@ func main() {
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
 			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
-			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_newStates)\n")
+			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
 			out.WriteString("},\n")
@@ -1311,7 +1311,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
 			}
 			comp.writeGo(fmt.Sprintf("tx_state := &state_%s{}\n", childComp.GoIdent))
-			comp.writeGo("tx_old_state, tx_old_state_exist := tx_states[tx_ckey]\n")
+			comp.writeGo("tx_old_state, tx_old_state_exist := tx_curr_states[tx_ckey]\n")
 			comp.writeGo("if tx_old_state_exist {\n")
 			comp.writeGo("json.Unmarshal([]byte(tx_old_state), tx_state)\n")
 			comp.writeGo("}\n")
@@ -1383,7 +1383,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 				comp.writeGo("}\n")
 			}
-			comp.writeGo("tx_newStates[tx_ckey] = tx_state\n")
+			comp.writeGo("tx_next_states[tx_ckey] = tx_state\n")
 			params := []string{}
 			for _, varName := range childComp.VarNames {
 				params = append(params, varName)
@@ -1406,7 +1406,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 			}
 
-			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, \"%s\", tx_states, tx_newStates", childComp.GoIdent, comp.CurrBuf, comp.Name))
+			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, \"%s\", tx_curr_states, tx_next_states", childComp.GoIdent, comp.CurrBuf, comp.Name))
 			for _, param := range params {
 				comp.writeGo(", " + param)
 			}
@@ -1468,9 +1468,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					}
 
 					if comp.Type == CompTypePage {
-						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_states, tx_newStates%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
+						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
 					} else {
-						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_key, tx_states, tx_newStates%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
+						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_key, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
 					}
 				} else {
 					comp.writeGo("func() {},\n")
