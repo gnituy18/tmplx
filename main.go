@@ -279,6 +279,11 @@ func main() {
 			comp.writeExpr("tx_key")
 			comp.writeStrLit("-->")
 			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
+			for _, name := range comp.VarNames {
+				if !comp.Vars[name].Used {
+					merr.append(comp.errf("%s declared but not used", name))
+				}
+			}
 			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key + \"_e\"")
 			comp.writeStrLit("-->")
@@ -357,6 +362,11 @@ func main() {
 			page.AnonFuncNameGen = newIdGen(page.GoIdent)
 			page.CurrBuf = "tx_w1"
 			merr.concat(page.parseTmpl(page.TemplateNode, []string{}))
+			for _, name := range page.VarNames {
+				if !page.Vars[name].Used {
+					merr.append(page.errf("%s declared but not used", name))
+				}
+			}
 
 			page.flushRenderFunc()
 
@@ -1064,6 +1074,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 								return false
 							})
 							comp.Vars[ident.Name].InitExpr = v
+							comp.markVarsUsed(v)
 						}
 
 						if found {
@@ -1126,6 +1137,19 @@ func (comp *Component) parseTmplxScript() *MultiError {
 	}
 
 	return merr
+}
+
+func (comp *Component) markVarsUsed(node ast.Node) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if v, ok := comp.Vars[ident.Name]; ok {
+			v.Used = true
+		}
+		return true
+	})
 }
 
 func (comp *Component) modifiedDerived(node ast.Node, md *[]string) {
@@ -1292,6 +1316,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				if v.Type == VarTypeProp {
 					if val, found := hasAttr(node, varName); found {
 						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, val))
+						if propExpr, perr := parser.ParseExpr(val); perr == nil {
+							comp.markVarsUsed(propExpr)
+						}
 					} else if v.InitExpr != nil {
 						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
 					} else {
@@ -1689,6 +1716,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 						comp.writeGo("} else {\n")
 					}
 
+					if field != "" {
+						if fieldExpr, ferr := parser.ParseExpr(field); ferr == nil {
+							comp.markVarsUsed(fieldExpr)
+						}
+					}
 					prevCondState = currCondState
 
 					if stmt, ok := hasAttr(c, txForKey); ok {
@@ -1699,6 +1731,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 							hasFor = true
 							forKey = val
 							comp.writeGo("\nfor " + stmt + " {\n")
+							if forAst, ferr := parser.ParseFile(token.NewFileSet(), "", "package p\nfunc f(){for "+stmt+"{}}", 0); ferr == nil {
+								comp.markVarsUsed(forAst)
+							}
 						}
 					}
 				}
@@ -1780,11 +1815,11 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 				if len(trimmedCurrExpr) == 0 {
 					continue
 				}
-
-				_, err := parser.ParseExpr(string(trimmedCurrExpr))
+				parsedExpr, err := parser.ParseExpr(string(trimmedCurrExpr))
 				if err != nil {
 					return comp.errf("invalid expression {%s}: %w", string(trimmedCurrExpr), err)
 				}
+				comp.markVarsUsed(parsedExpr)
 
 				if escape {
 					comp.writeHtmlEscapeExpr(string(trimmedCurrExpr))
@@ -1924,6 +1959,7 @@ type Var struct {
 	Type        VarType
 	TypeExpr    ast.Expr
 	InitExpr    ast.Expr
+	Used        bool
 }
 
 type Func struct {
