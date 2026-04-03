@@ -23,16 +23,30 @@ document.addEventListener('DOMContentLoaded', function() {
             const txSwap = cn.getAttribute("tx-swap")
             searchParams.append("tx-swap", txSwap)
 
-            for (let key in state) {
-              if (key.startsWith(txSwap)) {
+            const txParent = cn.getAttribute("tx-parent")
+            const stateKey = txParent !== null ? txParent : txSwap
+            if (stateKey === 'page') {
+              for (let key in state) {
                 searchParams.append(key, JSON.stringify(state[key]))
+              }
+            } else {
+              for (let key in state) {
+                if (key.startsWith(stateKey)) {
+                  searchParams.append(key, JSON.stringify(state[key]))
+                }
               }
             }
 
-            const res = await fetch(handlerPrefix + fun, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: searchParams.toString()})
+            for (let attr of cn.attributes) {
+              if (attr.name === 'tx-position' || attr.name === 'tx-parent') {
+                searchParams.append(attr.name, attr.value)
+              }
+            }
+
+            const res = await fetch(handlerPrefix + fun, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: searchParams.toString() })
             const html = await res.text()
 
-            if (txSwap === 'tx_') {
+            if (txSwap === 'page') {
               document.open()
               document.write(html)
               document.close()

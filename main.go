@@ -4,16 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
-	"errors"
 	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"golang.org/x/net/html"
-	"golang.org/x/net/html/atom"
-	"golang.org/x/tools/imports"
 	"io/fs"
 	"log"
 	"maps"
@@ -26,127 +22,138 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
+	"golang.org/x/tools/imports"
 )
 
 const (
 	mimeType = "text/tmplx"
 
-	txCommentPath = "tx:path"
-	txCommentProp = "tx:prop"
-
-	txIgnoreKey  = "tx-ignore"
-	txForKey     = "tx-for"
-	txKeyKey     = "tx-key"
-	txIfKey      = "tx-if"
-	txElseIfKey  = "tx-else-if"
-	txElseKey    = "tx-else"
-	txRuntimeVal = "tx-runtime"
+	txPath     = "tx:path"
+	txProp     = "tx:prop"
+	txIgnore   = "tx-ignore"
+	txIf       = "tx-if"
+	txElseIf   = "tx-else-if"
+	txElse     = "tx-else"
+	txFor      = "tx-for"
+	txOn       = "tx-on"
+	txState    = "tx-state"
+	txRuntime  = "tx-runtime"
+	txKey      = "tx-key"
+	txSwap     = "tx-swap"
+	txParent   = "tx-parent"
+	txPosition = "tx-position"
+	pageKey    = "page"
 )
 
 var (
-	errModuleNotFound = errors.New("no go.mod found in current or parent directories")
-
-	pagesDir          string
-	componentsDir     string
-	outputFilePath    string
-	outputPackageName string
-	handlerPrefix     string
+	pagesDir                 string
+	componentsDir            string
+	outputFilePath           string
+	outputPackageName        string
+	outputEventHandlerPrefix string
 
 	components = map[string]*Component{}
 )
 
 func main() {
+	// 0. configure logging, find module root, parse CLI flags
 	log.SetFlags(0)
 
-	root, err := findModuleRoot()
+	root, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("error: %v\n", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
+			break
+		}
+		parent := filepath.Dir(root)
+		if parent == root {
+			log.Fatalln("error: no go.mod found in current or parent directories")
+		}
+		root = parent
 	}
 
 	flag.StringVar(&componentsDir, "components-dir", filepath.Join(root, "components"), "directory containing reusable components")
 	flag.StringVar(&pagesDir, "pages-dir", filepath.Join(root, "pages"), "directory containing pages")
 	flag.StringVar(&outputFilePath, "output-file", filepath.Join(root, "routes.go"), "path to the generated Go file")
 	flag.StringVar(&outputPackageName, "package-name", "main", "package name for the generated Go code")
-	flag.StringVar(&handlerPrefix, "handler-prefix", "/tx/", "path prefix for event handler URLs")
+	flag.StringVar(&outputEventHandlerPrefix, "handler-prefix", "/tx/", "path prefix for event handler URLs")
 	flag.Parse()
 	componentsDir = filepath.Clean(componentsDir)
 	pagesDir = filepath.Clean(pagesDir)
-	outputFilePath = filepath.Clean(outputFilePath)
 	if !(token.IsIdentifier(outputPackageName) && !token.IsKeyword(outputPackageName)) {
 		log.Fatalf("%q is not a valid Go package name\n", outputPackageName)
 	}
+	outputFilePath = filepath.Clean(outputFilePath)
 
-	// 1.
+	// 1. register component and page HTML files
 	merr := newMultiError()
 	if exist, err := dirExist(componentsDir); err != nil {
 		log.Fatalf("error: %v\n", err)
 	} else if !exist {
 		log.Printf("no components directory at %s, skipping\n", componentsDir)
-	} else {
-		if err := filepath.WalkDir(componentsDir, func(filePath string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				merr.append(fmt.Errorf("%s: cannot access: %w", filePath, err))
-				return nil
-			}
-
-			if entry.IsDir() {
-				return nil
-			}
-
-			if filepath.Ext(filePath) != ".html" {
-				return nil
-			}
-
-			relPath, _ := filepath.Rel(componentsDir, filePath)
-			relPath = filepath.ToSlash(relPath)
-			stemPath, _ := strings.CutSuffix(relPath, ".html")
-
-			if stemPath == "" {
-				merr.append(fmt.Errorf("%s: invalid filename: .html (missing name before extension)", filePath))
-				return nil
-			}
-
-			ident := strings.ReplaceAll(stemPath, "/", "-")
-			for _, r := range ident {
-				if !isValidComponentNameRune(r) {
-					merr.append(fmt.Errorf("%s: invalid character %q in <tx-%s>: use only a-z, 0-9, -, _", filePath, r, ident))
-					return nil
-				}
-			}
-
-			name := "tx-" + ident
-
-			if comp, ok := components[name]; ok {
-				merr.append(fmt.Errorf("%s: duplicate component <%s>, first defined in %s", filePath, name, comp.FilePath))
-				return nil
-			}
-
-			components[name] = &Component{
-				Type:     CompTypeComp,
-				FilePath: filePath,
-				RelPath:  relPath,
-				Name:     name,
-				GoIdent:  goIdent(name),
-				UrlIdent: name,
-			}
-
+	} else if err := filepath.WalkDir(componentsDir, func(filePath string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			merr.append(fmt.Errorf("%s: cannot access: %w", filePath, err))
 			return nil
-		}); err != nil {
-			log.Fatalf("error: %s: walk failed: %v\n", componentsDir, err)
 		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(filePath) != ".html" {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(componentsDir, filePath)
+		relPath = filepath.ToSlash(relPath)
+		stemPath, _ := strings.CutSuffix(relPath, ".html")
+
+		if stemPath == "" {
+			merr.append(fmt.Errorf("%s: invalid filename: .html (missing name before extension)", filePath))
+			return nil
+		}
+
+		name := strings.ReplaceAll(stemPath, "/", "-")
+		ident := "tx-" + name
+		for _, r := range name {
+			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+				merr.append(fmt.Errorf("%s: invalid character %q in <%s>: use only a-z, 0-9, -, _", filePath, r, ident))
+				return nil
+			}
+		}
+
+		if comp, ok := components[ident]; ok {
+			merr.append(fmt.Errorf("%s: duplicate component <%s>, first defined in %s", filePath, ident, comp.FilePath))
+			return nil
+		}
+
+		components[ident] = &Component{
+			Type:     CompTypeComp,
+			FilePath: filePath,
+			RelPath:  relPath,
+			Ident:    ident,
+			GoIdent:  goIdent(ident),
+			UrlIdent: ident,
+		}
+
+		return nil
+	}); err != nil {
+		log.Fatalf("error: %s: walk failed: %v\n", componentsDir, err)
 	}
 
 	pages := []*Component{}
 	pageNames := map[string]string{}
-	exist, err := dirExist(pagesDir)
-	if err != nil {
+	if exist, err := dirExist(pagesDir); err != nil {
 		log.Fatalf("error: %s: cannot access pages directory: %v\n", pagesDir, err)
-	}
-	if !exist {
+	} else if !exist {
 		log.Fatalf("pages directory not found: %s\n", pagesDir)
-	}
-
-	if err := filepath.WalkDir(pagesDir, func(filePath string, entry fs.DirEntry, err error) error {
+	} else if err := filepath.WalkDir(pagesDir, func(filePath string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			merr.append(fmt.Errorf("%s: cannot access: %w", filePath, err))
 			return nil
@@ -189,7 +196,7 @@ func main() {
 			Type:     CompTypePage,
 			FilePath: filePath,
 			RelPath:  relPath,
-			Name:     urlPath,
+			Ident:    urlPath,
 			GoIdent:  goIdent(urlPath),
 			UrlIdent: url.PathEscape(urlPath),
 		})
@@ -200,7 +207,7 @@ func main() {
 	}
 	merr.exitOnErrors()
 
-	// 2. parse component script and slot
+	// 2. parse component and page script and slot
 	var wg sync.WaitGroup
 	componentNames := slices.Sorted(maps.Keys(components))
 	for _, name := range componentNames {
@@ -226,11 +233,7 @@ func main() {
 				return
 			}
 
-			comp.TemplateNode = &html.Node{
-				Type:     html.ElementNode,
-				DataAtom: atom.Template,
-				Data:     "template",
-			}
+			comp.TemplateNode = newTemplateNode()
 			for _, node := range nodes {
 				val, found := hasAttr(node, "type")
 				if node.DataAtom == atom.Script && found && val == mimeType {
@@ -252,46 +255,10 @@ func main() {
 
 			scriptErrs := comp.parseTmplxScript()
 			merr.concat(scriptErrs)
-			if len(scriptErrs.errs) > 0 {
-				return
-			}
 
 			comp.SlotNames = []string{}
 			comp.Slots = map[string]struct{}{}
-
 			merr.concat(comp.parseSlots(comp.TemplateNode, false))
-		}()
-	}
-	wg.Wait()
-	merr.exitOnErrors()
-
-	// 3. parse pages and components template
-	for _, name := range componentNames {
-		wg.Add(1)
-		comp := components[name]
-		go func() {
-			defer wg.Done()
-			comp.ChildCompsIdGen = map[string]*IdGen{}
-			for _, name := range componentNames {
-				comp.ChildCompsIdGen[name] = newIdGen(name)
-			}
-
-			comp.AnonFuncNameGen = newIdGen("af")
-			comp.CurrBuf = "tx_w"
-			comp.writeStrLit("<!--tx:")
-			comp.writeExpr("tx_key")
-			comp.writeStrLit("-->")
-			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
-			for _, name := range comp.VarNames {
-				if !comp.Vars[name].Used {
-					merr.append(comp.errf("%s declared but not used", name))
-				}
-			}
-			comp.writeStrLit("<!--tx:")
-			comp.writeExpr("tx_key + \"_e\"")
-			comp.writeStrLit("-->")
-
-			comp.flushRenderFunc()
 		}()
 	}
 
@@ -319,7 +286,7 @@ func main() {
 				Data:     "script",
 				Attr: []html.Attribute{
 					{Key: "type", Val: "application/json"},
-					{Key: "id", Val: "tx-state"},
+					{Key: "id", Val: txState},
 				},
 			}
 
@@ -336,7 +303,7 @@ func main() {
 						DataAtom: atom.Script,
 						Data:     "script",
 						Attr: []html.Attribute{
-							{Key: "id", Val: txRuntimeVal},
+							{Key: "id", Val: txRuntime},
 						},
 					})
 					foundHead = true
@@ -351,18 +318,54 @@ func main() {
 			}
 			cleanUpTmplxScript(page.TemplateNode)
 
-			scriptErrs := page.parseTmplxScript()
-			merr.concat(scriptErrs)
-			if len(scriptErrs.errs) > 0 {
-				return
+			merr.concat(page.parseTmplxScript())
+		}()
+	}
+	wg.Wait()
+	merr.exitOnErrors()
+
+	// 3. parse pages and components template
+	for _, name := range componentNames {
+		wg.Add(1)
+		comp := components[name]
+		go func() {
+			defer wg.Done()
+
+			comp.ChildCompsIdGen = map[string]*IdGen{}
+			for _, name := range componentNames {
+				comp.ChildCompsIdGen[name] = newIdGen(name, '-')
 			}
+
+			comp.AnonFuncNameGen = newIdGen("af", '_')
+			comp.CurrBuf = "tx_w"
+			comp.writeStrLit("<!--tx:")
+			comp.writeExpr("tx_key")
+			comp.writeStrLit("-->")
+			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
+			for _, name := range comp.VarNames {
+				if !comp.Vars[name].Used {
+					merr.append(comp.errf("%s declared but not used", name))
+				}
+			}
+			comp.writeStrLit("<!--tx:")
+			comp.writeExpr("tx_key + \"_e\"")
+			comp.writeStrLit("-->")
+
+			comp.flushRenderFunc()
+		}()
+	}
+
+	for _, page := range pages {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 
 			page.ChildCompsIdGen = map[string]*IdGen{}
 			for _, name := range componentNames {
-				page.ChildCompsIdGen[name] = newIdGen(name)
+				page.ChildCompsIdGen[name] = newIdGen(name, '-')
 			}
 
-			page.AnonFuncNameGen = newIdGen(page.GoIdent)
+			page.AnonFuncNameGen = newIdGen(page.GoIdent, '_')
 			page.CurrBuf = "tx_w1"
 			merr.concat(page.parseTmpl(page.TemplateNode, []string{}))
 			for _, name := range page.VarNames {
@@ -372,14 +375,12 @@ func main() {
 			}
 
 			page.flushRenderFunc()
-
 		}()
 	}
-
 	wg.Wait()
 	merr.exitOnErrors()
 
-	// 4.
+	// 4. generate and write the output Go file
 	var out strings.Builder
 	out.WriteString("package " + outputPackageName + "\n")
 	out.WriteString("import(\n")
@@ -400,8 +401,8 @@ func main() {
 	}
 
 	out.WriteString(")\n")
-	out.WriteString("var runtimeScript = `" + strings.Replace(runtimeScript, "TX_HANDLER_PREFIX", handlerPrefix, 1) + "`\n")
-	out.WriteString("var slotRenderers = map[string]any{}\n")
+	out.WriteString("var runtimeScript = `" + strings.Replace(runtimeScript, "TX_HANDLER_PREFIX", outputEventHandlerPrefix, 1) + "`\n")
+	out.WriteString("var slotRenderers = map[string]func(*bytes.Buffer, string, map[string]string, map[string]any){}\n")
 	for _, name := range componentNames {
 		comp := components[name]
 		fmt.Fprintf(&out, "type state_%s struct {\n", comp.GoIdent)
@@ -422,18 +423,14 @@ func main() {
 			fmt.Fprintf(&paramsStr, ", %s, %s string", f.Name, f.Name+"_swap")
 		}
 		for _, slotName := range comp.SlotNames {
-			if slotName != "" {
-				fmt.Fprintf(&paramsStr, ", tx_render_slot_%s func()", slotName)
-			} else {
-				paramsStr.WriteString(", tx_render_default_slot func()")
-			}
+			fmt.Fprintf(&paramsStr, ", tx_render_slot_%s func()", slotName)
 		}
 
-		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, tx_parent string, tx_curr_states map[string]string, tx_next_states map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
-		writeRenderCodes(&out, comp.RenderFuncCodes)
+		fmt.Fprintf(&out, "func render_%s(tx_w *bytes.Buffer, tx_key string, tx_parent string, tx_position string, tx_curr_states map[string]string, tx_next_states map[string]any  %s) {\n", comp.GoIdent, paramsStr.String())
+		writeRenderCodes(&out, comp.RenderFuncs)
 		out.WriteString("}\n")
 		for _, sf := range comp.SlotRenderFuncs {
-			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_key string, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
+			fmt.Fprintf(&out, "func %s(tx_w *bytes.Buffer, tx_key string, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
 			var paramsStr strings.Builder
 			for _, varName := range comp.VarNames {
 				v := comp.Vars[varName]
@@ -465,10 +462,10 @@ func main() {
 			params = append(params, fmt.Sprintf("%s string", f.Name))
 		}
 		fmt.Fprintf(&out, "func render_%s(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_curr_states map[string]string, tx_next_states map[string]any, %s) {\n", page.GoIdent, strings.Join(params, ", "))
-		writeRenderCodes(&out, page.RenderFuncCodes)
+		writeRenderCodes(&out, page.RenderFuncs)
 		out.WriteString("}\n")
 		for _, sf := range page.SlotRenderFuncs {
-			fmt.Fprintf(&out, "func render_slot_%s(tx_w *bytes.Buffer, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
+			fmt.Fprintf(&out, "func %s(tx_w *bytes.Buffer, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
 			var paramsStr strings.Builder
 			for _, varName := range page.VarNames {
 				v := page.Vars[varName]
@@ -484,12 +481,44 @@ func main() {
 	for _, name := range componentNames {
 		comp := components[name]
 		for _, sf := range comp.SlotRenderFuncs {
-			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = render_slot_%s\n", sf.UrlIdent, sf.Ident)
+			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = func(tx_w *bytes.Buffer, tx_key string, tx_curr_states map[string]string, tx_next_states map[string]any) {\n", sf.Key)
+			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", comp.GoIdent)
+			out.WriteString("json.Unmarshal([]byte(tx_curr_states[tx_key]), tx_state)\n")
+			for _, varName := range comp.VarNames {
+				v := comp.Vars[varName]
+				switch v.Type {
+				case VarTypeState, VarTypeProp:
+					fmt.Fprintf(&out, "%s := tx_state.%s\n", v.Name, v.StructField)
+				case VarTypeDerived:
+					fmt.Fprintf(&out, "%s := %s\n", v.Name, astToSource(v.InitExpr))
+				}
+			}
+			fmt.Fprintf(&out, "%s(tx_w, tx_key, tx_curr_states, tx_next_states", sf.Ident)
+			for _, varName := range comp.VarNames {
+				fmt.Fprintf(&out, ", %s", varName)
+			}
+			out.WriteString(")\n}\n")
 		}
 	}
 	for _, page := range pages {
 		for _, sf := range page.SlotRenderFuncs {
-			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = render_slot_%s\n", sf.UrlIdent, sf.Ident)
+			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = func(tx_w *bytes.Buffer, _ string, tx_curr_states map[string]string, tx_next_states map[string]any) {\n", sf.Key)
+			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
+			out.WriteString("json.Unmarshal([]byte(tx_curr_states[\"page\"]), tx_state)\n")
+			for _, varName := range page.VarNames {
+				v := page.Vars[varName]
+				switch v.Type {
+				case VarTypeState:
+					fmt.Fprintf(&out, "%s := tx_state.%s\n", v.Name, v.StructField)
+				case VarTypeDerived:
+					fmt.Fprintf(&out, "%s := %s\n", v.Name, astToSource(v.InitExpr))
+				}
+			}
+			fmt.Fprintf(&out, "%s(tx_w, tx_curr_states, tx_next_states", sf.Ident)
+			for _, varName := range page.VarNames {
+				fmt.Fprintf(&out, ", %s", varName)
+			}
+			out.WriteString(")\n}\n")
 		}
 	}
 	out.WriteString("}\n\n")
@@ -503,7 +532,7 @@ func main() {
 	out.WriteString("var txRoutes []TxRoute = []TxRoute{\n")
 	for _, page := range pages {
 		out.WriteString("{\n")
-		out.WriteString("Pattern: \"GET " + page.Name + "\",\n")
+		out.WriteString("Pattern: \"GET " + page.Ident + "\",\n")
 		out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 		for _, name := range page.VarNames {
 			v := page.Vars[name]
@@ -557,14 +586,12 @@ func main() {
 
 			f := page.Funcs[funcName]
 			out.WriteString("{\n")
-			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(funcName))
+			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, outputEventHandlerPrefix, page.funcId(funcName))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if strings.HasPrefix(k, \"page\") {\n")
 			out.WriteString("tx_curr_states[k] = v[0]\n")
-			out.WriteString("}\n")
 			out.WriteString("}\n")
 			out.WriteString("tx_next_states := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
@@ -619,14 +646,12 @@ func main() {
 		}
 		for _, f := range page.AnonFuncs {
 			out.WriteString("{\n")
-			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, page.funcId(f.Name))
+			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, outputEventHandlerPrefix, page.funcId(f.Name))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
 			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if strings.HasPrefix(k, \"page\") {\n")
 			out.WriteString("tx_curr_states[k] = v[0]\n")
-			out.WriteString("}\n")
 			out.WriteString("}\n")
 			out.WriteString("tx_next_states := map[string]any{}\n")
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
@@ -687,14 +712,15 @@ func main() {
 			}
 
 			out.WriteString("{\n")
-			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, comp.funcId(funcName))
+			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, outputEventHandlerPrefix, comp.funcId(funcName))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
-			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
-			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
+			fmt.Fprintf(&out, "tx_swap := tx_r.PostFormValue(%q)\n", txSwap)
+			fmt.Fprintf(&out, "tx_parent := tx_r.PostFormValue(%q)\n", txParent)
+			fmt.Fprintf(&out, "tx_position := tx_r.PostFormValue(%q)\n", txPosition)
 			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if k != \"tx-swap\" && k != \"tx-parent\" {\n")
+			fmt.Fprintf(&out, "if k != %q && k != %q && k != %q {\n", txSwap, txPosition, txParent)
 			out.WriteString("tx_curr_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
@@ -738,19 +764,23 @@ func main() {
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 
-			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_curr_states, tx_next_states", comp.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_position, tx_curr_states, tx_next_states", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
 			for _, name := range comp.FuncNames {
 				fmt.Fprintf(&out, ", \"%s\", tx_swap", comp.funcId(name))
 			}
-			for range comp.SlotNames {
-				out.WriteString(", nil")
+			for _, slotName := range comp.SlotNames {
+				out.WriteString(", func() {\n")
+				fmt.Fprintf(&out, "if fn, ok := slotRenderers[tx_position+\"_%s\"]; ok {\n", slotName)
+				out.WriteString("fn(&tx_buf, tx_swap, tx_curr_states, tx_next_states)\n")
+				out.WriteString("}\n")
+				out.WriteString("}")
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
-			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
+			fmt.Fprintf(&out, "tx_w.Write([]byte(\"<script id=\\\"%s\\\" type=\\\"application/json\\\">\"))\n", txState)
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
@@ -759,14 +789,15 @@ func main() {
 		}
 		for _, f := range comp.AnonFuncs {
 			out.WriteString("{\n")
-			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, handlerPrefix, comp.funcId(f.Name))
+			fmt.Fprintf(&out, "Pattern: \"%s %s%s\",\n", f.Method, outputEventHandlerPrefix, comp.funcId(f.Name))
 			out.WriteString("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			out.WriteString("tx_r.ParseForm()\n")
-			out.WriteString("tx_swap := tx_r.PostFormValue(\"tx-swap\")\n")
-			out.WriteString("tx_parent := tx_r.PostFormValue(\"tx-parent\")\n")
+			fmt.Fprintf(&out, "tx_swap := tx_r.PostFormValue(%q)\n", txSwap)
+			fmt.Fprintf(&out, "tx_parent := tx_r.PostFormValue(%q)\n", txParent)
+			fmt.Fprintf(&out, "tx_position := tx_r.PostFormValue(%q)\n", txPosition)
 			out.WriteString("tx_curr_states := map[string]string{}\n")
 			out.WriteString("for k, v := range tx_r.PostForm {\n")
-			out.WriteString("if k != \"tx-swap\" && k != \"tx-parent\" {\n")
+			fmt.Fprintf(&out, "if k != %q && k != %q && k != %q {\n", txSwap, txParent, txPosition)
 			out.WriteString("tx_curr_states[k] = v[0]\n")
 			out.WriteString("}\n")
 			out.WriteString("}\n")
@@ -801,19 +832,23 @@ func main() {
 			out.WriteString("}\n")
 			out.WriteString("var tx_buf bytes.Buffer\n")
 
-			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_curr_states, tx_next_states", comp.GoIdent)
+			fmt.Fprintf(&out, "render_%s(&tx_buf, tx_swap, tx_parent, tx_position, tx_curr_states, tx_next_states", comp.GoIdent)
 			for _, name := range comp.VarNames {
 				fmt.Fprintf(&out, ", %s", name)
 			}
 			for _, name := range comp.FuncNames {
 				fmt.Fprintf(&out, ", \"%s\", tx_swap", comp.funcId(name))
 			}
-			for range comp.SlotNames {
-				out.WriteString(", nil")
+			for _, slotName := range comp.SlotNames {
+				out.WriteString(", func() {\n")
+				fmt.Fprintf(&out, "if fn, ok := slotRenderers[tx_position+\"_%s\"]; ok {\n", slotName)
+				out.WriteString("fn(&tx_buf, tx_swap, tx_curr_states, tx_next_states)\n")
+				out.WriteString("}\n")
+				out.WriteString("}")
 			}
 			out.WriteString(")\n")
 			out.WriteString("tx_w.Write(tx_buf.Bytes())\n")
-			out.WriteString("tx_w.Write([]byte(\"<script id=\\\"tx-state\\\" type=\\\"application/json\\\">\"))\n")
+			fmt.Fprintf(&out, "tx_w.Write([]byte(\"<script id=\\\"%s\\\" type=\\\"application/json\\\">\"))\n", txState)
 			out.WriteString("tx_stateBytes, _ := json.Marshal(tx_next_states)\n")
 			out.WriteString("tx_w.Write(tx_stateBytes)\n")
 			out.WriteString("tx_w.Write([]byte(\"</script>\"))\n")
@@ -865,8 +900,7 @@ type Component struct {
 	Type     CompType
 	FilePath string
 	RelPath  string
-
-	Name     string
+	Ident    string
 	GoIdent  string
 	UrlIdent string
 
@@ -874,21 +908,20 @@ type Component struct {
 	Imports         []*ast.ImportSpec
 	VarNames        []string
 	Vars            map[string]*Var
-	SavedVarsLen    int
 	FuncNames       []string
 	Funcs           map[string]*Func
-	AnonFuncs       []*Func
-	AnonFuncNameGen *IdGen
 
-	TemplateNode    *html.Node
-	SlotNames       []string
-	Slots           map[string]struct{}
-	ChildCompsIdGen map[string]*IdGen
+	SlotNames []string
+	Slots     map[string]struct{}
 
+	TemplateNode          *html.Node
+	AnonFuncNameGen       *IdGen
+	AnonFuncs             []*Func
+	ChildCompsIdGen       map[string]*IdGen
 	CurrBuf               string
 	CurrRenderFuncType    RenderFuncType
 	CurrRenderFuncContent []byte
-	RenderFuncCodes       []RenderFunc
+	RenderFuncs           []RenderFunc
 	SlotRenderFuncs       []SlotRenderFunc
 
 	StyleNode *html.Node
@@ -896,49 +929,6 @@ type Component struct {
 
 func (comp *Component) errf(msg string, a ...any) error {
 	return fmt.Errorf(comp.RelPath+": "+msg, a...)
-}
-
-func (comp *Component) flushRenderFunc() {
-	if len(comp.CurrRenderFuncContent) > 0 {
-		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
-			Type:    comp.CurrRenderFuncType,
-			Buf:     comp.CurrBuf,
-			Content: comp.CurrRenderFuncContent,
-		})
-	}
-}
-
-func (comp *Component) saveRenderState() ([]RenderFunc, string) {
-	if len(comp.CurrRenderFuncContent) > 0 {
-		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
-			Type:    comp.CurrRenderFuncType,
-			Buf:     comp.CurrBuf,
-			Content: comp.CurrRenderFuncContent,
-		})
-	}
-
-	saved := comp.RenderFuncCodes
-	savedCurrBuf := comp.CurrBuf
-	comp.RenderFuncCodes = []RenderFunc{}
-	comp.CurrRenderFuncType = 0
-	comp.CurrRenderFuncContent = []byte{}
-	return saved, savedCurrBuf
-}
-
-func (comp *Component) collectAndRestoreRenderState(savedCodes []RenderFunc, savedCurrBuf string) []RenderFunc {
-	if len(comp.CurrRenderFuncContent) > 0 {
-		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
-			Type:    comp.CurrRenderFuncType,
-			Buf:     comp.CurrBuf,
-			Content: comp.CurrRenderFuncContent,
-		})
-	}
-	collected := comp.RenderFuncCodes
-	comp.RenderFuncCodes = savedCodes
-	comp.CurrRenderFuncType = 0
-	comp.CurrRenderFuncContent = []byte{}
-	comp.CurrBuf = savedCurrBuf
-	return collected
 }
 
 func (comp *Component) parseTmplxScript() *MultiError {
@@ -951,7 +941,6 @@ func (comp *Component) parseTmplxScript() *MultiError {
 	comp.Funcs = map[string]*Func{}
 
 	if comp.TmplxScriptNode != nil {
-		// TODO: save position into errors
 		scriptAst, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+comp.TmplxScriptNode.FirstChild.Data, parser.ParseComments)
 		if err != nil {
 			merr.append(comp.errf("syntax error in <script type=\"text/tmplx\">: %w", err))
@@ -1125,7 +1114,9 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				}
 			}
 
-			comp.FuncNames = append(comp.FuncNames, d.Name.Name)
+			if d.Name.Name != "init" {
+				comp.FuncNames = append(comp.FuncNames, d.Name.Name)
+			}
 			comp.Funcs[d.Name.Name] = &Func{
 				Method: http.MethodPost,
 				Name:   d.Name.Name,
@@ -1134,26 +1125,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 		}
 	}
 
-	for _, v := range comp.Vars {
-		if v.Type == VarTypeState || v.Type == VarTypeProp {
-			comp.SavedVarsLen++
-		}
-	}
-
 	return merr
-}
-
-func (comp *Component) markVarsUsed(node ast.Node) {
-	ast.Inspect(node, func(n ast.Node) bool {
-		ident, ok := n.(*ast.Ident)
-		if !ok {
-			return true
-		}
-		if v, ok := comp.Vars[ident.Name]; ok {
-			v.Used = true
-		}
-		return true
-	})
 }
 
 func (comp *Component) modifiedDerived(node ast.Node, md *[]string) {
@@ -1224,10 +1196,60 @@ func (comp *Component) modifiedDerived(node ast.Node, md *[]string) {
 	})
 }
 
+func (comp *Component) markVarsUsed(node ast.Node) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if v, ok := comp.Vars[ident.Name]; ok {
+			v.Used = true
+		}
+		return true
+	})
+}
+
+func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
+	merr := newMultiError()
+	if node.Type != html.ElementNode {
+		return nil
+	}
+
+	isSlot := node.DataAtom == atom.Slot
+	if isSlot {
+		if inSlot {
+			merr.append(comp.errf("<slot> cannot be nested inside another <slot>"))
+		}
+
+		slotName := ""
+		if name, found := hasAttr(node, "name"); found {
+			slotName = name
+		}
+
+		if _, ok := comp.Slots[slotName]; !ok {
+			comp.SlotNames = append(comp.SlotNames, slotName)
+			comp.Slots[slotName] = struct{}{}
+		} else {
+			if slotName == "" {
+				merr.append(comp.errf("duplicate default <slot> (only one allowed)"))
+			} else {
+				merr.append(comp.errf("duplicate <slot name=\"%s\"> (only one allowed)", slotName))
+			}
+		}
+	}
+
+	for c := node.FirstChild; c != nil; c = c.NextSibling {
+		merr.concat(comp.parseSlots(c, isSlot))
+	}
+
+	return merr
+}
+
 func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError {
 	merr := newMultiError()
 	switch node.Type {
 	case html.CommentNode:
+		comp.writeStrLit(fmt.Sprintf("<!--%s-->", node.Data))
 		return nil
 	case html.DocumentNode:
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
@@ -1235,16 +1257,14 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		}
 		return merr
 	case html.DoctypeNode:
-		comp.writeStrLit("<!DOCTYPE ")
-		comp.writeStrLit(node.Data)
-		comp.writeStrLit(">")
+		comp.writeStrLit(fmt.Sprintf("<!DOCTYPE %s>", node.Data))
 		return nil
 	case html.TextNode:
-		_, hasTxIgnore := hasAttr(node.Parent, txIgnoreKey)
+		_, hasTxIgnore := hasAttr(node.Parent, txIgnore)
 		isScriptOrStyle := node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style
 		isRawText := isChildNodeRawText(node.Parent.Data)
 
-		// Skip interpolation for tx-ignore or script/style tags
+		// skip interpolation for tx-ignore or script/style tags
 		if hasTxIgnore || isScriptOrStyle {
 			if isRawText {
 				comp.writeStrLit(node.Data)
@@ -1254,15 +1274,15 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			return nil
 		}
 
-		// Parse with escaping based on whether parent is raw text
+		// parse with escaping based on whether parent is raw text
 		return newMultiError(comp.parseTmplStr(node.Data, !isRawText))
 	case html.ElementNode:
 		if components[node.Data] != nil {
 			childComp := components[node.Data]
 
-			// Validate that attributes on the component tag are actual props, not state variables
+			// validate that attributes on the component tag are actual props, not state variables
 			for _, attr := range node.Attr {
-				if attr.Key == txIfKey || attr.Key == txElseIfKey || attr.Key == txElseKey || attr.Key == txForKey || attr.Key == txKeyKey || attr.Key == "slot" {
+				if attr.Key == txIf || attr.Key == txElseIf || attr.Key == txElse || attr.Key == txFor || attr.Key == txKey || attr.Key == "slot" {
 					continue
 				}
 				if _, ok := childComp.Funcs[attr.Key]; ok {
@@ -1271,7 +1291,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 				v, ok := childComp.Vars[attr.Key]
 				if !ok {
-					merr.append(comp.errf("<%s %s=\"...\">: %s is not a prop or function in component %s", node.Data, attr.Key, attr.Key, childComp.Name))
+					merr.append(comp.errf("<%s %s=\"...\">: %s is not a prop or function in component %s", node.Data, attr.Key, attr.Key, childComp.Ident))
 					continue
 				}
 
@@ -1294,13 +1314,14 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 			}
 
-			id := comp.ChildCompsIdGen[childComp.Name].next()
+			id := comp.ChildCompsIdGen[childComp.Ident].next()
 
 			comp.writeGo("{\n")
-			// create key for component
-			if comp.Type == CompTypePage {
+			// initial component key
+			switch comp.Type {
+			case CompTypePage:
 				comp.writeGo(fmt.Sprintf("tx_ckey := \"%s\"\n", id))
-			} else {
+			case CompTypeComp:
 				if len(forKeys) > 0 {
 					comp.writeGo("tx_key := tx_key")
 					for _, key := range forKeys {
@@ -1310,83 +1331,105 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				}
 				comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
 			}
+
 			comp.writeGo(fmt.Sprintf("tx_state := &state_%s{}\n", childComp.GoIdent))
-			comp.writeGo("tx_old_state, tx_old_state_exist := tx_curr_states[tx_ckey]\n")
-			comp.writeGo("if tx_old_state_exist {\n")
-			comp.writeGo("json.Unmarshal([]byte(tx_old_state), tx_state)\n")
-			comp.writeGo("}\n")
-			for _, varName := range childComp.VarNames {
-				v := childComp.Vars[varName]
-				if v.Type == VarTypeProp {
-					if val, found := hasAttr(node, varName); found {
-						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, val))
-						if propExpr, perr := parser.ParseExpr(val); perr == nil {
-							comp.markVarsUsed(propExpr)
-						}
-					} else if v.InitExpr != nil {
-						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
-					} else {
-						comp.writeGo(fmt.Sprintf("var %s %s\n", v.Name, astToSource(v.TypeExpr)))
-					}
-					comp.writeGo(fmt.Sprintf("tx_state.%s = %s\n", v.StructField, v.Name))
-				}
-			}
-
-			if childComp.SavedVarsLen > 0 {
-				initStrs := ""
-				for _, varName := range childComp.VarNames {
-					v := childComp.Vars[varName]
-					if v.Type == VarTypeState {
-						if v.InitExpr != nil {
-							initStrs += fmt.Sprintf("tx_state.%s = %s\n", v.StructField, astToSource(v.InitExpr))
-						}
-					}
-				}
-
-				if initStrs != "" {
-					comp.writeGo("if !tx_old_state_exist {\n")
-					comp.writeGo(initStrs)
-					comp.writeGo("}\n")
-				}
-
-				for _, varName := range childComp.VarNames {
-					v := childComp.Vars[varName]
-					if v.Type == VarTypeState {
-						comp.writeGo(fmt.Sprintf("%s := tx_state.%s\n", v.Name, v.StructField))
-					}
-				}
-			}
-
+			// create derived variabls incase of parent duplicate var name
 			for _, varName := range childComp.VarNames {
 				v := childComp.Vars[varName]
 				if v.Type == VarTypeDerived {
-					comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
+					comp.writeGo(fmt.Sprintf("var tx_derived_%s %s\n", v.Name, astToSource(v.TypeExpr)))
 				}
 			}
 
-			if f, ok := childComp.Funcs["init"]; ok {
-				comp.writeGo("if !tx_old_state_exist {\n")
-				for _, stmt := range f.Decl.Body.List {
-					comp.writeGo(astToSource(stmt) + "\n")
-				}
-				for _, name := range childComp.VarNames {
-					v := childComp.Vars[name]
-					if v.Type == VarTypeDerived {
-						comp.writeGo(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
+			if len(childComp.VarNames) > 0 {
+				comp.writeGo("tx_curr_state_str, tx_curr_state_exist := tx_curr_states[tx_ckey]\n")
+				comp.writeGo("if tx_curr_state_exist {\n")
+				comp.writeGo("json.Unmarshal([]byte(tx_curr_state_str), tx_state)\n")
+				comp.writeGo("} else {\n")
+				for _, varName := range childComp.VarNames {
+					v := childComp.Vars[varName]
+					switch v.Type {
+					case VarTypeProp:
+						if val, found := hasAttr(node, varName); found {
+							comp.writeGo(fmt.Sprintf("tx_state.%s := %s\n", v.StructField, val))
+							if propExpr, perr := parser.ParseExpr(val); perr == nil {
+								comp.markVarsUsed(propExpr)
+							}
+						} else if v.InitExpr != nil {
+							comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
+							comp.writeGo(fmt.Sprintf("tx_state.%s = %s\n", v.StructField, astToSource(v.InitExpr)))
+						}
+					case VarTypeState:
+						if v.InitExpr != nil {
+							comp.writeGo(fmt.Sprintf("tx_state.%s = %s\n", v.StructField, astToSource(v.InitExpr)))
+						}
 					}
 				}
+				comp.writeGo("}\n")
+
+				// make a bridge to user's code
+				comp.writeGo("{\n")
+				for _, varName := range childComp.VarNames {
+					v := childComp.Vars[varName]
+					switch v.Type {
+					case VarTypeProp, VarTypeState:
+						comp.writeGo(fmt.Sprintf("%s := tx_state.%s\n", v.Name, v.StructField))
+					case VarTypeDerived:
+						comp.writeGo(fmt.Sprintf("%s := %s\n", v.Name, astToSource(v.InitExpr)))
+					}
+
+				}
+
+				if f, initExist := childComp.Funcs["init"]; initExist {
+					for _, stmt := range f.Decl.Body.List {
+						comp.writeGo(astToSource(stmt) + "\n")
+					}
+					for _, name := range childComp.VarNames {
+						v := childComp.Vars[name]
+						if v.Type == VarTypeDerived {
+							comp.writeGo(fmt.Sprintf("%s = %s\n", name, astToSource(v.InitExpr)))
+						}
+					}
+				}
+
 				for _, name := range childComp.VarNames {
 					v := childComp.Vars[name]
 					if v.Type == VarTypeState {
 						comp.writeGo(fmt.Sprintf("tx_state.%s = %s\n", v.StructField, v.Name))
 					}
 				}
+
+				// populate derived for params
+				for _, varName := range childComp.VarNames {
+					v := childComp.Vars[varName]
+					if v.Type == VarTypeDerived {
+						comp.writeGo(fmt.Sprintf("tx_derived_%s = %s\n", v.Name, v.Name))
+					}
+				}
 				comp.writeGo("}\n")
 			}
+
 			comp.writeGo("tx_next_states[tx_ckey] = tx_state\n")
+
+			childCompPosition := fmt.Sprintf("%s_%s", comp.Ident, id)
+
+			parent := "\"page\""
+			if comp.Type == CompTypeComp {
+				parent = "tx_key"
+			}
+
+			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, %s, \"%s\", tx_curr_states, tx_next_states", childComp.GoIdent, comp.CurrBuf, parent, childCompPosition))
+
+			// call render function
 			params := []string{}
 			for _, varName := range childComp.VarNames {
-				params = append(params, varName)
+				v := childComp.Vars[varName]
+				switch v.Type {
+				case VarTypeProp, VarTypeState:
+					params = append(params, "tx_state."+v.StructField)
+				case VarTypeDerived:
+					params = append(params, "tx_derived_"+v.Name)
+				}
 			}
 
 			for _, funcName := range childComp.FuncNames {
@@ -1399,14 +1442,12 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 				} else {
 					f := childComp.Funcs[funcName]
 					if f.Decl.Body == nil {
-						merr.append(comp.errf("function %s has no body in %s and must be passed as a prop", funcName, childComp.Name))
+						merr.append(comp.errf("function %s has no body in %s and must be passed as a prop", funcName, childComp.Ident))
 					} else {
 						params = append(params, fmt.Sprintf("\"%s\"", childComp.funcId(f.Name)), "tx_ckey")
 					}
 				}
 			}
-
-			comp.writeGo(fmt.Sprintf("render_%s(%s, tx_ckey, \"%s\", tx_curr_states, tx_next_states", childComp.GoIdent, comp.CurrBuf, comp.Name))
 			for _, param := range params {
 				comp.writeGo(", " + param)
 			}
@@ -1419,12 +1460,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					continue
 				} else {
 					if slotNodes[""] == nil {
-
-						slotNodes[""] = &html.Node{
-							Type:     html.ElementNode,
-							DataAtom: atom.Template,
-							Data:     "template",
-						}
+						slotNodes[""] = newTemplateNode()
 					}
 
 					slotNodes[""].AppendChild(&html.Node{
@@ -1447,8 +1483,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			parentBuf := comp.CurrBuf
 			for _, slotName := range childComp.SlotNames {
 				if n, ok := slotNodes[slotName]; ok {
-					slotRenderFuncIdent := fmt.Sprintf("%s_%s_%d_%s", comp.GoIdent, childComp.GoIdent, comp.ChildCompsIdGen[childComp.Name].Curr, slotName)
-					slotRenderFuncUrlIdent := fmt.Sprintf("%s_%s_%s", comp.UrlIdent, comp.ChildCompsIdGen[childComp.Name].curr(), slotName)
+					slotRenderFuncIdent := fmt.Sprintf("render_slot_%s_%s_%d_%s", comp.GoIdent, childComp.GoIdent, comp.ChildCompsIdGen[childComp.Ident].Curr, goIdent(slotName))
 
 					savedCodes, savedCurrBuf := comp.saveRenderState()
 					comp.CurrBuf = "tx_w"
@@ -1456,9 +1491,9 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					slotCodes := comp.collectAndRestoreRenderState(savedCodes, savedCurrBuf)
 
 					comp.SlotRenderFuncs = append(comp.SlotRenderFuncs, SlotRenderFunc{
-						Ident:    slotRenderFuncIdent,
-						UrlIdent: slotRenderFuncUrlIdent,
-						Codes:    slotCodes,
+						Ident: slotRenderFuncIdent,
+						Key:   childCompPosition + "_" + slotName,
+						Codes: slotCodes,
 					})
 
 					var paramsStr strings.Builder
@@ -1467,10 +1502,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 						fmt.Fprintf(&paramsStr, ", %s", v.Name)
 					}
 
-					if comp.Type == CompTypePage {
-						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
-					} else {
-						comp.writeGo(fmt.Sprintf("func () { render_slot_%s(%s, tx_key, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
+					switch comp.Type {
+					case CompTypePage:
+						comp.writeGo(fmt.Sprintf("func () { %s(%s, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
+					case CompTypeComp:
+						comp.writeGo(fmt.Sprintf("func () { %s(%s, tx_key, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
 					}
 				} else {
 					comp.writeGo("func() {},\n")
@@ -1480,23 +1516,16 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			comp.writeGo("}\n")
 			return merr
 		} else if node.DataAtom == atom.Slot {
-			renderSlotFuncName := "tx_render_default_slot"
-			if name, found := hasAttr(node, "name"); found {
-				renderSlotFuncName = "tx_render_slot_" + name
-			}
+			val, _ := hasAttr(node, "name")
+			renderSlotFuncName := "tx_render_slot_" + val
 
 			comp.writeGo(fmt.Sprintf("if %s != nil {\n", renderSlotFuncName))
 			comp.writeGo(fmt.Sprintf("%s()\n", renderSlotFuncName))
-
 			if node.FirstChild != nil {
 				comp.writeGo("} else {\n")
-				children := &html.Node{
-					Type:     html.ElementNode,
-					DataAtom: atom.Template,
-					Data:     "template",
-				}
+				child := newTemplateNode()
 				for c := node.FirstChild; c != nil; c = c.NextSibling {
-					children.AppendChild(&html.Node{
+					child.AppendChild(&html.Node{
 						FirstChild: c.FirstChild,
 						LastChild:  c.LastChild,
 
@@ -1507,23 +1536,25 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 						Attr:      c.Attr,
 					})
 				}
-				merr.concat(comp.parseTmpl(children, forKeys))
+				merr.concat(comp.parseTmpl(child, forKeys))
 			}
-			comp.writeGo("\n}\n")
+			comp.writeGo("}\n")
+
 			return merr
+
 		} else if node.DataAtom != atom.Template {
 			comp.writeStrLit("<")
 			comp.writeStrLit(node.Data)
 
-			_, isIgnore := hasAttr(node, txIgnoreKey)
+			_, isIgnore := hasAttr(node, txIgnore)
 
 			for _, attr := range node.Attr {
-				if attr.Key == txIfKey || attr.Key == txElseIfKey || attr.Key == txElseKey || attr.Key == txForKey {
+				if attr.Key == txIf || attr.Key == txElseIf || attr.Key == txElse || attr.Key == txFor {
 					continue
 				}
 
 				comp.writeStrLit(" ")
-				if strings.HasPrefix(attr.Key, "tx-on") {
+				if strings.HasPrefix(attr.Key, txOn) {
 					comp.writeStrLit(attr.Key)
 					comp.writeStrLit(`="`)
 
@@ -1581,17 +1612,20 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 									}
 
 									comp.writeStrLit(`"`)
-									comp.writeStrLit(" tx-swap=\"")
+									comp.writeStrLit(" " + txSwap + "=\"")
 									if comp.Type == CompTypePage {
-										comp.writeStrLit("page")
+										comp.writeStrLit(pageKey)
 									} else {
 										comp.writeExpr(fun.Name + "_swap")
 									}
 									comp.writeStrLit(`"`)
 
 									if len(comp.SlotNames) > 0 {
-										comp.writeStrLit(" tx-parent=\"")
+										comp.writeStrLit(" " + txParent + "=\"")
 										comp.writeExpr("tx_parent")
+										comp.writeStrLit("\"")
+										comp.writeStrLit(" " + txPosition + "=\"")
+										comp.writeExpr("tx_position")
 										comp.writeStrLit("\"")
 									}
 
@@ -1602,7 +1636,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					}
 
 					funcName := comp.AnonFuncNameGen.next()
-					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc f() {\n%s\n}", attr.Val), 0)
+					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc %s() {\n%s\n}", funcName, attr.Val), 0)
 					if err != nil {
 						merr.append(comp.errf("invalid inline handler: %s", attr.Val))
 						continue
@@ -1630,17 +1664,20 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					comp.writeStrLit(comp.funcId(decl.Name.Name))
 					comp.writeStrLit("\"")
 
-					comp.writeStrLit(" tx-swap=\"")
+					comp.writeStrLit(" " + txSwap + "=\"")
 					if comp.Type == CompTypePage {
-						comp.writeStrLit("page")
+						comp.writeStrLit(pageKey)
 					} else {
 						comp.writeExpr("tx_key")
 					}
 					comp.writeStrLit("\"")
 
 					if len(comp.SlotNames) > 0 {
-						comp.writeStrLit(" tx-parent=\"")
+						comp.writeStrLit(" " + txParent + "=\"")
 						comp.writeExpr("tx_parent")
+						comp.writeStrLit("\"")
+						comp.writeStrLit(" " + txPosition + "=\"")
+						comp.writeExpr("tx_position")
 						comp.writeStrLit("\"")
 					}
 
@@ -1673,14 +1710,14 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 			comp.writeStrLit(">")
 		}
 
-		// 0: no control flow
-		// 1: if
-		// 2: else-if
-		// 3: else
+		// prevCondState tracks the conditional directive on the previous sibling:
+		// 0=none, 1=if, 2=else-if, 3=else. It is used to emit a closing "}" when
+		// a conditional chain ends, and to validate that tx-else-if/tx-else only
+		// follow tx-if or tx-else-if.
 		txNodeId, _ := hasAttr(node, "id")
-		if node.DataAtom == atom.Script && txNodeId == txRuntimeVal {
+		if node.DataAtom == atom.Script && txNodeId == txRuntime {
 			comp.writeGo(comp.CurrBuf + ".WriteString(runtimeScript)\n")
-		} else if node.DataAtom == atom.Script && txNodeId == "tx-state" {
+		} else if node.DataAtom == atom.Script && txNodeId == txState {
 			comp.writeSplit()
 		} else {
 			var prevCondState CondState
@@ -1727,8 +1764,8 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					}
 					prevCondState = currCondState
 
-					if stmt, ok := hasAttr(c, txForKey); ok {
-						val, found := hasAttr(c, txKeyKey)
+					if stmt, ok := hasAttr(c, txFor); ok {
+						val, found := hasAttr(c, txKey)
 						if !found {
 							merr.append(comp.errf("tx-for requires a tx-key attribute"))
 						} else {
@@ -1879,46 +1916,53 @@ func (comp *Component) parseTmplStr(str string, escape bool) error {
 	return nil
 }
 
-func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
-	merr := newMultiError()
-	if node.Type != html.ElementNode {
-		return nil
+func (comp *Component) saveRenderState() ([]RenderFunc, string) {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncs = append(comp.RenderFuncs, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			Buf:     comp.CurrBuf,
+			Content: comp.CurrRenderFuncContent,
+		})
 	}
 
-	isSlot := node.DataAtom == atom.Slot
-	if isSlot {
-		if inSlot {
-			merr.append(comp.errf("<slot> cannot be nested inside another <slot>"))
-		}
+	saved := comp.RenderFuncs
+	savedCurrBuf := comp.CurrBuf
+	comp.RenderFuncs = []RenderFunc{}
+	comp.CurrRenderFuncType = 0
+	comp.CurrRenderFuncContent = []byte{}
+	return saved, savedCurrBuf
+}
 
-		slotName := ""
-		if name, found := hasAttr(node, "name"); found {
-			slotName = name
-		}
-
-		if _, ok := comp.Slots[slotName]; !ok {
-			comp.SlotNames = append(comp.SlotNames, slotName)
-			comp.Slots[slotName] = struct{}{}
-		} else {
-			if slotName == "" {
-				merr.append(comp.errf("duplicate default <slot> (only one allowed)"))
-			} else {
-				merr.append(comp.errf("duplicate <slot name=\"%s\"> (only one allowed)", slotName))
-			}
-		}
+func (comp *Component) collectAndRestoreRenderState(savedCodes []RenderFunc, savedCurrBuf string) []RenderFunc {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncs = append(comp.RenderFuncs, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			Buf:     comp.CurrBuf,
+			Content: comp.CurrRenderFuncContent,
+		})
 	}
+	collected := comp.RenderFuncs
+	comp.RenderFuncs = savedCodes
+	comp.CurrRenderFuncType = 0
+	comp.CurrRenderFuncContent = []byte{}
+	comp.CurrBuf = savedCurrBuf
+	return collected
+}
 
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		merr.concat(comp.parseSlots(c, isSlot))
+func (comp *Component) flushRenderFunc() {
+	if len(comp.CurrRenderFuncContent) > 0 {
+		comp.RenderFuncs = append(comp.RenderFuncs, RenderFunc{
+			Type:    comp.CurrRenderFuncType,
+			Buf:     comp.CurrBuf,
+			Content: comp.CurrRenderFuncContent,
+		})
 	}
-
-	return merr
 }
 
 type SlotRenderFunc struct {
-	Ident    string
-	UrlIdent string
-	Codes    []RenderFunc
+	Key   string
+	Ident string
+	Codes []RenderFunc
 }
 
 func writeRenderCodes(out *strings.Builder, codes []RenderFunc) {
@@ -1994,7 +2038,7 @@ type RenderFunc struct {
 func (comp *Component) writeTmpl(t RenderFuncType, content string) {
 	if comp.CurrRenderFuncType != t {
 		if len(comp.CurrRenderFuncContent) != 0 {
-			comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
+			comp.RenderFuncs = append(comp.RenderFuncs, RenderFunc{
 				Type:    comp.CurrRenderFuncType,
 				Buf:     comp.CurrBuf,
 				Content: comp.CurrRenderFuncContent,
@@ -2030,7 +2074,7 @@ func (comp *Component) writeUrlEscapeExpr(content string) {
 
 func (comp *Component) writeSplit() {
 	if len(comp.CurrRenderFuncContent) > 0 {
-		comp.RenderFuncCodes = append(comp.RenderFuncCodes, RenderFunc{
+		comp.RenderFuncs = append(comp.RenderFuncs, RenderFunc{
 			Type:    comp.CurrRenderFuncType,
 			Buf:     comp.CurrBuf,
 			Content: comp.CurrRenderFuncContent,
@@ -2056,15 +2100,15 @@ const (
 
 func condState(n *html.Node) (CondState, string) {
 	for _, attr := range n.Attr {
-		if attr.Key == txIfKey {
+		if attr.Key == txIf {
 			return CondStateIf, attr.Val
 		}
 
-		if attr.Key == txElseIfKey {
+		if attr.Key == txElseIf {
 			return CondStateElseIf, attr.Val
 		}
 
-		if attr.Key == txElseKey {
+		if attr.Key == txElse {
 			return CondStateElse, ""
 		}
 	}
@@ -2162,6 +2206,14 @@ func astToSource(a ast.Node) string {
 	var buf strings.Builder
 	printer.Fprint(&buf, token.NewFileSet(), a)
 	return buf.String()
+}
+
+func newTemplateNode() *html.Node {
+	return &html.Node{
+		Type:     html.ElementNode,
+		DataAtom: atom.Template,
+		Data:     "template",
+	}
 }
 
 // https://html.spec.whatwg.org/#void-elements
@@ -2273,15 +2325,17 @@ func (me *MultiError) exitOnErrors() {
 	os.Exit(1)
 }
 
-func newIdGen(prefix string) *IdGen {
+func newIdGen(prefix string, sep rune) *IdGen {
 	return &IdGen{
 		Prefix: prefix,
+		Sep:    sep,
 	}
 }
 
 type IdGen struct {
 	Curr   int
 	Prefix string
+	Sep    rune
 }
 
 func (id *IdGen) next() string {
@@ -2290,25 +2344,7 @@ func (id *IdGen) next() string {
 }
 
 func (id *IdGen) curr() string {
-	return fmt.Sprintf("%s-%d", id.Prefix, id.Curr)
-}
-
-func findModuleRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", errModuleNotFound
-		}
-		dir = parent
-	}
+	return fmt.Sprintf("%s%c%d", id.Prefix, id.Sep, id.Curr)
 }
 
 func dirExist(path string) (bool, error) {
@@ -2320,10 +2356,6 @@ func dirExist(path string) (bool, error) {
 		return false, err
 	}
 	return info.IsDir(), nil
-}
-
-func isValidComponentNameRune(r rune) bool {
-	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_'
 }
 
 type CommentName string
@@ -2350,12 +2382,12 @@ func parseComments(text string) []Comment {
 	lines := strings.SplitSeq(text, "\n")
 	for line := range lines {
 		str := strings.TrimSpace(line)
-		if str == txCommentProp {
+		if str == txProp {
 			comments = append(comments, Comment{
 				Name: CommentProp,
 			})
-		} else if strings.HasPrefix(str, txCommentPath) {
-			val := strings.TrimSpace(str[len(txCommentPath):])
+		} else if strings.HasPrefix(str, txPath) {
+			val := strings.TrimSpace(str[len(txPath):])
 			comments = append(comments, Comment{
 				Name:  CommentPath,
 				Value: val,
