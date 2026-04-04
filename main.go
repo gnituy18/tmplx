@@ -341,7 +341,7 @@ func main() {
 			comp.writeStrLit("<!--tx:")
 			comp.writeExpr("tx_key")
 			comp.writeStrLit("-->")
-			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}))
+			merr.concat(comp.parseTmpl(comp.TemplateNode, []string{}, false))
 			for _, name := range comp.VarNames {
 				if !comp.Vars[name].Used {
 					merr.append(comp.errf("%s declared but not used", name))
@@ -367,7 +367,7 @@ func main() {
 
 			page.AnonFuncNameGen = newIdGen(page.GoIdent, '_')
 			page.CurrBuf = "tx_w1"
-			merr.concat(page.parseTmpl(page.TemplateNode, []string{}))
+			merr.concat(page.parseTmpl(page.TemplateNode, []string{}, false))
 			for _, name := range page.VarNames {
 				if !page.Vars[name].Used {
 					merr.append(page.errf("%s declared but not used", name))
@@ -465,7 +465,7 @@ func main() {
 		writeRenderCodes(&out, page.RenderFuncs)
 		out.WriteString("}\n")
 		for _, sf := range page.SlotRenderFuncs {
-			fmt.Fprintf(&out, "func %s(tx_w *bytes.Buffer, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
+			fmt.Fprintf(&out, "func %s(tx_w *bytes.Buffer, tx_key string, tx_curr_states map[string]string, tx_next_states map[string]any", sf.Ident)
 			var paramsStr strings.Builder
 			for _, varName := range page.VarNames {
 				v := page.Vars[varName]
@@ -502,7 +502,7 @@ func main() {
 	}
 	for _, page := range pages {
 		for _, sf := range page.SlotRenderFuncs {
-			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = func(tx_w *bytes.Buffer, _ string, tx_curr_states map[string]string, tx_next_states map[string]any) {\n", sf.Key)
+			fmt.Fprintf(&out, "slotRenderers[\"%s\"] = func(tx_w *bytes.Buffer, tx_key string, tx_curr_states map[string]string, tx_next_states map[string]any) {\n", sf.Key)
 			fmt.Fprintf(&out, "tx_state := &state_%s{}\n", page.GoIdent)
 			out.WriteString("json.Unmarshal([]byte(tx_curr_states[\"page\"]), tx_state)\n")
 			for _, varName := range page.VarNames {
@@ -514,7 +514,7 @@ func main() {
 					fmt.Fprintf(&out, "%s := %s\n", v.Name, astToSource(v.InitExpr))
 				}
 			}
-			fmt.Fprintf(&out, "%s(tx_w, tx_curr_states, tx_next_states", sf.Ident)
+			fmt.Fprintf(&out, "%s(tx_w, tx_key, tx_curr_states, tx_next_states", sf.Ident)
 			for _, varName := range page.VarNames {
 				fmt.Fprintf(&out, ", %s", varName)
 			}
@@ -1245,7 +1245,7 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) *MultiError {
 	return merr
 }
 
-func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError {
+func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool) *MultiError {
 	merr := newMultiError()
 	switch node.Type {
 	case html.CommentNode:
@@ -1253,7 +1253,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 		return nil
 	case html.DocumentNode:
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
-			merr.concat(comp.parseTmpl(c, forKeys))
+			merr.concat(comp.parseTmpl(c, forKeys, inSlot))
 		}
 		return merr
 	case html.DoctypeNode:
@@ -1318,10 +1318,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 			comp.writeGo("{\n")
 			// initial component key
-			switch comp.Type {
-			case CompTypePage:
-				comp.writeGo(fmt.Sprintf("tx_ckey := \"%s\"\n", id))
-			case CompTypeComp:
+			if inSlot {
 				if len(forKeys) > 0 {
 					comp.writeGo("tx_key := tx_key")
 					for _, key := range forKeys {
@@ -1329,7 +1326,21 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					}
 					comp.writeGo("\n")
 				}
-				comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
+				comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \":%s\"\n", id))
+			} else {
+				switch comp.Type {
+				case CompTypePage:
+					comp.writeGo(fmt.Sprintf("tx_ckey := \"%s\"\n", id))
+				case CompTypeComp:
+					if len(forKeys) > 0 {
+						comp.writeGo("tx_key := tx_key")
+						for _, key := range forKeys {
+							comp.writeGo(` + ":" + fmt.Sprint(` + key + ")")
+						}
+						comp.writeGo("\n")
+					}
+					comp.writeGo(fmt.Sprintf("tx_ckey := tx_key + \"_%s\"\n", id))
+				}
 			}
 
 			comp.writeGo(fmt.Sprintf("tx_state := &state_%s{}\n", childComp.GoIdent))
@@ -1487,7 +1498,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 
 					savedCodes, savedCurrBuf := comp.saveRenderState()
 					comp.CurrBuf = "tx_w"
-					merr.concat(comp.parseTmpl(n, forKeys))
+					merr.concat(comp.parseTmpl(n, forKeys, true))
 					slotCodes := comp.collectAndRestoreRenderState(savedCodes, savedCurrBuf)
 
 					comp.SlotRenderFuncs = append(comp.SlotRenderFuncs, SlotRenderFunc{
@@ -1502,12 +1513,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 						fmt.Fprintf(&paramsStr, ", %s", v.Name)
 					}
 
-					switch comp.Type {
-					case CompTypePage:
-						comp.writeGo(fmt.Sprintf("func () { %s(%s, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
-					case CompTypeComp:
-						comp.writeGo(fmt.Sprintf("func () { %s(%s, tx_key, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
-					}
+					comp.writeGo(fmt.Sprintf("func () { %s(%s, tx_ckey, tx_curr_states, tx_next_states%s) },\n", slotRenderFuncIdent, parentBuf, paramsStr.String()))
 				} else {
 					comp.writeGo("func() {},\n")
 				}
@@ -1536,7 +1542,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 						Attr:      c.Attr,
 					})
 				}
-				merr.concat(comp.parseTmpl(child, forKeys))
+				merr.concat(comp.parseTmpl(child, forKeys, false))
 			}
 			comp.writeGo("}\n")
 
@@ -1784,7 +1790,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string) *MultiError 
 					childForKeys = append(forKeys, forKey)
 				}
 
-				merr.concat(comp.parseTmpl(c, childForKeys))
+				merr.concat(comp.parseTmpl(c, childForKeys, inSlot))
 
 				if hasFor {
 					comp.writeGo("\n}\n")

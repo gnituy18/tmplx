@@ -24,16 +24,18 @@ document.addEventListener('DOMContentLoaded', function() {
             searchParams.append("tx-swap", txSwap)
 
             const txParent = cn.getAttribute("tx-parent")
-            const stateKey = txParent !== null ? txParent : txSwap
-            if (stateKey === 'page') {
+            if (txSwap === 'page') {
               for (let key in state) {
                 searchParams.append(key, JSON.stringify(state[key]))
               }
             } else {
               for (let key in state) {
-                if (key.startsWith(stateKey)) {
+                if (key.startsWith(txSwap)) {
                   searchParams.append(key, JSON.stringify(state[key]))
                 }
+              }
+              if (txParent !== null && state[txParent] !== undefined) {
+                searchParams.append(txParent, JSON.stringify(state[txParent]))
               }
             }
 
