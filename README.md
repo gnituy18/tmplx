@@ -43,4 +43,3 @@ Developing with tmplx feels like writing a more intuitive version of Go template
 Website & Demos https://tmplx.org
 
 Docs https://tmplx.org/docs
-

@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-  const handlerPrefix = "TX_HANDLER_PREFIX"
-  let state = JSON.parse(this.getElementById("tx-state").innerHTML)
+  let state = JSON.parse(this.getElementById("tx-saved").innerHTML)
   let tasks = [];
   let isProcessing = false;
 
@@ -20,35 +19,31 @@ document.addEventListener('DOMContentLoaded', function() {
         cn.addEventListener(eventName, () => {
           tasks.push(async () => {
             const searchParams = new URLSearchParams(params)
-            const txSwap = cn.getAttribute("tx-swap")
-            searchParams.append("tx-swap", txSwap)
+            const txSwap = cn.getAttribute("tx-swap") ?? ""
+            if (txSwap !== "") {
+              searchParams.append("tx-swap", txSwap)
+            }
 
-            const txParent = cn.getAttribute("tx-parent")
-            if (txSwap === 'page') {
-              for (let key in state) {
+            const txParent = cn.getAttribute("tx-pid")
+            for (let key in state) {
+              if (key.startsWith(txSwap)) {
                 searchParams.append(key, JSON.stringify(state[key]))
               }
-            } else {
-              for (let key in state) {
-                if (key.startsWith(txSwap)) {
-                  searchParams.append(key, JSON.stringify(state[key]))
-                }
-              }
-              if (txParent !== null && state[txParent] !== undefined) {
-                searchParams.append(txParent, JSON.stringify(state[txParent]))
-              }
+            }
+            if (txParent !== null && state[txParent] !== undefined) {
+              searchParams.append(txParent, JSON.stringify(state[txParent]))
             }
 
             for (let attr of cn.attributes) {
-              if (attr.name === 'tx-position' || attr.name === 'tx-parent') {
+              if (attr.name === 'tx-loc' || attr.name === 'tx-pid') {
                 searchParams.append(attr.name, attr.value)
               }
             }
 
-            const res = await fetch(handlerPrefix + fun, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: searchParams.toString() })
+            const res = await fetch("TX_HANDLER_PREFIX" + fun, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: searchParams.toString() })
             const html = await res.text()
 
-            if (txSwap === 'page') {
+            if (txSwap === '') {
               document.open()
               document.write(html)
               document.close()
@@ -57,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const comp = document.createElement('body')
             comp.innerHTML = html
-            const txState = comp.querySelector("#tx-state")
+            const txState = comp.querySelector("#tx-saved")
             const newStates = JSON.parse(txState.textContent)
             state = { ...state, ...newStates }
             comp.removeChild(txState)
