@@ -43,30 +43,30 @@ func main() {
 	// 0. configure logging, find module root, parse CLI flags
 	log.SetFlags(0)
 
-	root, err := os.Getwd()
+	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("error: %v\n", err)
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			break
 		}
-		parent := filepath.Dir(root)
-		if parent == root {
+		parent := filepath.Dir(dir)
+		if parent == dir {
 			log.Fatalln("error: no go.mod found in current or parent directories")
 		}
-		root = parent
+		dir = parent
 	}
 
-	flag.StringVar(&componentsDir, "components-dir", filepath.Join(root, "components"), "directory containing reusable components")
-	flag.StringVar(&pagesDir, "pages-dir", filepath.Join(root, "pages"), "directory containing pages")
-	flag.StringVar(&outputFilePath, "output-file", filepath.Join(root, "routes.go"), "path to the generated Go file")
+	flag.StringVar(&componentsDir, "components-dir", filepath.Join(dir, "components"), "directory containing reusable components")
+	flag.StringVar(&pagesDir, "pages-dir", filepath.Join(dir, "pages"), "directory containing pages")
+	flag.StringVar(&outputFilePath, "output-file", filepath.Join(dir, "routes.go"), "path to the generated Go file")
 	flag.StringVar(&outputPackageName, "package-name", "main", "package name for the generated Go code")
 	flag.StringVar(&outputEventHandlerPrefix, "handler-prefix", "/tx/", "path prefix for event handler URLs")
 	flag.Parse()
 	componentsDir = filepath.Clean(componentsDir)
 	pagesDir = filepath.Clean(pagesDir)
-	if !(token.IsIdentifier(outputPackageName) && !token.IsKeyword(outputPackageName)) {
+	if !token.IsIdentifier(outputPackageName) || token.IsKeyword(outputPackageName) {
 		log.Fatalf("\"%s\" is not a valid Go package name\n", outputPackageName)
 	}
 	outputFilePath = filepath.Clean(outputFilePath)
@@ -75,8 +75,10 @@ func main() {
 	merr := newMultiError()
 	if exist, err := dirExist(componentsDir); err != nil {
 		log.Fatalf("error: %v\n", err)
+
 	} else if !exist {
 		log.Printf("no components directory at %s, skipping\n", componentsDir)
+
 	} else if err := filepath.WalkDir(componentsDir, func(filePath string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			merr.append(fmt.Errorf("%s: cannot access: %w", filePath, err))
@@ -94,12 +96,10 @@ func main() {
 		relPath, _ := filepath.Rel(componentsDir, filePath)
 		relPath = filepath.ToSlash(relPath)
 		stemPath, _ := strings.CutSuffix(relPath, ".html")
-
 		if stemPath == "" {
 			merr.append(fmt.Errorf("%s: invalid filename: .html (missing name before extension)", filePath))
 			return nil
 		}
-
 		name := "tx-" + strings.ReplaceAll(stemPath, "/", "-")
 		for _, r := range name {
 			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
@@ -122,12 +122,13 @@ func main() {
 		}
 
 		return nil
+
 	}); err != nil {
 		log.Fatalf("error: %s: walk failed: %v\n", componentsDir, err)
 	}
 
 	pages := []*Component{}
-	pageNames := map[string]string{}
+	pageFiles := map[string]string{}
 	if exist, err := dirExist(pagesDir); err != nil {
 		log.Fatalf("error: %s: cannot access pages directory: %v\n", pagesDir, err)
 	} else if !exist {
@@ -165,12 +166,12 @@ func main() {
 			urlPath += "{$}"
 		}
 
-		if existingFile, ok := pageNames[urlPath]; ok {
+		if existingFile, ok := pageFiles[urlPath]; ok {
 			merr.append(fmt.Errorf("%s: duplicate page route %s, first defined in %s", filePath, urlPath, existingFile))
 			return nil
 		}
 
-		pageNames[urlPath] = filePath
+		pageFiles[urlPath] = filePath
 		pages = append(pages, &Component{
 			Type:     CompTypePage,
 			FilePath: filePath,
@@ -180,6 +181,7 @@ func main() {
 		})
 
 		return nil
+
 	}); err != nil {
 		log.Fatalf("error: %s: walk failed: %v\n", pagesDir, err)
 	}
@@ -232,10 +234,7 @@ func main() {
 				}
 			}
 
-			scriptErrs := comp.parseTmplxScript()
-			merr.concat(scriptErrs)
-
-			comp.Slots = []string{}
+			merr.concat(comp.parseTmplxScript())
 			merr.concat(comp.parseSlots(comp.TemplateNode, false))
 		}()
 	}
@@ -294,6 +293,7 @@ func main() {
 				merr.append(page.errf("page must have a <head> element (required for state and runtime script injection)"))
 				return
 			}
+
 			cleanUpTmplxScript(page.TemplateNode)
 
 			merr.concat(page.parseTmplxScript())
@@ -303,74 +303,60 @@ func main() {
 	merr.exitOnErrors()
 
 	// 3. parse used vars has child comps
-	for _, comp := range components {
+	for _, comp := range slices.Concat(components, pages) {
 		wg.Add(1)
-		comp.ChildCompsIdGen = map[string]*IdGen{}
-		for _, c := range components {
-			comp.ChildCompsIdGen[c.Name] = newIdGen(c.Name, '-')
-		}
-		comp.FillByGoName = map[string]*Fill{}
-		comp.UsedVars = map[string]struct{}{}
 		go func() {
 			defer wg.Done()
+
+			comp.ChildCompsIdGen = map[string]*IdGen{}
+			for _, c := range components {
+				comp.ChildCompsIdGen[c.Name] = newIdGen()
+			}
+			comp.UsedVars = map[string]struct{}{}
+			comp.FillByGoName = map[string]*Fill{}
 			merr.concat(comp.parseUsedVars(comp.TemplateNode))
-			comp.DerivedDeps = map[string]struct{}{}
+
+			derivedDeps := map[string]struct{}{}
 			for _, v := range comp.Vars {
 				if v.Type == VarTypeDerived {
-					comp.scanVarRefs(v.InitExprAst, comp.DerivedDeps)
+					comp.scanVarRefs(v.InitExprAst, derivedDeps)
 				}
 			}
 			for _, v := range comp.Vars {
 				_, used := comp.UsedVars[v.GoName]
-				_, dep := comp.DerivedDeps[v.GoName]
+				_, dep := derivedDeps[v.GoName]
 				if !used && !dep {
 					merr.append(comp.errf("%s declared but not used", v.GoName))
 				}
 			}
 		}()
 	}
-
-	for _, page := range pages {
-		wg.Add(1)
-		page.ChildCompsIdGen = map[string]*IdGen{}
-		for _, c := range components {
-			page.ChildCompsIdGen[c.Name] = newIdGen(c.Name, '-')
-		}
-		page.FillByGoName = map[string]*Fill{}
-		page.UsedVars = map[string]struct{}{}
-		go func() {
-			defer wg.Done()
-
-			merr.concat(page.parseUsedVars(page.TemplateNode))
-			page.DerivedDeps = map[string]struct{}{}
-			for _, v := range page.Vars {
-				if v.Type == VarTypeDerived {
-					page.scanVarRefs(v.InitExprAst, page.DerivedDeps)
-				}
-			}
-			for _, v := range page.Vars {
-				_, used := page.UsedVars[v.GoName]
-				_, dep := page.DerivedDeps[v.GoName]
-				if !used && !dep {
-					merr.append(page.errf("%s declared but not used", v.GoName))
-				}
-			}
-		}()
-	}
 	wg.Wait()
 	merr.exitOnErrors()
+	for _, comp := range components {
+		slices.SortFunc(comp.CompFills, func(a, b *Fill) int {
+			return strings.Compare(a.GoName, b.GoName)
+		})
+		for _, fill := range comp.CompFills {
+			if fill.HasChildComps {
+				comp.CompFillsHasChildComps = true
+				break
+			}
+		}
+	}
 
 	// 4. parse pages and components template
 	for _, comp := range components {
 		wg.Add(1)
-		comp.ChildCompsIdGen = map[string]*IdGen{}
-		for _, c := range components {
-			comp.ChildCompsIdGen[c.Name] = newIdGen(c.Name, '-')
-		}
-		comp.AnonFuncNameGen = newIdGen("af", '-')
-		comp.RenderFunc = newCode("tx_w")
 		go func() {
 			defer wg.Done()
+
+			comp.ChildCompsIdGen = map[string]*IdGen{}
+			for _, c := range components {
+				comp.ChildCompsIdGen[c.Name] = newIdGen()
+			}
+			comp.AnonFuncNameGen = newIdGen()
+			comp.RenderFunc = newCode("tx_w")
 
 			comp.RenderFunc = newCode("tx_w")
 			comp.RenderFunc.emitStrLit("<!--tx:")
@@ -385,15 +371,15 @@ func main() {
 
 	for _, page := range pages {
 		wg.Add(1)
-		page.ChildCompsIdGen = map[string]*IdGen{}
-		for _, c := range components {
-			page.ChildCompsIdGen[c.Name] = newIdGen(c.Name, '-')
-		}
-		page.AnonFuncNameGen = newIdGen("af", '-')
-		page.RenderFunc = newCode("tx_w1")
 		go func() {
 			defer wg.Done()
 
+			page.ChildCompsIdGen = map[string]*IdGen{}
+			for _, c := range components {
+				page.ChildCompsIdGen[c.Name] = newIdGen()
+			}
+			page.AnonFuncNameGen = newIdGen()
+			page.RenderFunc = newCode("tx_w1")
 			merr.concat(page.parseTmpl(page.TemplateNode, []string{}, false))
 		}()
 	}
@@ -464,6 +450,43 @@ func main() {
 			fill.RenderFunc.writeTo(&code)
 			code.write("}\n")
 		}
+
+		if len(comp.CompFills) > 0 {
+			code.write("func render_comp_fill_%s(tx_w *bytes.Buffer, tx_loc string, tx_id string, tx_curr_saved map[string]string", comp.GoName)
+			if comp.CompFillsHasChildComps {
+				code.write(", tx_next_saved map[string]any")
+			}
+			code.write(") {\n")
+			code.write("switch tx_loc {\n")
+			for _, fill := range comp.CompFills {
+				code.write("case \"%s\":\n", fill.Location)
+				code.write("tx_saved := &%s{}\n", fill.ParentComp.GoName)
+				code.write("json.Unmarshal([]byte(tx_curr_saved[tx_id]), tx_saved)\n")
+				for _, v := range fill.ParentComp.Vars {
+					if v.Type == VarTypeDerived {
+						if _, ok := fill.UsedVars[v.GoName]; ok {
+							code.write("tx_derived_%s := %s\n", v.GoName, v.InitExpr)
+						}
+					}
+				}
+				code.write("render_fill_%s(tx_w", fill.GoName)
+				if fill.HasChildComps {
+					code.write(", tx_id, tx_curr_saved, tx_next_saved")
+				}
+				for _, v := range fill.ParentComp.Vars {
+					if _, ok := fill.UsedVars[v.GoName]; ok {
+						switch v.Type {
+						case VarTypeState, VarTypeProp:
+							code.write(", tx_saved.%s", v.SavedField)
+						case VarTypeDerived:
+							code.write(", tx_derived_%s", v.GoName)
+						}
+					}
+				}
+				code.write(")\n")
+			}
+			code.write("}\n}\n")
+		}
 	}
 
 	for _, page := range pages {
@@ -504,80 +527,6 @@ func main() {
 			fill.RenderFunc.writeTo(&code)
 			code.write("}\n")
 		}
-	}
-
-	for _, childComp := range components {
-		if len(childComp.Slots) == 0 {
-			continue
-		}
-
-		code.write("func render_fill_%s(tx_w *bytes.Buffer, tx_loc string, tx_id string, tx_curr_saved map[string]string, tx_next_saved map[string]any) {\n", childComp.GoName)
-		code.write("switch tx_loc {\n")
-		for _, comp := range components {
-			for _, fill := range comp.Fills {
-				if fill.CompName != childComp.Name {
-					continue
-				}
-				code.write("case \"%s\":\n", fill.Location)
-				code.write("tx_saved := &%s{}\n", comp.GoName)
-				code.write("json.Unmarshal([]byte(tx_curr_saved[tx_id]), tx_saved)\n")
-				for _, v := range comp.Vars {
-					if v.Type == VarTypeDerived {
-						if _, ok := fill.UsedVars[v.GoName]; ok {
-							code.write("tx_derived_%s := %s\n", v.GoName, v.InitExpr)
-						}
-					}
-				}
-				code.write("render_fill_%s(tx_w", fill.GoName)
-				if fill.HasChildComps {
-					code.write(", tx_id, tx_curr_saved, tx_next_saved")
-				}
-				for _, v := range comp.Vars {
-					if _, ok := fill.UsedVars[v.GoName]; ok {
-						switch v.Type {
-						case VarTypeState, VarTypeProp:
-							code.write(", tx_saved.%s", v.SavedField)
-						case VarTypeDerived:
-							code.write(", tx_derived_%s", v.GoName)
-						}
-					}
-				}
-				code.write(")\n")
-			}
-		}
-		for _, page := range pages {
-			for _, fill := range page.Fills {
-				if fill.CompName != childComp.Name {
-					continue
-				}
-				code.write("case \"%s\":\n", fill.Location)
-				code.write("tx_saved := &%s{}\n", page.GoName)
-				code.write("json.Unmarshal([]byte(tx_curr_saved[\"page\"]), tx_saved)\n")
-				for _, v := range page.Vars {
-					if v.Type == VarTypeDerived {
-						if _, ok := fill.UsedVars[v.GoName]; ok {
-							code.write("tx_derived_%s := %s\n", v.GoName, v.InitExpr)
-						}
-					}
-				}
-				code.write("render_fill_%s(tx_w", fill.GoName)
-				if fill.HasChildComps {
-					code.write(", tx_id, tx_curr_saved, tx_next_saved")
-				}
-				for _, v := range page.Vars {
-					if _, ok := fill.UsedVars[v.GoName]; ok {
-						switch v.Type {
-						case VarTypeState:
-							code.write(", tx_saved.%s", v.SavedField)
-						case VarTypeDerived:
-							code.write(", tx_derived_%s", v.GoName)
-						}
-					}
-				}
-				code.write(")\n")
-			}
-		}
-		code.write("}\n}\n")
 	}
 
 	code.write("type TxRoute struct {\n")
@@ -748,9 +697,17 @@ func main() {
 			}
 			code.write("render_%s(%s", comp.GoName, strings.Join(callParams, ", "))
 			for _, slotName := range comp.Slots {
-				code.write(", func() {\n")
-				code.write("render_fill_%s(&tx_buf, tx_loc+\"_%s\", tx_id, tx_curr_saved, tx_next_saved)\n", comp.GoName, slotName)
-				code.write("}")
+				if len(comp.CompFills) == 0 {
+					code.write(", nil")
+				} else {
+					code.write(", func() {\n")
+					code.write("render_comp_fill_%s(&tx_buf, tx_loc+\"_%s\", tx_pid, tx_curr_saved", comp.GoName, slotName)
+					if comp.CompFillsHasChildComps {
+						code.write(", tx_next_saved")
+					}
+					code.write(")\n")
+					code.write("}")
+				}
 			}
 			code.write(")\n")
 			code.write("tx_w.Write(tx_buf.Bytes())\n")
@@ -783,7 +740,7 @@ func main() {
 		log.Fatalln(fmt.Errorf("format generated code: %w", err))
 	}
 
-	dir := filepath.Dir(outputFilePath)
+	dir = filepath.Dir(outputFilePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Fatalln(err)
 	}
@@ -826,17 +783,18 @@ type Component struct {
 	Funcs      []*Func
 	FuncByName map[string]*Func
 
-	HasChildComps bool
-	UsedVars      map[string]struct{}
-	Fills         []*Fill
-	FillByGoName  map[string]*Fill
+	ChildCompsIdGen        map[string]*IdGen
+	HasChildComps          bool
+	UsedVars               map[string]struct{}
+	Fills                  []*Fill
+	FillByGoName           map[string]*Fill
+	CompFills              []*Fill
+	CompFillsMu            sync.Mutex
+	CompFillsHasChildComps bool
 
-	DerivedDeps     map[string]struct{}
-	ChildCompsIdGen map[string]*IdGen
 	AnonFuncNameGen *IdGen
 	AnonFuncs       []*Func
-
-	RenderFunc Code
+	RenderFunc      Code
 }
 
 func (comp *Component) errf(msg string, a ...any) error {
@@ -886,7 +844,6 @@ func (comp *Component) parseTmplxScript() *MultiError {
 	comp.VarByName = map[string]*Var{}
 	comp.Funcs = []*Func{}
 	comp.FuncByName = map[string]*Func{}
-	comp.UsedVars = map[string]struct{}{}
 
 	if comp.TmplxScriptNode != nil {
 		scriptAst, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+comp.TmplxScriptNode.FirstChild.Data, parser.ParseComments)
@@ -1328,26 +1285,6 @@ func (comp *Component) dirtyDerivedNames(body *ast.BlockStmt) []string {
 	return result
 }
 
-func (comp *Component) scanVarRefs(node ast.Node, target map[string]struct{}) {
-	astutil.Apply(node, func(c *astutil.Cursor) bool {
-		id, ok := c.Node().(*ast.Ident)
-		if !ok {
-			return true
-		}
-		if !atVarRefPos(c) {
-			return false
-		}
-		if _, ok := comp.VarByName[id.Name]; ok {
-			target[id.Name] = struct{}{}
-		}
-		return false
-	}, nil)
-}
-
-func (comp *Component) markUsedVars(node ast.Node) {
-	comp.scanVarRefs(node, comp.UsedVars)
-}
-
 func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 	merr := newMultiError()
 	switch node.Type {
@@ -1361,18 +1298,16 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 		_, hasTxIgnore := hasAttr(node.Parent, "tx-ignore")
 		// script/style bodies are JS/CSS where { is not template syntax, so skip interpolation.
 		isScriptOrStyle := node.Parent.DataAtom == atom.Script || node.Parent.DataAtom == atom.Style
-
-		if !hasTxIgnore && !isScriptOrStyle {
-			comp.parseUsedVarsStr(node.Data)
+		if hasTxIgnore || isScriptOrStyle {
+			return nil
 		}
 
-		return nil
+		comp.parseUsedVarsStr(node.Data)
 
 	case html.ElementNode:
 		if childComp, ok := componentsByName[node.Data]; ok {
 			comp.HasChildComps = true
-			id := comp.ChildCompsIdGen[childComp.Name].next()
-			idNum := comp.ChildCompsIdGen[childComp.Name].Curr
+			idNum := comp.ChildCompsIdGen[childComp.Name].next()
 
 			for _, v := range childComp.Vars {
 				if v.Type == VarTypeProp {
@@ -1384,29 +1319,7 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 				}
 			}
 
-			fillNodes := map[string]*html.Node{}
-
-			for c := node.FirstChild; c != nil; c = c.NextSibling {
-				if slotName, found := hasAttr(c, "slot"); found {
-					fillNodes[slotName] = c
-					continue
-				} else {
-					if fillNodes[""] == nil {
-						fillNodes[""] = newTemplateNode()
-					}
-
-					fillNodes[""].AppendChild(&html.Node{
-						FirstChild: c.FirstChild,
-						LastChild:  c.LastChild,
-						Type:       c.Type,
-						DataAtom:   c.DataAtom,
-						Data:       c.Data,
-						Namespace:  c.Namespace,
-						Attr:       c.Attr,
-					})
-				}
-			}
-
+			fillNodes := parseFillNodes(node)
 			for _, slotName := range childComp.Slots {
 				if n, ok := fillNodes[slotName]; ok {
 					savedHasChildComps := comp.HasChildComps
@@ -1417,30 +1330,35 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 
 					merr.concat(comp.parseUsedVars(n))
 
-					currFillHasChildComps := comp.HasChildComps
-					currFillUsedVars := comp.UsedVars
+					fillHasChildComps := comp.HasChildComps
+					fillUsedVars := comp.UsedVars
 
-					comp.HasChildComps = savedHasChildComps || currFillHasChildComps
+					comp.HasChildComps = savedHasChildComps || fillHasChildComps
 					comp.UsedVars = savedUsedVars
-					for v := range currFillUsedVars {
+					for v := range fillUsedVars {
 						comp.UsedVars[v] = struct{}{}
 					}
 
-					fillGoName := fmt.Sprintf("%s_%s_%d_%s", comp.GoName, childComp.GoName, idNum, goIdent(slotName))
+					fillGoName := fmt.Sprintf("%s_%s_%s_%s", comp.GoName, childComp.GoName, idNum, goIdent(slotName))
 					newFill := &Fill{
-						CompName: childComp.Name,
-						GoName:   fillGoName,
-						Location: fmt.Sprintf("%s_%s_%s", comp.Name, id, slotName),
+						GoName:     fillGoName,
+						CompName:   childComp.Name,
+						ParentComp: comp,
+						Location:   fmt.Sprintf("%s_%s_%s", comp.Name, idNum, slotName),
 
-						HasChildComps: currFillHasChildComps,
-						UsedVars:      currFillUsedVars,
+						HasChildComps: fillHasChildComps,
+						UsedVars:      fillUsedVars,
 						RenderFunc:    newCode("tx_w"),
 					}
 					comp.Fills = append(comp.Fills, newFill)
 					comp.FillByGoName[fillGoName] = newFill
+					childComp.CompFillsMu.Lock()
+					childComp.CompFills = append(childComp.CompFills, newFill)
+					childComp.CompFillsMu.Unlock()
 				}
 			}
 			return merr
+
 		} else if node.DataAtom == atom.Slot {
 			for c := node.FirstChild; c != nil; c = c.NextSibling {
 				merr.concat(comp.parseUsedVars(c))
@@ -1448,14 +1366,14 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 			return merr
 
 		} else if node.DataAtom != atom.Template {
-			_, isIgnore := hasAttr(node, "tx-ignore")
-
-			for _, attr := range node.Attr {
-				if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
-					continue
-				}
-
-				if !strings.HasPrefix(attr.Key, "tx-on") && !isIgnore {
+			if _, isIgnored := hasAttr(node, "tx-ignore"); !isIgnored {
+				for _, attr := range node.Attr {
+					if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
+						continue
+					}
+					if strings.HasPrefix(attr.Key, "tx-on") {
+						continue
+					}
 					comp.parseUsedVarsStr(attr.Val)
 				}
 			}
@@ -1474,6 +1392,12 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 						comp.markUsedVars(forAst)
 					}
 				}
+
+				if key, ok := hasAttr(c, "tx-key"); ok {
+					if keyExpr, kerr := parser.ParseExpr(key); kerr == nil {
+						comp.markUsedVars(keyExpr)
+					}
+				}
 			}
 
 			merr.concat(comp.parseUsedVars(c))
@@ -1483,6 +1407,26 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 	}
 
 	return nil
+}
+
+func (comp *Component) scanVarRefs(node ast.Node, target map[string]struct{}) {
+	astutil.Apply(node, func(c *astutil.Cursor) bool {
+		id, ok := c.Node().(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if !atVarRefPos(c) {
+			return false
+		}
+		if _, ok := comp.VarByName[id.Name]; ok {
+			target[id.Name] = struct{}{}
+		}
+		return false
+	}, nil)
+}
+
+func (comp *Component) markUsedVars(node ast.Node) {
+	comp.scanVarRefs(node, comp.UsedVars)
 }
 
 func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool) *MultiError {
@@ -1518,8 +1462,8 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 	case html.ElementNode:
 		if childComp, ok := componentsByName[node.Data]; ok {
 			comp.HasChildComps = true
-			id := comp.ChildCompsIdGen[childComp.Name].next()
-			idNum := comp.ChildCompsIdGen[childComp.Name].Curr
+			idNum := comp.ChildCompsIdGen[childComp.Name].next()
+			id := fmt.Sprintf("%s-%s", childComp.Name, idNum)
 
 			for _, attr := range node.Attr {
 				if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" || attr.Key == "tx-key" || attr.Key == "slot" {
@@ -1660,7 +1604,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 						parent += ` + ":" + fmt.Sprint(` + key + `)`
 					}
 				}
-				comp.RenderFunc.emitGo(fmt.Sprintf(", %s, \"%s_%s\"", parent, comp.Name, id))
+				comp.RenderFunc.emitGo(fmt.Sprintf(", %s, \"%s_%s\"", parent, comp.Name, idNum))
 			}
 			if childComp.HasChildComps {
 				comp.RenderFunc.emitGo(", tx_curr_saved, tx_next_saved")
@@ -1694,35 +1638,11 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 				}
 			}
 
-			slotNodes := map[string]*html.Node{}
-
-			for c := node.FirstChild; c != nil; c = c.NextSibling {
-				if slotName, found := hasAttr(c, "slot"); found {
-					slotNodes[slotName] = c
-					continue
-				} else {
-					if slotNodes[""] == nil {
-						slotNodes[""] = newTemplateNode()
-					}
-
-					slotNodes[""].AppendChild(&html.Node{
-						FirstChild: c.FirstChild,
-						LastChild:  c.LastChild,
-
-						Type:      c.Type,
-						DataAtom:  c.DataAtom,
-						Data:      c.Data,
-						Namespace: c.Namespace,
-						Attr:      c.Attr,
-					})
-				}
-			}
-
+			fillNodes := parseFillNodes(node)
 			if len(childComp.Slots) > 0 {
 				comp.RenderFunc.emitGo(",\n")
 				for _, slotName := range childComp.Slots {
-					if n, ok := slotNodes[slotName]; ok {
-
+					if n, ok := fillNodes[slotName]; ok {
 						savedRenderFunc := comp.RenderFunc
 						comp.RenderFunc = newCode("tx_w")
 
@@ -1731,16 +1651,14 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 						currFillRenderFunc := comp.RenderFunc
 						comp.RenderFunc = savedRenderFunc
 
-						fillGoName := fmt.Sprintf("%s_%s_%d_%s", comp.GoName, childComp.GoName, idNum, goIdent(slotName))
-						currFill := comp.FillByGoName[fillGoName]
-						currFill.RenderFunc = currFillRenderFunc
-
-						comp.RenderFunc.emitGo(fmt.Sprintf("func () { render_fill_%s(%s", fillGoName, comp.RenderFunc.PendingSegment.BufName))
-						if currFill.HasChildComps {
+						fill := comp.FillByGoName[fmt.Sprintf("%s_%s_%s_%s", comp.GoName, childComp.GoName, idNum, goIdent(slotName))]
+						fill.RenderFunc = currFillRenderFunc
+						comp.RenderFunc.emitGo(fmt.Sprintf("func () { render_fill_%s(%s", fill.GoName, comp.RenderFunc.PendingSegment.BufName))
+						if fill.HasChildComps {
 							comp.RenderFunc.emitGo(", tx_cid, tx_curr_saved, tx_next_saved")
 						}
 						for _, v := range comp.Vars {
-							if _, ok := currFill.UsedVars[v.GoName]; ok {
+							if _, ok := fill.UsedVars[v.GoName]; ok {
 								comp.RenderFunc.emitGo(fmt.Sprintf(", %s", v.GoName))
 							}
 						}
@@ -1869,7 +1787,8 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 						}
 					}
 
-					funcName := comp.AnonFuncNameGen.next()
+					idNum := comp.AnonFuncNameGen.next()
+					funcName := fmt.Sprintf("af-%s", idNum)
 					fileAst, err := parser.ParseFile(token.NewFileSet(), comp.FilePath, fmt.Sprintf("package p\nfunc f() {\n%s\n}", attr.Val), 0)
 					if err != nil {
 						merr.append(comp.errf("invalid inline handler: %s", attr.Val))
@@ -2219,25 +2138,16 @@ func (me *MultiError) exitOnErrors() {
 }
 
 type IdGen struct {
-	Curr   int
-	Prefix string
-	Sep    rune
+	CurrNum int
 }
 
-func newIdGen(prefix string, sep rune) *IdGen {
-	return &IdGen{
-		Prefix: prefix,
-		Sep:    sep,
-	}
+func newIdGen() *IdGen {
+	return &IdGen{}
 }
 
 func (id *IdGen) next() string {
-	id.Curr++
-	return id.curr()
-}
-
-func (id *IdGen) curr() string {
-	return fmt.Sprintf("%s%c%d", id.Prefix, id.Sep, id.Curr)
+	id.CurrNum++
+	return fmt.Sprint(id.CurrNum)
 }
 
 type SegmentType int
@@ -2379,9 +2289,10 @@ const (
 )
 
 type Fill struct {
-	CompName string
-	GoName   string
-	Location string
+	GoName     string
+	CompName   string
+	ParentComp *Component
+	Location   string
 
 	HasChildComps bool
 	UsedVars      map[string]struct{}
@@ -2558,6 +2469,31 @@ func condState(n *html.Node) (CondState, string) {
 		}
 	}
 	return CondStateDefault, ""
+}
+
+func parseFillNodes(n *html.Node) map[string]*html.Node {
+	fillNodes := map[string]*html.Node{}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if slotName, found := hasAttr(c, "slot"); found {
+			fillNodes[slotName] = c
+			continue
+		} else {
+			if fillNodes[""] == nil {
+				fillNodes[""] = newTemplateNode()
+			}
+
+			fillNodes[""].AppendChild(&html.Node{
+				FirstChild: c.FirstChild,
+				LastChild:  c.LastChild,
+				Type:       c.Type,
+				DataAtom:   c.DataAtom,
+				Data:       c.Data,
+				Namespace:  c.Namespace,
+				Attr:       c.Attr,
+			})
+		}
+	}
+	return fillNodes
 }
 
 // https://html.spec.whatwg.org/#void-elements
