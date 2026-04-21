@@ -43,7 +43,7 @@
           </ul>
         </li>
         <li><a href="#template">&lt;template&gt;</a></li>
-        <li><a href="#input-binding">🚧 Input Binding</a></li>
+        <li><a href="#forms">Forms</a></li>
         <li>
           <a href="#component">Component</a>
           <ul>
@@ -85,22 +85,22 @@
       <pre>
         <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
   var list []string
-  var item string = &quot;&quot;
-  
-  func add() {
+
+  func add(item string) {
     list = append(list, item)
-    item = &quot;&quot;
   }
-  
+
   func remove(i int) {
     list = append(list[0:i], list[i+1:]...)
   }
 &lt;/script&gt;
 
-&lt;label&gt;&lt;input type=&quot;text&quot; tx-value=&quot;item&quot;&gt;&lt;/label&gt;
-&lt;button tx-onclick=&quot;add()&quot;&gt;Add&lt;/button&gt;
+&lt;form tx-action=&quot;add&quot;&gt;
+  &lt;label&gt;&lt;input name=&quot;item&quot; type=&quot;text&quot; required&gt;&lt;/label&gt;
+  &lt;button type=&quot;submit&quot;&gt;Add&lt;/button&gt;
+&lt;/form&gt;
 &lt;ol&gt;
-  &lt;li 
+  &lt;li
     tx-for=&quot;i, l := range list&quot;
     tx-key=&quot;l&quot;
     tx-onclick=&quot;remove(i)&quot;&gt;
@@ -142,7 +142,7 @@
       </p>
       <h2 id="installing">Installing</h2>
 
-      <p>tmplx requires Go 1.22 or later.</p>
+      <p>tmplx requires Go 1.24 or later.</p>
       <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
       <p>
         This adds tmplx to your Go bin directory (usually $GOPATH/bin or
@@ -187,7 +187,7 @@ $ mkdir pages</code></pre>
 
         <li>
           <p><strong>Generate the Go code</strong></p>
-          <pre><code tx-ignore>$ tmplx -out-file tmplx/routes.go</code></pre>
+          <pre><code tx-ignore>$ tmplx -output-file tmplx/routes.go</code></pre>
         </li>
 
         <li>
@@ -231,9 +231,9 @@ func main() {
       <p>
         All pages are placed in the <strong>pages</strong> directory. Default
         pages location is <code>./pages</code>. Change it with the
-        <code>-pages</code> flag:
+        <code>-pages-dir</code> flag:
       </p>
-      <pre><code tx-ignore>$ tmplx -pages="/some/other/location"</code></pre>
+      <pre><code tx-ignore>$ tmplx -pages-dir="/some/other/location"</code></pre>
       <p>
         tmplx uses <strong>filesystem-based routing</strong>. The route for a
         page is the relative path of the HTML file inside the
@@ -584,9 +584,13 @@ var m map[string]int = map[string]int{"key": 100}
       </pre>
       <h2 id="init">init()</h2>
       <p>
-        <code>init()</code> is a special function that runs automatically
-        <strong>once</strong> when a <strong>page</strong> is first rendered.
-        Components cannot use this function.
+        <code>init()</code> is a special function that runs automatically the
+        first time a page or component is rendered. For pages, it runs on every
+        GET request. For components, it runs when the component has no saved
+        state yet (for example, the first time it appears on the page, or the
+        first time a new <code>tx-for</code> iteration produces it). After
+        that, subsequent renders reuse the saved state and skip
+        <code>init()</code>.
       </p>
       <tx-example-wrapper>
         <tx-current-time></tx-current-time>
@@ -760,7 +764,7 @@ var m map[string]int = map[string]int{"key": 100}
         to a group of elements at once.
       </p>
       <p>
-        The <code>&lt;template&gt;</code> itself is removed from the outpu.t
+        The <code>&lt;template&gt;</code> itself is removed from the output;
         only its children are rendered (or not, depending on the control flow).
       </p>
       <p>
@@ -801,24 +805,18 @@ var m map[string]int = map[string]int{"key": 100}
 &lt;/template&gt;</code>
       </pre>
 
-      <h2 id="input-binding">🚧 Input Binding</h2>
+      <h2 id="forms">Forms</h2>
       <p>
-        <strong
-          >This feature is in active development and may change or be removed in
-          the future.</strong
-        >
+        Attach a handler to a <code>&lt;form&gt;</code> with
+        <code>tx-action</code>. When the form is submitted, tmplx cancels the
+        default submission, collects every named form element, and calls the
+        handler on the server.
       </p>
       <p>
-        tmplx provides two-way binding (kind of) for
-        <code>&lt;input&gt;</code> elements using the
-        <code>tx-value</code> attribute. The input value is kept in sync with a
-        state variable on the client side.
-      </p>
-      <p>
-        As the user types, the client-side state updates immediately. The
-        displayed value only refreshes after a server round-trip that causes a
-        re-render. Conversely, when another event handler modifies the state,
-        the input value updates automatically on the next render.
+        The value of <code>tx-action</code> must be the name of a function
+        declared in the tmplx script. Each form element's
+        <code>name</code> attribute must match a parameter name on that
+        function; unnamed elements are ignored.
       </p>
 
       <tx-example-wrapper>
@@ -826,27 +824,54 @@ var m map[string]int = map[string]int{"key": 100}
       </tx-example-wrapper>
       <pre>
         <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var name string = &quot;&quot;
+  var greeting string
 
-  func update() {}
+  func greet(name string) {
+    greeting = &quot;Hello, &quot; + name
+  }
 &lt;/script&gt;
 
-&lt;input type=&quot;text&quot; tx-value=&quot;name&quot; placeholder=&quot;Enter your name&quot; /&gt;
-&lt;button tx-onclick=&quot;update()&quot;&gt;Greet&lt;/button&gt;
+&lt;form tx-action=&quot;greet&quot;&gt;
+  &lt;input name=&quot;name&quot; type=&quot;text&quot; required /&gt;
+  &lt;button type=&quot;submit&quot;&gt;Greet&lt;/button&gt;
+&lt;/form&gt;
 
-&lt;p tx-if='name != &quot;&quot;'&gt;Hello, { name }&lt;/p&gt;</code></pre>
+&lt;p tx-if='greeting != &quot;&quot;'&gt;{ greeting }&lt;/p&gt;</code></pre>
 
       <p>
-        Typing updates the client state instantly, but the greeting only changes
-        after clicking the button, which triggers a server round-trip and
-        re-render.
+        Values are JSON-decoded into each parameter's Go type, so the parameter
+        type is what determines how the string is parsed. The runtime serializes
+        form elements by input type:
       </p>
+      <ul>
+        <li>
+          <code>text</code>, <code>email</code>, <code>password</code>,
+          <code>textarea</code>, <code>select</code>, etc.&mdash;sent as a
+          JSON string. Decode into <code>string</code>.
+        </li>
+        <li>
+          <code>number</code>, <code>range</code>&mdash;sent as the raw
+          numeric value, or <code>null</code> when empty. Decode into a numeric
+          type or pointer.
+        </li>
+        <li>
+          <code>checkbox</code>&mdash;sent as <code>true</code> or
+          <code>false</code>. Decode into <code>bool</code>.
+        </li>
+        <li>
+          <code>radio</code>&mdash;only the checked radio in a group is sent
+          (using its shared <code>name</code>). Decode into
+          <code>string</code>.
+        </li>
+      </ul>
 
       <p>
-        This is a current limitation of server-side re-renders. For smooth live
-        preview, combine tmplx with a client-side library like
-        <a href="https://alpinejs.dev/">Alpine.js</a> to handle instant updates
-        locally.
+        Because submission goes through a full server round-trip, use native
+        HTML validation (<code>required</code>, <code>minlength</code>,
+        <code>pattern</code>, ...) to catch client-side errors before the
+        request is sent. For richer live-updating inputs, combine tmplx with a
+        client-side library like
+        <a href="https://alpinejs.dev/">Alpine.js</a>.
       </p>
 
       <h2 id="component">Component</h2>
@@ -906,9 +931,18 @@ var m map[string]int = map[string]int{"key": 100}
 &lt;span&gt;{ count }&lt;/span&gt;
 &lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;</code></pre>
 
-      <p>Usage:</p>
+      <p>
+        Prop attribute values are evaluated as <strong>Go expressions</strong>,
+        not as plain strings. Pass a literal by writing the Go literal
+        directly, or pass a state/derived/prop variable from the parent by
+        name:
+      </p>
 
-      <pre><code tx-ignore>&lt;tx-my-component title=&quot;Hello&quot; count=&quot;5&quot;&gt;&lt;/tx-my-component&gt;</code></pre>
+      <pre><code tx-ignore>&lt;!-- Go string literal (note the inner quotes) and numeric literal --&gt;
+&lt;tx-my-component title='&quot;Hello&quot;' count=&quot;5&quot;&gt;&lt;/tx-my-component&gt;
+
+&lt;!-- Pass parent state/derived/prop variables --&gt;
+&lt;tx-my-component title=&quot;heading&quot; count=&quot;itemCount&quot;&gt;&lt;/tx-my-component&gt;</code></pre>
 
       <h3 id="slot">&lt;slot&gt;</h3>
 
@@ -917,15 +951,13 @@ var m map[string]int = map[string]int{"key": 100}
         content. Name slots for multiple insertion points.
       </p>
 
-      <pre><code tx-ignore>&lt;template&gt;
-  &lt;div class=&quot;card&quot;&gt;
-    &lt;slot name=&quot;header&quot;&gt;Default Header&lt;/slot&gt;
-    &lt;div class=&quot;body&quot;&gt;
-      &lt;slot&gt;Default Body&lt;/slot&gt;
-    &lt;/div&gt;
-    &lt;slot name=&quot;footer&quot;&gt;&lt;/slot&gt;
+      <pre><code tx-ignore>&lt;div class=&quot;card&quot;&gt;
+  &lt;slot name=&quot;header&quot;&gt;Default Header&lt;/slot&gt;
+  &lt;div class=&quot;body&quot;&gt;
+    &lt;slot&gt;Default Body&lt;/slot&gt;
   &lt;/div&gt;
-&lt;/template&gt;</code></pre>
+  &lt;slot name=&quot;footer&quot;&gt;&lt;/slot&gt;
+&lt;/div&gt;</code></pre>
 
       <p>Usage:</p>
 
@@ -940,37 +972,6 @@ var m map[string]int = map[string]int{"key": 100}
         Fallback content inside <code>&lt;slot&gt;</code> renders when no
         matching content is provided.
       </p>
-
-      <h3 id="props">Props</h3>
-
-<p>Pass data to components via attributes. These become initial values for matching state variables.</p>
-
-<p>tmplx matches attribute names (kebab-case) to state variable names (camelCase conversion). Only top-level <code>var</code> declarations without initializers can receive props.</p>
-
-<pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var title string     // receives "title" attribute
-  var count int        // receives "count" attribute, defaults to 0
-&lt;/script&gt;
-
-&lt;h3&gt;{ title }&lt;/h3&gt;
-&lt;span&gt;{ count }&lt;/span&gt;
-&lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;</code></pre>
-
-<p>Usage:</p>
-
-<pre><code tx-ignore>&lt;tx-counter title=&quot;Clicks&quot; count=&quot;5&quot;&gt;&lt;/tx-counter&gt;</code></pre>
-
-<p>Current best way (no special syntax): declare receivable vars without initializer. Local state gets default or explicit initializer. Props override only on initial render.</p>
-
-<p>Alternative ideas using pure Go:</p>
-
-<ul>
-  <li><code tx-ignore>var Props struct { Title string; Count int }</code> — compiler could auto-populate matching fields.</li>
-  <li>Reserve prefix like <code>var PropTitle string</code> — convention-based.</li>
-  <li>Comment marker <code>// tx:prop</code> — explicit, zero runtime cost (current draft approach).</li>
-</ul>
-
-<p>Comment marker is cleanest: distinguishes external props from internal state without name conflicts or conventions.</p>
 
       <h2 id="syntax-highlight">Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>
