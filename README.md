@@ -11,22 +11,22 @@ Developing with tmplx feels like writing a more intuitive version of Go template
 ```html
 <script type="text/tmplx">
   var list []string
-  var item string = ""
-  
-  func add() {
+
+  func add(item string) {
     list = append(list, item)
-    item = ""
   }
-  
+
   func remove(i int) {
     list = append(list[0:i], list[i+1:]...)
   }
 </script>
 
-<label><input type="text" tx-value="item"></label>
-<button tx-onclick="add()">Add</button>
+<form tx-action="add">
+  <label><input name="item" type="text" required></label>
+  <button type="submit">Add</button>
+</form>
 <ol>
-  <li 
+  <li
     tx-for="i, l := range list"
     tx-key="l"
     tx-onclick="remove(i)">
