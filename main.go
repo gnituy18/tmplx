@@ -1458,7 +1458,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 			return nil
 		}
 
-		return newMultiError(comp.parseTmplStr(node.Data, !isRawText))
+		return newMultiError(comp.parseTmplStr(node.Data, !isRawText, !isRawText))
 	case html.ElementNode:
 		if childComp, ok := componentsByName[node.Data]; ok {
 			comp.HasChildComps = true
@@ -1883,7 +1883,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 					comp.RenderFunc.emitStrLit(`="`)
 					if isIgnore {
 						comp.RenderFunc.emitStrLit(attr.Val)
-					} else if err := comp.parseTmplStr(attr.Val, false); err != nil {
+					} else if err := comp.parseTmplStr(strings.TrimSpace(attr.Val), false, false); err != nil {
 						merr.append(comp.errf("invalid expression in attribute: %s", attr.Val))
 					}
 					comp.RenderFunc.emitStrLit(`"`)
@@ -1993,8 +1993,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 	return nil
 }
 
-func (comp *Component) scanTmplStr(str string, onRaw func(r rune), onExpr func(expr string) error) error {
-	str = strings.TrimSpace(str)
+func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r rune), onExpr func(expr string) error) error {
 	if str == "" {
 		return nil
 	}
@@ -2004,6 +2003,7 @@ func (comp *Component) scanTmplStr(str string, onRaw func(r rune), onExpr func(e
 	isInSingleQuote := false
 	isInBackQuote := false
 	skipNext := false
+	lastWasSpace := false
 
 	expr := []byte{}
 	for _, r := range str {
@@ -2014,9 +2014,18 @@ func (comp *Component) scanTmplStr(str string, onRaw func(r rune), onExpr func(e
 		}
 
 		if braceStack == 0 && r != '{' {
+			if collapseWs && (r == ' ' || r == '\t' || r == '\n' || r == '\r' || r == '\f') {
+				if !lastWasSpace {
+					onRaw(' ')
+					lastWasSpace = true
+				}
+				continue
+			}
 			onRaw(r)
+			lastWasSpace = false
 			continue
 		}
+		lastWasSpace = false
 
 		switch r {
 		case '{':
@@ -2089,7 +2098,7 @@ func (comp *Component) scanTmplStr(str string, onRaw func(r rune), onExpr func(e
 }
 
 func (comp *Component) parseUsedVarsStr(str string) {
-	comp.scanTmplStr(str, func(rune) {}, func(expr string) error {
+	comp.scanTmplStr(str, false, func(rune) {}, func(expr string) error {
 		if parsed, err := parser.ParseExpr(expr); err == nil {
 			comp.markUsedVars(parsed)
 		}
@@ -2097,8 +2106,8 @@ func (comp *Component) parseUsedVarsStr(str string) {
 	})
 }
 
-func (comp *Component) parseTmplStr(str string, escape bool) error {
-	return comp.scanTmplStr(str, func(r rune) {
+func (comp *Component) parseTmplStr(str string, escape, collapseWs bool) error {
+	return comp.scanTmplStr(str, collapseWs, func(r rune) {
 		s := string(r)
 		if escape {
 			s = html.EscapeString(s)

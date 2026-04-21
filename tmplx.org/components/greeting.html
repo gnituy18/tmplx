@@ -1,10 +1,14 @@
 <script type="text/tmplx">
-  var name string = ""
+  var greeting string
 
-  func update() {}
+  func greet(name string) {
+    greeting = "Hello, " + name
+  }
 </script>
 
-<input type="text" tx-value="name" placeholder="Enter your name" />
-<button tx-onclick="update()">Greet</button>
+<form tx-action="greet">
+  <input name="name" type="text" required />
+  <button type="submit">Greet</button>
+</form>
 
-<p tx-if='name != ""'>Hello, { name }</p>
+<p tx-if='greeting != ""'>{ greeting }</p>
