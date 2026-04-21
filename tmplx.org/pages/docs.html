@@ -26,7 +26,12 @@
         <li><a href="#installing">Installing</a></li>
         <li><a href="#quick-start">Quick Start</a></li>
         <li><a href="#pages-and-routing">Pages and Routing</a></li>
-        <li><a href="#tmplx-script">tmplx Script</a></li>
+        <li>
+          <a href="#tmplx-script">tmplx Script</a>
+          <ul>
+            <li><a href="#reserved-names">Reserved Names</a></li>
+          </ul>
+        </li>
         <li>
           <a href="#expression-interpolation">Expression Interpolation</a>
         </li>
@@ -47,10 +52,16 @@
         <li>
           <a href="#component">Component</a>
           <ul>
-            <li><a href="#props">Props</a></li>
+            <li>
+              <a href="#props">Props</a>
+              <ul>
+                <li><a href="#callback-props">Callback Props</a></li>
+              </ul>
+            </li>
             <li><a href="#slot">&lt;slot&gt;</a></li>
           </ul>
         </li>
+        <li><a href="#cli">CLI</a></li>
         <li>
           Dev Tools
           <ul>
@@ -333,6 +344,24 @@ func main() {
 ...
 ...</code></pre>
 
+      <h3 id="reserved-names">Reserved Names</h3>
+      <p>
+        The compiler reserves two naming patterns for its own use:
+      </p>
+      <ul>
+        <li>
+          Identifiers (variables, function names, parameter names) declared
+          in the tmplx script cannot start with
+          <code tx-ignore>tx_</code>.
+        </li>
+        <li>
+          HTML attributes starting with <code>tx-</code> are reserved for
+          tmplx directives (<code>tx-if</code>, <code>tx-for</code>,
+          <code>tx-on*</code>, <code>tx-action</code>, ...). Do not
+          introduce your own <code>tx-</code> attributes.
+        </li>
+      </ul>
+
       <h2 id="expression-interpolation">Expression Interpolation</h2>
       <p>
         Use curly braces <code tx-ignore>{}</code> to insert
@@ -536,15 +565,19 @@ var m map[string]int = map[string]int{"key": 100}
       </p>
 
       <h3>Arguments</h3>
-      You can add arguments from local variable declared within
-      <code>tx-if</code>, or <code>tx-for</code> with the following rules:
+      <p>
+        You can pass arguments to handlers, but only from
+        <strong>local variables</strong> declared inside
+        <code>tx-if</code>, <code>tx-else-if</code>, or
+        <code>tx-for</code>. State, derived, and prop variables cannot be
+        passed as arguments&mdash;the handler already has access to them
+        directly.
+      </p>
       <ul>
-        <li>
-          <strong
-            >Argument names cannot match state or derived state names.
-          </strong>
-        </li>
         <li><strong>Argument types must be JSON-compatible.</strong></li>
+        <li>
+          <strong>The number of arguments must match the function signature.</strong>
+        </li>
       </ul>
 
       <tx-example-wrapper>
@@ -622,17 +655,42 @@ var m map[string]int = map[string]int{"key": 100}
 
       <h2 id="path-parameter">Path Parameters</h2>
       <p>
-        You can inject path parameters into states using a
-        <code>//tx:path</code> comment placed directly above the state
-        declaration. This feature works only in
-        <a href="#pages-and-routing">pages</a> and requires the state to be of
-        type <code>string</code>.
+        When a page route contains a wildcard (see
+        <a href="#pages-and-routing">Pages and Routing</a>), you can pull
+        the captured value into a state variable by annotating the
+        declaration with a <code>//tx:path</code> comment.
+      </p>
+
+      <p>Rules:</p>
+      <ul>
+        <li>
+          The comment must sit directly above the <code>var</code> line
+          (Go doc-comment position).
+        </li>
+        <li>
+          The value after <code>tx:path</code> is the wildcard name from
+          the route pattern.
+        </li>
+        <li>
+          The variable must be declared as <code>string</code>. No initial
+          value is allowed&mdash;the captured string is the initial value.
+        </li>
+        <li>
+          Only <a href="#pages-and-routing">pages</a> support
+          <code>tx:path</code>; components cannot declare path-bound state.
+        </li>
+      </ul>
+
+      <p>
+        The captured value is assigned <strong>before</strong>
+        <a href="#init"><code>init()</code></a> runs, so
+        <code>init()</code> can use it to populate other state (for
+        example, by loading a record from the database).
       </p>
 
       <p>
-        For example, given a route pattern like
-        <code tx-ignore>/blog/post/{post_id}</code>, you can access the
-        <code>post_id</code> parameter as follows:
+        <strong>Single parameter.</strong> For a route
+        <code tx-ignore>pages/blog/post/{post_id}.html</code>:
       </p>
 
       <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
@@ -643,24 +701,37 @@ var m map[string]int = map[string]int{"key": 100}
       var postId string
 
       var post Post
-      
+
       func init() {
         post = db.GetPost(postId)
       }
     &lt;/script&gt;
   &lt;/head&gt;
-
   &lt;body&gt;
     &lt;h1&gt;{ post.Title }&lt;/h1&gt;
-    ...
   &lt;/body&gt;
 &lt;/html&gt;</code></pre>
 
       <p>
-        The value of the <code>post_id</code> path parameter is automatically
-        injected into the <code>postId</code> state during initialization. After
-        that, <code>postId</code> behaves like any other state and can be read
-        or modified as needed.
+        <strong>Multiple parameters.</strong> Each wildcard gets its own
+        declaration. For a route
+        <code tx-ignore>pages/blog/{year}/{slug}.html</code>:
+      </p>
+
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  // tx:path year
+  var year string
+
+  // tx:path slug
+  var slug string
+&lt;/script&gt;
+
+&lt;p&gt;Viewing { slug } from { year }&lt;/p&gt;</code></pre>
+
+      <p>
+        After initialization, the variable behaves like any other state:
+        it's serialized, sent to the server on events, and can be reassigned
+        from handlers (though reassigning it does not change the URL).
       </p>
 
       <h2 id="control-flow">Control Flow</h2>
@@ -885,22 +956,29 @@ var m map[string]int = map[string]int{"key": 100}
         Create a component by placing an <code>.html</code> file in the
         <code>components</code> directory (default: <code>./components</code>).
         tmplx automatically registers it as a custom element with the tag name
-        <code>tx-</code> followed by the lowercase kebab-case version of the
-        relative path (without the <code>.html</code> extension).
+        <code>tx-</code> followed by the relative path (without the
+        <code>.html</code> extension), with directory separators replaced by
+        <code>-</code>.
+      </p>
+
+      <p>
+        Filenames and directory names may contain only
+        <code>a-z</code>, <code>0-9</code>, <code>-</code>, and
+        <code>_</code>. Uppercase letters are rejected.
       </p>
 
       <p>Examples:</p>
 
       <ul>
         <li>
-          <code>components/Button.html</code> → <code>&lt;tx-button&gt;</code>
+          <code>components/button.html</code> → <code>&lt;tx-button&gt;</code>
         </li>
         <li>
-          <code>components/user/Card.html</code> →
+          <code>components/user/card.html</code> →
           <code>&lt;tx-user-card&gt;</code>
         </li>
         <li>
-          <code>components/todo/List.html</code> →
+          <code>components/todo/list.html</code> →
           <code>&lt;tx-todo-list&gt;</code>
         </li>
       </ul>
@@ -914,41 +992,121 @@ var m map[string]int = map[string]int{"key": 100}
       <h3 id="props">Props</h3>
 
       <p>
-        Pass data to a component via attributes. Inside the component, declare
-        matching state variables with <code>// tx:prop</code> comments to make
-        them reactive to prop changes.
+        Props are inputs the parent passes to a child component. Inside the
+        child, a prop is declared like a state variable, but with a
+        <code>//tx:prop</code> doc comment.
       </p>
 
       <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  // tx:prop
+  //tx:prop
   var title string
 
-  // tx:prop
+  //tx:prop
   var count int = 0
 &lt;/script&gt;
 
 &lt;h3&gt;{ title }&lt;/h3&gt;
-&lt;span&gt;{ count }&lt;/span&gt;
-&lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;</code></pre>
+&lt;span&gt;{ count } items&lt;/span&gt;</code></pre>
+
+      <p>Rules:</p>
+      <ul>
+        <li>
+          The <code>//tx:prop</code> comment must sit directly above the
+          <code>var</code> line.
+        </li>
+        <li>
+          An initial value (e.g. <code>= 0</code>) becomes the
+          <strong>default</strong> used when the parent omits the attribute.
+        </li>
+        <li>
+          Props are <strong>read-only</strong> inside the child. Event
+          handlers can read them but cannot assign to them. Derived values
+          referencing a prop recompute automatically when the prop changes.
+        </li>
+        <li>
+          Pages cannot declare props&mdash;only components can.
+        </li>
+      </ul>
+
+      <h4>Passing props</h4>
 
       <p>
-        Prop attribute values are evaluated as <strong>Go expressions</strong>,
-        not as plain strings. Pass a literal by writing the Go literal
-        directly, or pass a state/derived/prop variable from the parent by
-        name:
+        Prop attribute values on the parent are parsed as
+        <strong>Go expressions</strong>, not as plain strings. Pass a
+        literal by writing the literal directly; pass a parent variable by
+        its name.
       </p>
 
-      <pre><code tx-ignore>&lt;!-- Go string literal (note the inner quotes) and numeric literal --&gt;
-&lt;tx-my-component title='&quot;Hello&quot;' count=&quot;5&quot;&gt;&lt;/tx-my-component&gt;
+      <pre><code tx-ignore>&lt;!-- Go string literal (quotes are part of the expression) --&gt;
+&lt;tx-card title='&quot;Hello&quot;' count=&quot;5&quot;&gt;&lt;/tx-card&gt;
 
-&lt;!-- Pass parent state/derived/prop variables --&gt;
-&lt;tx-my-component title=&quot;heading&quot; count=&quot;itemCount&quot;&gt;&lt;/tx-my-component&gt;</code></pre>
+&lt;!-- A parent state/derived/prop variable by name --&gt;
+&lt;tx-card title=&quot;heading&quot; count=&quot;itemCount&quot;&gt;&lt;/tx-card&gt;
+
+&lt;!-- Any Go expression that matches the prop type --&gt;
+&lt;tx-card title='strings.ToUpper(heading)' count=&quot;len(items)&quot;&gt;&lt;/tx-card&gt;</code></pre>
+
+      <p>
+        The expression is re-evaluated whenever the parent re-renders, so
+        the child stays in sync with the parent's state automatically.
+      </p>
+
+      <h4 id="callback-props">Callback Props</h4>
+
+      <p>
+        To let a child notify the parent when something happens, declare a
+        function in the child with <strong>no body</strong>. The compiler
+        then requires the parent to supply an implementation, just like a
+        required prop.
+      </p>
+
+      <p>In the child, use it like any other event handler:</p>
+
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  func onSelect(id int)
+&lt;/script&gt;
+
+&lt;button tx-onclick=&quot;onSelect(42)&quot;&gt;Pick&lt;/button&gt;</code></pre>
+
+      <p>
+        In the parent, pass the <strong>name</strong> of a tmplx-script
+        function as an attribute whose key matches the child's function name:
+      </p>
+
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var selected int
+
+  func pick(id int) {
+    selected = id
+  }
+&lt;/script&gt;
+
+&lt;tx-picker onSelect=&quot;pick&quot;&gt;&lt;/tx-picker&gt;</code></pre>
+
+      <p>
+        The attribute value is a bare function name, not a Go expression.
+        When the child calls <code>onSelect(42)</code>, the parent's
+        <code>pick</code> runs on the server with that argument and the
+        parent re-renders. If the child function has a body, the parent
+        override is optional and defaults to the child's implementation.
+      </p>
 
       <h3 id="slot">&lt;slot&gt;</h3>
 
       <p>
-        Use <code>&lt;slot&gt;</code> to define insertion points for child
-        content. Name slots for multiple insertion points.
+        A <code>&lt;slot&gt;</code> marks a place in a component's template
+        where the parent can inject content. Slots are how components stay
+        composable: the child decides the shape, the parent fills in the
+        details.
+      </p>
+
+      <h4>Declaring slots in a component</h4>
+
+      <p>
+        Each slot is either the <strong>default slot</strong> (no
+        <code>name</code>) or a <strong>named slot</strong>. A component may
+        have at most one default slot, and named slots must be unique.
+        Slots cannot be nested inside other slots.
       </p>
 
       <pre><code tx-ignore>&lt;div class=&quot;card&quot;&gt;
@@ -959,19 +1117,121 @@ var m map[string]int = map[string]int{"key": 100}
   &lt;slot name=&quot;footer&quot;&gt;&lt;/slot&gt;
 &lt;/div&gt;</code></pre>
 
-      <p>Usage:</p>
+      <p>
+        Content placed inside <code>&lt;slot&gt;...&lt;/slot&gt;</code> is
+        <strong>fallback content</strong>&mdash;it renders only when the
+        parent does not fill that slot.
+      </p>
+
+      <h4>Filling slots from the parent</h4>
+
+      <p>
+        Put fill content directly inside the component tag. Use the
+        <code>slot</code> attribute on a child element to target a named
+        slot; everything else becomes the default fill.
+      </p>
 
       <pre><code tx-ignore>&lt;tx-card&gt;
   &lt;h2 slot=&quot;header&quot;&gt;Custom Title&lt;/h2&gt;
-  &lt;p&gt;Custom content&lt;/p&gt;
+  &lt;p&gt;Custom content goes in the default slot.&lt;/p&gt;
   &lt;div slot=&quot;footer&quot;&gt;Actions&lt;/div&gt;
 &lt;/tx-card&gt;</code></pre>
 
       <p>
-        Unnamed slots receive content without a <code>slot</code> attribute.
-        Fallback content inside <code>&lt;slot&gt;</code> renders when no
-        matching content is provided.
+        Only the <strong>direct children</strong> of the component tag are
+        considered when matching slots&mdash;a <code>slot</code> attribute
+        on a deeply nested element has no effect.
       </p>
+
+      <h4>Scope: fills use the parent's state</h4>
+
+      <p>
+        This is the most important rule. The content you pass into a slot
+        is still <strong>parent code</strong>: expressions, event handlers,
+        and directives inside a fill see the parent's state, derived, and
+        prop variables&mdash;not the child's.
+      </p>
+
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var user string = &quot;tmplx&quot;
+
+  func logout() {
+    user = &quot;&quot;
+  }
+&lt;/script&gt;
+
+&lt;tx-card&gt;
+  &lt;h2 slot=&quot;header&quot;&gt;Hello, { user }&lt;/h2&gt;
+  &lt;button tx-onclick=&quot;logout()&quot;&gt;Sign out&lt;/button&gt;
+&lt;/tx-card&gt;</code></pre>
+
+      <p>
+        Here <code>user</code> and <code>logout</code> are defined on the
+        page that uses <code>&lt;tx-card&gt;</code>, not inside the card
+        component. When the button is clicked the page's handler runs and
+        the fill re-renders against the page's updated state.
+      </p>
+
+      <h4>Live example</h4>
+
+      <p>
+        The docs site uses a simple <code>&lt;tx-example-wrapper&gt;</code>
+        component with a single default slot to frame every live demo on
+        this page. The component is just:
+      </p>
+
+      <pre><code tx-ignore>&lt;div class=&quot;example-frame&quot;&gt;
+  &lt;slot&gt;&lt;/slot&gt;
+&lt;/div&gt;</code></pre>
+
+      <p>And callers wrap any demo with it:</p>
+
+      <pre><code tx-ignore>&lt;tx-example-wrapper&gt;
+  &lt;tx-counter&gt;&lt;/tx-counter&gt;
+&lt;/tx-example-wrapper&gt;</code></pre>
+
+      <h2 id="cli">CLI</h2>
+      <p>
+        Running <code>tmplx</code> inside any directory of your Go module
+        walks up to the nearest <code>go.mod</code> and uses that as the
+        project root. All path flags default relative to that root.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Flag</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>-pages-dir</code></td>
+            <td><code>./pages</code></td>
+            <td>Directory containing pages.</td>
+          </tr>
+          <tr>
+            <td><code>-components-dir</code></td>
+            <td><code>./components</code></td>
+            <td>Directory containing reusable components.</td>
+          </tr>
+          <tr>
+            <td><code>-output-file</code></td>
+            <td><code>./routes.go</code></td>
+            <td>Path to the generated Go file.</td>
+          </tr>
+          <tr>
+            <td><code>-package-name</code></td>
+            <td><code>main</code></td>
+            <td>Package name for the generated Go code.</td>
+          </tr>
+          <tr>
+            <td><code>-handler-prefix</code></td>
+            <td><code>/tx/</code></td>
+            <td>URL path prefix for generated event handler routes.</td>
+          </tr>
+        </tbody>
+      </table>
 
       <h2 id="syntax-highlight">Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>
