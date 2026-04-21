@@ -1371,7 +1371,7 @@ func (comp *Component) parseUsedVars(node *html.Node) *MultiError {
 					if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" {
 						continue
 					}
-					if strings.HasPrefix(attr.Key, "tx-on") {
+					if strings.HasPrefix(attr.Key, "tx-on") || attr.Key == "tx-action" {
 						continue
 					}
 					comp.parseUsedVarsStr(attr.Val)
@@ -1844,6 +1844,36 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 						comp.RenderFunc.emitStrLit("\"")
 					}
 
+				} else if attr.Key == "tx-action" {
+					if node.DataAtom != atom.Form {
+						merr.append(comp.errf("tx-action only allowed on <form>, got <%s>", node.Data))
+						continue
+					}
+					if !token.IsIdentifier(attr.Val) {
+						merr.append(comp.errf("tx-action value must be a function name, got \"%s\"", attr.Val))
+						continue
+					}
+					fun, ok := comp.FuncByName[attr.Val]
+					if !ok {
+						merr.append(comp.errf("tx-action: undefined function %s", attr.Val))
+						continue
+					}
+					comp.RenderFunc.emitStrLit("tx-action=\"")
+					comp.RenderFunc.emitExpr(fun.Name)
+					comp.RenderFunc.emitStrLit("\"")
+					if comp.Type == CompTypeComp {
+						comp.RenderFunc.emitStrLit(" tx-swap=\"")
+						comp.RenderFunc.emitExpr(fun.Name + "_swap")
+						comp.RenderFunc.emitStrLit("\"")
+					}
+					if len(comp.Slots) > 0 {
+						comp.RenderFunc.emitStrLit(" tx-pid=\"")
+						comp.RenderFunc.emitExpr("tx_pid")
+						comp.RenderFunc.emitStrLit("\"")
+						comp.RenderFunc.emitStrLit(" tx-loc=\"")
+						comp.RenderFunc.emitExpr("tx_loc")
+						comp.RenderFunc.emitStrLit("\"")
+					}
 				} else {
 					if attr.Namespace != "" {
 						comp.RenderFunc.emitStrLit(node.Namespace)
