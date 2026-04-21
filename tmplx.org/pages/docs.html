@@ -198,7 +198,7 @@ $ mkdir pages</code></pre>
 
         <li>
           <p><strong>Generate the Go code</strong></p>
-          <pre><code tx-ignore>$ tmplx -output-file tmplx/routes.go</code></pre>
+          <pre><code tx-ignore>$ tmplx</code></pre>
         </li>
 
         <li>
@@ -208,12 +208,10 @@ $ mkdir pages</code></pre>
 import (
 	&quot;log&quot;
 	&quot;net/http&quot;
-
-	&quot;hello-tmplx/tmplx&quot;
 )
 
 func main() {
-	for _, route := range tmplx.Routes() {
+	for _, route := range Routes() {
 		http.Handle(route.Pattern, route.Handler)
 	}
 
