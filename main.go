@@ -25,6 +25,7 @@ import (
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+	"golang.org/x/text/unicode/norm"
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/imports"
 )
@@ -161,6 +162,7 @@ func main() {
 		if baseName != "index" {
 			urlPath += baseName
 		}
+		urlPath = norm.NFC.String(urlPath)
 
 		if strings.HasSuffix(urlPath, "/") {
 			urlPath += "{$}"
