@@ -181,7 +181,6 @@ func main() {
 			Name:     urlPath,
 			GoName:   goIdent(urlPath),
 		})
-		fmt.Println(urlPath)
 
 		return nil
 
@@ -588,7 +587,6 @@ func main() {
 		for _, f := range pageFuncs {
 			code.write("{\n")
 			code.write("Pattern: \"POST %s%s:%s\",\n", outputEventHandlerPrefix, url.PathEscape(page.Name), f.Name)
-			fmt.Println(url.PathEscape(page.Name))
 			code.write("Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {\n")
 			code.write("tx_r.ParseForm()\n")
 			code.write("tx_curr_saved := map[string]string{}\n")
