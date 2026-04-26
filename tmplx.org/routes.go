@@ -622,7 +622,7 @@ func render__S__EX_(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer, tx_curr_saved map[
 	tx_w1.WriteString("<!-- prettier-ignore --><!DOCTYPE html><html lang=\"en\"><head> <title>tmplx</title> <meta charset=\"UTF-8\"/> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css\"/> <script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js\"></script> <script>\n      hljs.highlightAll();\n    </script> <link rel=\"stylesheet\" href=\"/style.css\"/> <script type=\"application/json\" id=\"tx-saved\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	tx_w2.WriteString(runtimeScript)
-	tx_w2.WriteString("</script></head> <body> <main> <h1 style=\"text-align: center\">&lt;tmplx&gt;</h1> <h2 style=\"text-align: center; margin-top: 1.5rem\"> Write Go in HTML intuitively </h2> <ul style=\"margin-top: 4rem\"> <li>Full Go backend logic and HTML in the same file</li> <li>Reactive UIs driven by plain Go variables</li> <li>Reusable components written as regular HTML files</li> </ul> <div style=\"display: flex;\n          gap: 2rem;\n          justify-content: center;\n          text-align: center;\n          margin-top: 4rem;\"> <a class=\"btn\" href=\"/docs\">Docs</a> <a class=\"btn\" href=\"https://github.com/gnituy18/tmplx\">GitHub</a> </div> <h2 style=\"text-align: center\">Demos</h2> <h3>Counter</h3> ")
+	tx_w2.WriteString("</script></head> <body> <main> <h1 style=\"text-align: center\">&lt;tmplx&gt;</h1> <h2 style=\"text-align: center; margin-top: 1.5rem\"> Write Go in HTML intuitively </h2> <ul style=\"margin-top: 4rem\"> <li>Full Go backend logic and HTML in the same file</li> <li>Reactive UIs driven by plain Go variables</li> <li>Reusable components written as regular HTML files</li> </ul> <div style=\"display: flex;\n          gap: 2rem;\n          justify-content: center;\n          text-align: center;\n          margin-top: 4rem;\"> <a class=\"btn\" href=\"/docs\">Docs</a> <a class=\"btn\" href=\"https://github.com/gnituy18/tmplx\">GitHub</a> </div> <p style=\"text-align: center; margin-top: 1.5rem\"> or see the <a href=\"/roadmap\">roadmap</a> </p> <h2 style=\"text-align: center\">Demos</h2> <h3>Counter</h3> ")
 	{
 		tx_cid := "tx-example-wrapper-1"
 		tx_next_saved[tx_cid] = &tx_H_example_H_wrapper{}
@@ -693,6 +693,16 @@ func render_fill__S__EX__tx_H_example_H_wrapper_3_(tx_w *bytes.Buffer, tx_id str
 	tx_w.WriteString(" ")
 }
 
+type _S_roadmap struct {
+}
+
+func render__S_roadmap(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+	tx_w1.WriteString("<!-- prettier-ignore --><!DOCTYPE html><html lang=\"en\"><head> <title>Roadmap | tmplx</title> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/> <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css\"/> <link rel=\"stylesheet\" href=\"/style.css\"/> <script type=\"application/json\" id=\"tx-saved\">")
+	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
+	tx_w2.WriteString(runtimeScript)
+	tx_w2.WriteString("</script></head> <body> <main> <h1>Roadmap</h1> <p> tmplx is pre-1.0 and moving fast. Expect breaking changes between minor versions until 1.0. For the full record of released changes, see the <a href=\"https://github.com/gnituy18/tmplx/blob/master/CHANGELOG.md\">changelog</a>. </p> <ul> <li><code>[Compiler]</code> for work inside the compiler</li> <li><code>[DX]</code> fro tools around the compiler.</li> <li><code>[Learning]</code> for docs, examples, playground, and other learning material.</li> </ul> <h2>In progress (toward 0.1.0)</h2> <ul> <li><input type=\"checkbox\" checked=\"\"/> [Compiler] A stable product that can be used as a benchmark for progress</li> <li><input type=\"checkbox\"/> [DX] Test suite scaffolding</li> <li><input type=\"checkbox\"/> [Learning] Docs</li> <li><input type=\"checkbox\"/> [Learning] Examples</li> <li><input type=\"checkbox\"/> A Logo</li> </ul> <h2>Planned for 0.2</h2> <ul> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] Verifiable Go imports in tmplx script</li> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] Detect unused fills</li> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] Detect unreachable conditional branches</li> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] Type-check template expressions against the Go types they reference</li> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] Validate <code>//tx:path</code> matches a path segment on the page route</li> <li><input type=\"checkbox\" disabled=\"\"/> [DX] Language server</li> <li><input type=\"checkbox\" disabled=\"\"/> [DX] Tree-sitter grammar</li> <li><input type=\"checkbox\" disabled=\"\"/> [Learning] Tutorial</li> </ul> <h2>Planned for 0.3+</h2> <ul> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] DOM morphing</li> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] Scoped <code>&lt;style&gt;</code> in components</li> <li><input type=\"checkbox\" disabled=\"\"/> [Compiler] <code>tx-class</code> and <code>tx-style</code></li> <li><input type=\"checkbox\" disabled=\"\"/> [Learning] In-browser playground</li> </ul> <h2>Considering</h2> <ul> <li>Compressing the embedded <code>tx-saved</code> state</li> </ul> </main> </body></html>")
+}
+
 type TxRoute struct {
 	Pattern string
 	Handler http.HandlerFunc
@@ -748,6 +758,19 @@ var txRoutes []TxRoute = []TxRoute{
 			tx_next_saved := map[string]any{"page": tx_saved}
 			var tx_buf1, tx_buf2 bytes.Buffer
 			render__S__EX_(&tx_buf1, &tx_buf2, map[string]string{}, tx_next_saved)
+			tx_savedBytes, _ := json.Marshal(tx_next_saved)
+			tx_w.Write(tx_buf1.Bytes())
+			tx_w.Write(tx_savedBytes)
+			tx_w.Write(tx_buf2.Bytes())
+		},
+	},
+	{
+		Pattern: "GET /roadmap",
+		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
+			tx_saved := &_S_roadmap{}
+			tx_next_saved := map[string]any{"page": tx_saved}
+			var tx_buf1, tx_buf2 bytes.Buffer
+			render__S_roadmap(&tx_buf1, &tx_buf2)
 			tx_savedBytes, _ := json.Marshal(tx_next_saved)
 			tx_w.Write(tx_buf1.Bytes())
 			tx_w.Write(tx_savedBytes)
