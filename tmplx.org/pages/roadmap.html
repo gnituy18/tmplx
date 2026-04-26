@@ -1,0 +1,64 @@
+<!-- prettier-ignore -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>Roadmap | tmplx</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+  <main>
+    <h1>Roadmap</h1>
+    <p>
+      tmplx is pre-1.0 and moving fast. Expect breaking changes between minor
+      versions until 1.0. For the full record of released changes, see the
+      <a href="https://github.com/gnituy18/tmplx/blob/master/CHANGELOG.md">changelog</a>.
+    </p>
+    <ul>
+      <li><code>[Compiler]</code> for work inside the compiler</li>
+      <li><code>[DX]</code> fro tools around the compiler.</li>
+      <li><code>[Learning]</code> for docs, examples, playground, and other learning material.</li>
+    </ul>
+
+    <h2>In progress (toward 0.1.0)</h2>
+    <ul>
+      <li><input type="checkbox" checked> [Compiler] A stable product that can be used as a benchmark for progress</li>
+      <li><input type="checkbox"> [DX] Test suite scaffolding</li>
+      <li><input type="checkbox"> [Learning] Docs</li>
+      <li><input type="checkbox"> [Learning] Examples</li>
+      <li><input type="checkbox"> A Logo</li>
+    </ul>
+
+    <h2>Planned for 0.2</h2>
+    <ul>
+      <li><input type="checkbox" disabled> [Compiler] Verifiable Go imports in tmplx script</li>
+      <li><input type="checkbox" disabled> [Compiler] Detect unused fills</li>
+      <li><input type="checkbox" disabled> [Compiler] Detect unreachable conditional branches</li>
+      <li><input type="checkbox" disabled> [Compiler] Type-check template expressions against the Go types they
+        reference</li>
+      <li><input type="checkbox" disabled> [Compiler] Validate <code>//tx:path</code> matches a path segment on the page
+        route</li>
+      <li><input type="checkbox" disabled> [DX] Language server</li>
+      <li><input type="checkbox" disabled> [DX] Tree-sitter grammar</li>
+      <li><input type="checkbox" disabled> [Learning] Tutorial</li>
+    </ul>
+
+    <h2>Planned for 0.3+</h2>
+    <ul>
+      <li><input type="checkbox" disabled> [Compiler] DOM morphing</li>
+      <li><input type="checkbox" disabled> [Compiler] Scoped <code>&lt;style&gt;</code> in components</li>
+      <li><input type="checkbox" disabled> [Compiler] <code>tx-class</code> and <code>tx-style</code></li>
+      <li><input type="checkbox" disabled> [Learning] In-browser playground</li>
+    </ul>
+
+    <h2>Considering</h2>
+    <ul>
+      <li>Compressing the embedded <code>tx-saved</code> state</li>
+    </ul>
+  </main>
+</body>
+
+</html>
