@@ -318,17 +318,9 @@ func main() {
 			comp.FillByGoName = map[string]*Fill{}
 			merr.concat(comp.parseUsedVars(comp.TemplateNode))
 
-			derivedDeps := map[string]struct{}{}
 			for _, v := range comp.Vars {
 				if v.Type == VarTypeDerived {
-					comp.scanVarRefs(v.InitExprAst, derivedDeps)
-				}
-			}
-			for _, v := range comp.Vars {
-				_, used := comp.UsedVars[v.GoName]
-				_, dep := derivedDeps[v.GoName]
-				if !used && !dep {
-					merr.append(comp.errf("%s declared but not used", v.GoName))
+					comp.scanVarRefs(v.InitExprAst, comp.UsedInGo)
 				}
 			}
 		}()
@@ -386,6 +378,15 @@ func main() {
 		}()
 	}
 	wg.Wait()
+	for _, comp := range slices.Concat(components, pages) {
+		for _, v := range comp.Vars {
+			_, used := comp.UsedVars[v.GoName]
+			_, ingo := comp.UsedInGo[v.GoName]
+			if !used && !ingo {
+				merr.append(comp.errf("%s declared but not used", v.GoName))
+			}
+		}
+	}
 	merr.exitOnErrors()
 
 	// 5. generate and write the output Go file
@@ -788,6 +789,7 @@ type Component struct {
 	ChildCompsIdGen        map[string]*IdGen
 	HasChildComps          bool
 	UsedVars               map[string]struct{}
+	UsedInGo               map[string]struct{}
 	Fills                  []*Fill
 	FillByGoName           map[string]*Fill
 	CompFills              []*Fill
@@ -844,6 +846,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 	comp.Imports = []*ast.ImportSpec{}
 	comp.Vars = []*Var{}
 	comp.VarByName = map[string]*Var{}
+	comp.UsedInGo = map[string]struct{}{}
 	comp.Funcs = []*Func{}
 	comp.FuncByName = map[string]*Func{}
 
@@ -1042,6 +1045,7 @@ func (comp *Component) parseTmplxScript() *MultiError {
 				for _, name := range comp.shadowingLocals(d.Body) {
 					merr.append(comp.errf("%s: local variable %s shadows a state/prop/derived variable (rename the local)", d.Name, name))
 				}
+				comp.scanVarRefs(d.Body, comp.UsedInGo)
 			}
 
 			if strings.HasPrefix(d.Name.Name, "tx_") {
@@ -1810,6 +1814,7 @@ func (comp *Component) parseTmpl(node *html.Node, forKeys []string, inSlot bool)
 					for _, name := range comp.shadowingLocals(decl) {
 						merr.append(comp.errf("inline handler: local variable %s shadows a state/prop/derived variable (rename the local)", name))
 					}
+					comp.scanVarRefs(decl.Body, comp.UsedInGo)
 
 					var b strings.Builder
 					dirtyDerived := comp.dirtyDerivedNames(decl.Body)
