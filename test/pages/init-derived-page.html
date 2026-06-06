@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>init reads derived (page)</title>
+  <script type="text/tmplx">
+    var a int = 1
+    var b = a + 1
+    var c int = 10
+    var d = c + 1
+
+    func init() {
+      a += b
+    }
+  </script>
+</head>
+
+<body>
+  <p data-test="a">{ a }</p>
+  <p data-test="b">{ b }</p>
+  <p data-test="c">{ c }</p>
+  <p data-test="d">{ d }</p>
+  <button data-test="plus" tx-onclick="a++">+</button>
+</body>
+
+</html>

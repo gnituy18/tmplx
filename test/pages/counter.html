@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Counter</title>
+  <script type="text/tmplx">
+    var counter = 0
+    var counterDouble = counter * 2
+
+    func addAmount(amount int) {
+      counter += amount
+    }
+  </script>
+</head>
+
+<body>
+  <h1 data-test="counter-h1">Counter: { counter } (doubled: { counterDouble })</h1>
+  <tx-stat label='"Live"' value="counter"></tx-stat>
+  <tx-stat label='"Doubled"' value="counterDouble"></tx-stat>
+  <tx-button label='"+3"' amount="3" clicked="addAmount"></tx-button>
+  <tx-button label='"+5"' amount="5" clicked="addAmount"></tx-button>
+  <button data-test="minus" tx-onclick="counter--">-1</button>
+  <button data-test="reset" tx-onclick="counter = 0">reset</button>
+  <p data-test="sign" tx-if="counter > 0">positive</p>
+  <p data-test="sign" tx-else-if="counter == 0">zero</p>
+  <p data-test="sign" tx-else>negative</p>
+</body>
+
+</html>

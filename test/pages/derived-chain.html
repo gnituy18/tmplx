@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>derived chain</title>
+  <script type="text/tmplx">
+    var a = 1
+    var b = a + 1
+    var c = b * 10
+  </script>
+</head>
+
+<body>
+  <!-- b derives from a, c derives from b: a change to a must cascade to both -->
+  <p data-test="dc-a">a={ a }</p>
+  <p data-test="dc-b">b={ b }</p>
+  <p data-test="dc-c">c={ c }</p>
+  <button data-test="dc-inc" tx-onclick="a++">+</button>
+</body>
+
+</html>

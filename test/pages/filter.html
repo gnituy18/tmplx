@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>conditional rows (tx-if inside tx-for)</title>
+  <script type="text/tmplx">
+    var nums = []int{1, 2, 3, 4, 5, 6}
+  </script>
+</head>
+
+<body>
+  <!-- NOTE: tx-for + tx-if on the SAME element is NOT supported (the tx-if can't
+       see the loop var; recorded as a gap). The supported pattern is tx-if on an
+       INNER element, which can reference the enclosing loop variable. -->
+  <ul>
+    <li tx-for="_, n := range nums" tx-key="n">
+      <b data-test="big" tx-if="n > 3">{ n }-big</b>
+      <i data-test="small" tx-else>{ n }-small</i>
+    </li>
+  </ul>
+</body>
+
+</html>

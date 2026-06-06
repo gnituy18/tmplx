@@ -153,7 +153,7 @@
       </p>
       <h2 id="installing">Installing</h2>
 
-      <p>tmplx requires Go 1.24 or later.</p>
+      <p>tmplx requires Go 1.25 or later.</p>
       <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
       <p>
         This adds tmplx to your Go bin directory (usually $GOPATH/bin or
@@ -375,9 +375,10 @@ func main() {
       <p tx-ignore>
         tmplx converts expression results to strings using
         <code><a href="https://pkg.go.dev/fmt#Sprint">fmt.Sprint</a></code
-        >. The difference is that in <strong>text nodes</strong> the output is
-        <strong>HTML-escaped</strong> to prevent cross-site scripting (XSS)
-        attacks.
+        >. The output is <strong>HTML-escaped</strong> in both
+        <strong>text nodes</strong> and <strong>attribute values</strong> to
+        prevent cross-site scripting (XSS)&mdash;an interpolated value cannot
+        inject markup or break out of its attribute.
       </p>
 
       <p>
@@ -437,22 +438,21 @@ var name string = "tmplx"
       <ol>
         <li><strong>Only one identifier per declaration.</strong></li>
         <li>
-          <strong
-            >The type must be explicitly declared and JSON-compatible.</strong
-          >
+          <strong>
+            The type must be JSON-compatible. It may be either declared
+            explicitly or inferred from the initializer.
+          </strong>
         </li>
       </ol>
       <p>
-        The 1st rule is enforced by the compiler. The 2nd is not checked at
-        compile time (for now) and will cause a runtime error if violated.
+        The 1st rule is enforced by the compiler. JSON-compatibility is not
+        checked at compile time (for now) and will cause a runtime error if
+        violated.
       </p>
 
       <h3>Some invalid state declarations:</h3>
       <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-// ❌ Must explicitly declare the type
-var str = ""
-
-// ❌ Cannot use the := short declaration
+// ❌ Cannot use the := short declaration (Go does not allow it at package scope)
 num := 1
 
 // ❌ Type must be JSON-marshalable/unmarshalable
@@ -469,15 +469,27 @@ var a, b int = f()
 // ✅ Zero value
 var id int64
 
-// ✅ With initial value
+// ✅ With initial value (explicit type)
 var address string = "..."
 
+// ✅ Type inferred from the initializer
+var counter = 0
+var fruits = []string{"apple", "banana"}
+var stock = map[string]int{"apple": 10}
+
 // ✅ Initialized with a function call (assuming the package is imported)
-var username string = user.GetNameById("id")
+var username = user.GetNameById("id")
 
 // ✅ Complex JSON-compatible types
 var m map[string]int = map[string]int{"key": 100}
 &lt;/script&gt;</code></pre>
+
+      <p>
+        The tmplx script cannot contain Go <code>type</code> declarations. To
+        use your own struct or named types as state, declare them in a regular
+        Go package and import them&mdash;then reference the imported type in the
+        <code>var</code> declaration.
+      </p>
 
       <h2 id="derived">Derived</h2>
       A <strong>derived</strong> is a <strong>read-only</strong> value that is
@@ -498,7 +510,12 @@ var m map[string]int = map[string]int{"key": 100}
 
       <ol>
         <li><strong>Only one identifier per declaration.</strong></li>
-        <li><strong>The type must be specified explicitly.</strong></li>
+        <li>
+          <strong>
+            The type may be inferred from the right-hand side or declared
+            explicitly</strong
+          >, just like state.
+        </li>
         <li>
           <strong
             >Derived values cannot be modified directly in event handlers,
@@ -562,19 +579,29 @@ var m map[string]int = map[string]int{"key": 100}
         call with targeted DOM swapping.
       </p>
 
-      <h3>Arguments</h3>
+      <h3>Captured Locals</h3>
       <p>
-        You can pass arguments to handlers, but only from
-        <strong>local variables</strong> declared inside
-        <code>tx-if</code>, <code>tx-else-if</code>, or
-        <code>tx-for</code>. State, derived, and prop variables cannot be
-        passed as arguments&mdash;the handler already has access to them
-        directly.
+        Any local variable bound by an enclosing <code>tx-for</code> init
+        clause, <code>tx-for</code> range form, or <code>tx-if</code>/
+        <code>tx-else-if</code> init form is <strong>automatically
+        captured</strong> by event handlers in the subtree. Just reference the
+        local by name; the framework figures out which values cross the wire
+        and decodes them with their inferred Go type.
       </p>
       <ul>
-        <li><strong>Argument types must be JSON-compatible.</strong></li>
         <li>
-          <strong>The number of arguments must match the function signature.</strong>
+          The captured local can appear anywhere in the handler
+          body&mdash;as a function argument, an array index, an expression
+          operand. Whatever is valid Go.
+        </li>
+        <li>
+          Types are recovered from the binding&rsquo;s context (the surrounding
+          state declarations and imports), so you don&rsquo;t need to annotate.
+        </li>
+        <li>
+          State, derived, and prop variables are <strong>not</strong> captured
+          this way&mdash;the handler already reads them from the component&rsquo;s
+          saved state.
         </li>
       </ul>
 
@@ -595,12 +622,37 @@ var m map[string]int = map[string]int{"key": 100}
   +{ i }
 &lt;/button&gt;</code></pre>
 
+      <p>
+        <code>i</code> is captured from <code>tx-for</code> and decoded as
+        <code>int</code> on the server. Captures from <code>tx-if</code>/
+        <code>tx-else-if</code> init forms work the same way:
+      </p>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var stock = map[string]int{&quot;apple&quot;: 10, &quot;banana&quot;: 5}
+  var fruits = []string{&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;}
+&lt;/script&gt;
+
+&lt;div tx-for=&quot;_, f := range fruits&quot; tx-key=&quot;f&quot;&gt;
+  &lt;p tx-if=&quot;n, ok := stock[f]; ok&quot;&gt;
+    { f } in stock: { n }
+    &lt;button tx-onclick=&quot;stock[f] = n - 1&quot;&gt;buy&lt;/button&gt;
+  &lt;/p&gt;
+&lt;/div&gt;</code></pre>
+
+      <p>
+        Both <code>f</code> (from <code>tx-for</code>) and <code>n</code>
+        (from <code>tx-if</code> init) are captured automatically.
+      </p>
+
       <h3>Inline Statements</h3>
 
       <p>
         For simple actions, embed Go statements directly in
         <code>tx-on*</code> attributes to update state. This avoids defining
-        separate handler functions.
+        separate handler functions. The body can be any valid Go statement
+        sequence&mdash;direct state mutation, function calls, or compound
+        expressions&mdash;not just a single function call.
       </p>
       <tx-example-wrapper>
         <tx-double></tx-double>
@@ -612,6 +664,28 @@ var m map[string]int = map[string]int{"key": 100}
 
 &lt;p&gt;{ val }&lt;/p&gt;
 &lt;button tx-onclick=&quot;val *= 2&quot;&gt;double it!&lt;/button&gt;</code>
+      </pre>
+
+      <h3>Event Properties</h3>
+      <p>
+        For input-typed events, you can read values directly from the DOM
+        event object inside the handler body. The runtime injects them into
+        the request automatically.
+      </p>
+      <ul>
+        <li>
+          <code>tx-oninput</code>, <code>tx-onchange</code>:
+          <code>event.target.value</code> resolves to the input&rsquo;s
+          current string value.
+        </li>
+      </ul>
+      <pre>
+        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  var query = &quot;&quot;
+&lt;/script&gt;
+
+&lt;input type=&quot;text&quot; tx-oninput=&quot;query = event.target.value&quot; /&gt;
+&lt;p&gt;You typed: { query }&lt;/p&gt;</code>
       </pre>
       <h2 id="init">init()</h2>
       <p>
@@ -822,7 +896,7 @@ var m map[string]int = map[string]int{"key": 100}
 &lt;/div&gt;</code>
       </pre>
 
-      <pre><code tx-ignore>&lt;div tx-for=&quot;_, user := range users&quot;&gt;
+      <pre><code tx-ignore>&lt;div tx-for=&quot;_, user := range users&quot; tx-key=&quot;user.Id&quot;&gt;
   { user.Id }: { user.Name }
 &lt;/div&gt;</code></pre>
       <h2 id="template">&lt;template&gt;</h2>
@@ -1013,6 +1087,11 @@ var m map[string]int = map[string]int{"key": 100}
           <code>var</code> line.
         </li>
         <li>
+          Prop names must be <strong>lowercase</strong>. HTML lowercases
+          attribute names, so a camelCase prop name would never match the
+          attribute the parent writes.
+        </li>
+        <li>
           An initial value (e.g. <code>= 0</code>) becomes the
           <strong>default</strong> used when the parent omits the attribute.
         </li>
@@ -1052,23 +1131,26 @@ var m map[string]int = map[string]int{"key": 100}
       <h4 id="callback-props">Callback Props</h4>
 
       <p>
-        To let a child notify the parent when something happens, declare a
-        function in the child with <strong>no body</strong>. The compiler
-        then requires the parent to supply an implementation, just like a
-        required prop.
+        A <strong>callback prop</strong> lets a child notify the parent when
+        something happens. It is just a prop whose type is a
+        <strong>function</strong>: declare it with <code>//tx:prop</code> and a
+        function type. With no default the parent <strong>must</strong> supply
+        an implementation (a required prop); give it a function-literal default
+        to make the parent override optional.
       </p>
 
-      <p>In the child, use it like any other event handler:</p>
+      <p>In the child, call it like any other event handler:</p>
 
       <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  func onSelect(id int)
+  //tx:prop
+  var onselect func(id int)
 &lt;/script&gt;
 
-&lt;button tx-onclick=&quot;onSelect(42)&quot;&gt;Pick&lt;/button&gt;</code></pre>
+&lt;button tx-onclick=&quot;onselect(42)&quot;&gt;Pick&lt;/button&gt;</code></pre>
 
       <p>
-        In the parent, pass the <strong>name</strong> of a tmplx-script
-        function as an attribute whose key matches the child's function name:
+        In the parent, pass the <strong>bare name</strong> of a tmplx-script
+        function as the attribute whose key matches the child's prop name:
       </p>
 
       <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
@@ -1079,15 +1161,26 @@ var m map[string]int = map[string]int{"key": 100}
   }
 &lt;/script&gt;
 
-&lt;tx-picker onSelect=&quot;pick&quot;&gt;&lt;/tx-picker&gt;</code></pre>
+&lt;tx-picker onselect=&quot;pick&quot;&gt;&lt;/tx-picker&gt;</code></pre>
 
       <p>
-        The attribute value is a bare function name, not a Go expression.
-        When the child calls <code>onSelect(42)</code>, the parent's
-        <code>pick</code> runs on the server with that argument and the
-        parent re-renders. If the child function has a body, the parent
-        override is optional and defaults to the child's implementation.
+        When the child calls <code>onselect(42)</code>, the parent's
+        <code>pick</code> runs on the server with that argument and the parent
+        re-renders. A callback call can be mixed freely with other statements
+        in the same handler&mdash;for example
+        <code>tx-onclick=&quot;count++; onselect(42)&quot;</code>.
       </p>
+
+      <p>
+        To make the override optional, give the prop a function-literal
+        default. The parent may then omit the attribute and the child falls
+        back to its own implementation:
+      </p>
+
+      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
+  //tx:prop
+  var onselect func(id int) = func(id int) {}
+&lt;/script&gt;</code></pre>
 
       <h3 id="slot">&lt;slot&gt;</h3>
 

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>compound</title>
+  <script type="text/tmplx">
+    var pageHits = 0
+
+    func bumpPage() {
+      pageHits++
+    }
+  </script>
+</head>
+
+<body>
+  <p data-test="compound-page-hits">page hits: { pageHits }</p>
+  <tx-compound notify="bumpPage"></tx-compound>
+</body>
+
+</html>

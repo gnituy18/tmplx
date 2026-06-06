@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>nested loop</title>
+  <script type="text/tmplx">
+    var rows = []string{"x", "y"}
+    var cols = []int{1, 2, 3}
+  </script>
+</head>
+
+<body>
+  <!-- a tx-for nested inside another tx-for (cartesian product) -->
+  <div data-test="row" tx-for="_, r := range rows" tx-key="r">
+    <span data-test="cell" tx-for="_, c := range cols" tx-key="c">{ r }{ c }</span>
+  </div>
+</body>
+
+</html>

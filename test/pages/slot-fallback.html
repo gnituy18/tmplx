@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>slot fallback</title>
+  <script type="text/tmplx">
+  </script>
+</head>
+
+<body>
+  <!-- first box: no fill -> slot renders its fallback content -->
+  <tx-box></tx-box>
+  <!-- second box: a fill overrides the fallback -->
+  <tx-box><span data-test="box-fill">custom</span></tx-box>
+</body>
+
+</html>

@@ -1,0 +1,13 @@
+<script type="text/tmplx">
+  var n = 0
+
+  //tx:prop
+  var label string = "default-label"
+
+  //tx:prop
+  var bump func() = func() { n++ }
+</script>
+
+<p data-test="def-label">{ label }</p>
+<p data-test="def-n">{ n }</p>
+<button data-test="def-btn" tx-onclick="bump()">bump</button>

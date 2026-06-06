@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>conditionals</title>
+  <script type="text/tmplx">
+    var n = 0
+    var show = true
+  </script>
+</head>
+
+<body>
+  <!-- tx-if with no else: the node exists only while the condition holds -->
+  <p data-test="cond-show" tx-if="show">visible</p>
+  <button data-test="cond-toggle" tx-onclick="show = !show">toggle</button>
+
+  <!-- if / else-if / else chain: exactly one branch renders -->
+  <p data-test="bucket" tx-if="n > 5">big</p>
+  <p data-test="bucket" tx-else-if="n > 0">small</p>
+  <p data-test="bucket" tx-else>none</p>
+  <button data-test="cond-inc" tx-onclick="n++">+</button>
+
+  <!-- a component rendered conditionally (mounted/unmounted with the branch) -->
+  <div tx-if="show">
+    <tx-counter></tx-counter>
+  </div>
+</body>
+
+</html>

@@ -1,0 +1,10 @@
+<script type="text/tmplx">
+  var n int
+
+  func init() {
+    n = 42
+  }
+</script>
+
+<span data-test="seeded-n">{ n }</span>
+<button data-test="seeded-plus" tx-onclick="n++">+1</button>

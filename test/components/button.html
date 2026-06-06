@@ -1,0 +1,12 @@
+<script type="text/tmplx">
+  //tx:prop
+  var label string
+
+  //tx:prop
+  var amount int
+
+  //tx:prop
+  var clicked func(amount int)
+</script>
+
+<button data-test="btn" tx-onclick="clicked(amount)">{ label }</button>

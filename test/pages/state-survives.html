@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>state survives</title>
+  <script type="text/tmplx">
+    var n = 0
+  </script>
+</head>
+
+<body>
+  <p data-test="ss-page-n">page: { n }</p>
+  <button data-test="ss-page-plus" tx-onclick="n++">+page</button>
+  <tx-counter></tx-counter>
+</body>
+
+</html>

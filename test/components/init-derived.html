@@ -1,0 +1,12 @@
+<script type="text/tmplx">
+  var a int = 1
+  var b = a + 1
+
+  func init() {
+    a += b
+  }
+</script>
+
+<p data-test="comp-a">{ a }</p>
+<p data-test="comp-b">{ b }</p>
+<button data-test="comp-plus" tx-onclick="a++">+</button>

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>attribute interpolation</title>
+  <script type="text/tmplx">
+    var who = "alice"
+    var cls = "active"
+  </script>
+</head>
+
+<body>
+  <!-- interpolation inside an attribute value -->
+  <a data-test="link" href="/echo/{ who }">go</a>
+  <div data-test="dyn-class" class="box { cls }">x</div>
+</body>
+
+</html>

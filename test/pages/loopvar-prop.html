@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>loop var as prop</title>
+  <script type="text/tmplx">
+    var labels = []string{"x", "y", "z"}
+  </script>
+</head>
+
+<body>
+  <!-- tx-for on a component, passing the loop index/value as props -->
+  <tx-stat tx-for="i, l := range labels" tx-key="i" label="l" value="i"></tx-stat>
+</body>
+
+</html>

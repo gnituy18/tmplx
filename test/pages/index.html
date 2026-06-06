@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>tmplx test examples</title>
+  <script type="text/tmplx">
+  </script>
+</head>
+
+<body>
+  <h1>tmplx test examples</h1>
+  <p>Ordered simple &rarr; complex, mirroring the compiler feature flow.</p>
+
+  <h2>text &amp; state</h2>
+  <ul>
+    <li><a href="/text">text</a> &mdash; interpolation, expressions, HTML-escaping</li>
+    <li><a href="/state-types">state-types</a> &mdash; bool / float / slice state</li>
+    <li><a href="/derived-chain">derived-chain</a> &mdash; transitive derived (a &rarr; b &rarr; c)</li>
+    <li><a href="/init-derived-page">init-derived-page</a> &mdash; init() reads derived (page)</li>
+    <li><a href="/init-derived-comp">init-derived-comp</a> &mdash; init() reads derived (component)</li>
+  </ul>
+
+  <h2>handlers</h2>
+  <ul>
+    <li><a href="/counter">counter</a> &mdash; handlers, func-prop, derived, if/else-if/else</li>
+    <li><a href="/show-counter">show-counter</a> &mdash; handler + pure func in an expression</li>
+    <li><a href="/input">input</a> &mdash; input event / event.target.value</li>
+  </ul>
+
+  <h2>conditions &amp; loops</h2>
+  <ul>
+    <li><a href="/conditionals">conditionals</a> &mdash; tx-if / else-if / else, conditional component</li>
+    <li><a href="/loops">loops</a> &mdash; index+value, empty, range-over-int</li>
+    <li><a href="/nested-loop">nested-loop</a> &mdash; tx-for inside tx-for</li>
+    <li><a href="/map-loop">map-loop</a> &mdash; range over a map</li>
+    <li><a href="/loop-comps">loop-comps</a> &mdash; keyed components in a loop</li>
+  </ul>
+
+  <h2>components &amp; props</h2>
+  <ul>
+    <li><a href="/counter-comp">counter-comp</a> &mdash; two independent sealed instances</li>
+    <li><a href="/badge">badge</a> &mdash; propful component, prop rewiring + morph</li>
+    <li><a href="/seeded">seeded</a> &mdash; component init() seeds state</li>
+    <li><a href="/nested-comp">nested-comp</a> &mdash; component rendering a component</li>
+    <li><a href="/defaulter">defaulter</a> &mdash; prop &amp; func-prop defaults</li>
+  </ul>
+
+  <h2>func-props &amp; slots</h2>
+  <ul>
+    <li><a href="/compound">compound</a> &mdash; child calls a parent func-prop</li>
+    <li><a href="/funcprop-return">funcprop-return</a> &mdash; func-prop returning a value</li>
+    <li><a href="/slots">slots</a> &mdash; default + named slots</li>
+    <li><a href="/slot-fallback">slot-fallback</a> &mdash; slot fallback vs. fill</li>
+  </ul>
+
+  <h2>captured locals, path vars, swap</h2>
+  <ul>
+    <li><a href="/todos">todos</a> &mdash; captured loop locals (removeTodo(i)); tx-action add (known gap)</li>
+    <li><a href="/echo/hello">echo/hello</a> &mdash; path variable bound from the URL segment</li>
+    <li><a href="/state-survives">state-survives</a> &mdash; page state survives a component swap</li>
+  </ul>
+
+  <h2>known gaps</h2>
+  <ul>
+    <li><a href="/attr-interp">attr-interp</a> &mdash; attribute interpolation (NOT supported; renders literally)</li>
+  </ul>
+</body>
+
+</html>

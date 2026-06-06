@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>loops</title>
+  <script type="text/tmplx">
+    var items = []string{"a", "b", "c"}
+    var empty = []string{}
+  </script>
+</head>
+
+<body>
+  <!-- loop exposing both index and value -->
+  <ul>
+    <li data-test="item" tx-for="i, v := range items" tx-key="i">{ i }:{ v }</li>
+  </ul>
+
+  <!-- empty slice renders zero rows -->
+  <ul>
+    <li data-test="empty-item" tx-for="_, v := range empty" tx-key="v">{ v }</li>
+  </ul>
+
+  <!-- range over an integer (Go 1.22 form): yields 0..n-1 -->
+  <span data-test="num" tx-for="k := range 4" tx-key="k">{ k }</span>
+</body>
+
+</html>

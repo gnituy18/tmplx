@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>state types</title>
+  <script type="text/tmplx">
+    var flag = true
+    var ratio = 1.5
+    var nums = []int{10, 20, 30}
+  </script>
+</head>
+
+<body>
+  <!-- non-int/string state: bool, float64, slice -->
+  <p data-test="flag">flag: { flag }</p>
+  <p data-test="ratio">ratio: { ratio }</p>
+  <p data-test="nums-len">count: { len(nums) }</p>
+  <!-- a bool used directly as a tx-if condition -->
+  <p data-test="when-on" tx-if="flag">flag is on</p>
+  <!-- handler mutating a bool via negation -->
+  <button data-test="toggle" tx-onclick="flag = !flag">toggle</button>
+</body>
+
+</html>

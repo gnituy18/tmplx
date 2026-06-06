@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>showCounter</title>
+  <script type="text/tmplx">
+    var counter = 0
+    var counterDouble = counter * 2
+
+    func showCounter() int {
+      return counter + 1
+    }
+  </script>
+</head>
+
+<body>
+  <h1 data-test="sc-h1">Counter: { counter } (doubled: { counterDouble })</h1>
+  <div data-test="sc-show">{ showCounter() }</div>
+  <button data-test="sc-minus" tx-onclick="counter--">-1</button>
+  <button data-test="sc-reset" tx-onclick="counter = 0">reset</button>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+<script type="text/tmplx">
+  var local int
+
+  //tx:prop
+  var notify func()
+</script>
+
+<div data-test="compound-local">{ local }</div>
+<button data-test="compound-btn" tx-onclick="local++;notify()">go</button>

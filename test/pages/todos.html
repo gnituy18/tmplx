@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Todos</title>
+  <script type="text/tmplx">
+    var todos = []string{"first", "second"}
+    var lastAdded = ""
+
+    func removeTodo(i int) {
+      todos = append(todos[:i], todos[i+1:]...)
+    }
+
+    func addTodo(text string) {
+      todos = append(todos, text)
+      lastAdded = text
+    }
+  </script>
+</head>
+
+<body>
+  <p data-test="count">total: { len(todos) }</p>
+  <ul data-test="todo-list">
+    <li tx-for="i, t := range todos" tx-key="i">
+      <span data-test="todo-text">{ t }</span>
+      <button data-test="remove" tx-onclick="removeTodo(i)">x</button>
+    </li>
+  </ul>
+  <form tx-action="addTodo">
+    <input data-test="new-todo" name="text" type="text" />
+    <button data-test="add" type="submit">add</button>
+  </form>
+  <p data-test="last-added">Last added: { lastAdded }</p>
+</body>
+
+</html>

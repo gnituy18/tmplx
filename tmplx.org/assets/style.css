@@ -113,3 +113,177 @@ nav a {
     text-decoration: none;
   }
 }
+
+/* === Logo style gallery === */
+.logo-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  margin: 4rem 0;
+  align-items: center;
+}
+
+.logo-variant {
+  text-align: center;
+}
+
+.logo-variant > .label {
+  font-size: 0.75rem;
+  font-family: Verdana;
+  color: SlateGray;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+}
+
+.logo-original {
+  font-family: Verdana;
+  font-size: 3rem;
+  font-weight: bold;
+  color: DarkSlateGray;
+  text-shadow: 0.25rem 0.25rem Silver;
+}
+
+.logo-mono {
+  font-family: "Courier New", monospace;
+  font-size: 3rem;
+  font-weight: bold;
+  color: DarkSlateGray;
+  text-shadow: 0.25rem 0.25rem Silver;
+}
+.logo-mono .bracket {
+  color: RoyalBlue;
+}
+
+.logo-dos {
+  display: inline-block;
+  font-family: "Courier New", monospace;
+  font-size: 2.5rem;
+  font-weight: bold;
+  padding: 1.5rem 3rem;
+  background: Cornsilk;
+  color: DarkSlateGray;
+  border: 6px double DarkSlateGray;
+}
+
+.logo-crt {
+  display: inline-block;
+  font-family: "Courier New", monospace;
+  font-size: 3rem;
+  font-weight: bold;
+  color: #00ff41;
+  background: #0a1a0a;
+  padding: 1.5rem 3rem;
+  text-shadow:
+    0 0 4px #00ff41,
+    0 0 12px rgba(0, 255, 65, 0.8),
+    0 0 24px rgba(0, 255, 65, 0.4);
+  border: 2px solid #003300;
+  letter-spacing: 0.05em;
+}
+.logo-crt::after {
+  content: "_";
+  animation: crt-blink 1s steps(1) infinite;
+}
+@keyframes crt-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.logo-win95 {
+  display: inline-block;
+  font-family: "Tahoma", "MS Sans Serif", Verdana;
+  font-size: 2.5rem;
+  font-weight: bold;
+  background: Silver;
+  color: Black;
+  padding: 0.75rem 2rem;
+  border-top: 4px solid White;
+  border-left: 4px solid White;
+  border-right: 4px solid #707070;
+  border-bottom: 4px solid #707070;
+}
+
+.logo-geocities {
+  font-family: "Comic Sans MS", "Comic Sans", cursive;
+  font-size: 3rem;
+  font-weight: bold;
+  background: linear-gradient(
+    90deg,
+    #ff0080,
+    #ff8c00,
+    #ffd700,
+    #00d68f,
+    #00bfff,
+    #8a2be2
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0.125rem 0.125rem rgba(0, 0, 0, 0.15);
+}
+
+.logo-newspaper {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 3.5rem;
+  font-weight: bold;
+  font-style: italic;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
+  border-top: 3px double Black;
+  border-bottom: 3px double Black;
+  padding: 0.5rem 2rem;
+  display: inline-block;
+}
+
+.logo-pixel {
+  font-family: "Courier New", monospace;
+  font-size: 2.75rem;
+  font-weight: bold;
+  color: DarkSlateGray;
+  letter-spacing: 0.15em;
+  text-shadow:
+    0.125rem 0 #4a90e2,
+    0.25rem 0 #2c5aa0,
+    -0.125rem 0 #ff6b6b;
+}
+
+.logo-mac {
+  font-family: "Chicago", "Lucida Grande", "Helvetica", sans-serif;
+  font-size: 3rem;
+  font-weight: bold;
+  color: Black;
+  letter-spacing: 0.04em;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid Black;
+  background: White;
+  box-shadow: 0.25rem 0.25rem 0 Black;
+}
+
+.logo-marquee {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  background: Black;
+  color: #00ff41;
+  font-family: "Courier New", monospace;
+  font-size: 2.5rem;
+  font-weight: bold;
+  padding: 1rem 0;
+  width: 100%;
+  max-width: 32rem;
+}
+.logo-marquee > span {
+  display: inline-block;
+  padding-left: 100%;
+  animation: marquee-scroll 8s linear infinite;
+}
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}

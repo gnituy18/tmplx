@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>expr prop</title>
+<script type="text/tmplx">
+  var base = 4
+</script>
+</head>
+<body>
+  <!-- a component value-prop given a compound expression, not just an ident/literal -->
+  <tx-stat label='"sum"' value="base * 2 + 1"></tx-stat>
+  <button data-test="ep-inc" tx-onclick="base++">+</button>
+</body>
+</html>

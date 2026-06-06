@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>map loop</title>
+  <script type="text/tmplx">
+    var scores = map[string]int{"a": 1, "b": 2, "c": 3}
+  </script>
+</head>
+
+<body>
+  <!-- ranging over a map. Map order is random in Go and conditions/loops run
+       twice (compute + render); keys keep child identity stable, but visual
+       order may not be deterministic. Probing what actually happens. -->
+  <span data-test="score" tx-for="k, v := range scores" tx-key="k">{ k }={ v };</span>
+</body>
+
+</html>

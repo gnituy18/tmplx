@@ -1,0 +1,11 @@
+<script type="text/tmplx">
+  //tx:prop
+  var name string
+
+  var ticks int
+</script>
+
+<span>
+  <span data-test="badge-text">{ name }: { ticks }</span>
+  <button data-test="badge-tick" tx-onclick="ticks++">+1</button>
+</span>

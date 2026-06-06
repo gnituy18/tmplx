@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>text interpolation</title>
+  <script type="text/tmplx">
+    var name = "world"
+    var count = 3
+    var raw = "<b>bold</b> & 'q'"
+  </script>
+</head>
+
+<body>
+  <!-- multiple interpolations + a string literal in one text node -->
+  <p data-test="greet">Hello, { name }! You have { count } item{ "s" }.</p>
+  <!-- arbitrary Go expressions, builtins, arithmetic -->
+  <p data-test="expr">2+2={ 2 + 2 } len={ len(name) } up={ count * 10 }</p>
+  <!-- two interpolations with NO text between them must stay separate -->
+  <p data-test="adjacent">{ name }{ count }</p>
+  <!-- interpolations must be HTML-escaped (no markup injection) -->
+  <p data-test="escape">{ raw }</p>
+  <!-- tx-ignore: the element's text is rendered verbatim (no { } interpolation,
+       skipped by the probe) — the escape hatch for literal braces -->
+  <p data-test="ignored" tx-ignore>literal { name } and { undefinedVar } stay</p>
+</body>
+
+</html>

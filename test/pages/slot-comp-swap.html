@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>slot-wrapped component swap</title>
+  <script type="text/tmplx">
+  </script>
+</head>
+
+<body>
+  <!-- a SEALED component placed inside a slot: its instance id uses the slot
+       '@' separator, so the swap path must parse '@' (regression: tx_dispatch
+       used to split the type name on ':' only -> empty swap -> dead demo) -->
+  <tx-box>
+    <tx-counter></tx-counter>
+  </tx-box>
+</body>
+
+</html>
