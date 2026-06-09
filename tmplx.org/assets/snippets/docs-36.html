@@ -1,0 +1,14 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>posts</span> []<span class='type'>Post</span> <span class='operator'>=</span> []<span class='type'>Post</span>{
+    {<span class='variable'>Title</span>: <span class='string'>&quot;First Post&quot;</span>, <span class='variable'>Body</span>: <span class='string'>&quot;Hello world&quot;</span>},
+    {<span class='variable'>Title</span>: <span class='string'>&quot;Second Post&quot;</span>, <span class='variable'>Body</span>: <span class='string'>&quot;tmplx is great&quot;</span>},
+  }
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>template</span> <span class='attribute'>tx-for</span>=&quot;<span class='string'>i, p := range posts</span>&quot; <span class='attribute'>tx-key</span>=&quot;<span class='string'>i</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>article</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>h3</span><span class='punctuation bracket'>&gt;</span>{ p.Title }<span class='punctuation bracket'>&lt;/</span><span class='tag'>h3</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>{ p.Body }<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>hr</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>article</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>template</span><span class='punctuation bracket'>&gt;</span></code></pre>

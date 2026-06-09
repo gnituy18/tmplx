@@ -1,0 +1,12 @@
+<script type="text/tmplx">
+  var counter int = 5
+</script>
+
+<div>
+  <span> { counter } </span>
+  <button tx-onclick="counter++">+</button>
+</div>
+<div tx-for="h := 0; h < counter; h++" tx-key="h">
+  <span tx-for="s := 0; s < counter-h-1; s++" tx-key="s">_</span>
+  <span tx-for="i := 0; i < h*2+1; i++" tx-key="i">*</span>
+</div>

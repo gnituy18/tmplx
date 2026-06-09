@@ -3,24 +3,19 @@
 <html lang="en">
   <head>
     <title>Docs | tmplx</title>
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/tokyo-night-dark.min.css"
-    />
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
-    <script>
-      hljs.highlightAll();
-    </script>
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/snippets.css" />
   </head>
   <body>
-    <nav>
-      <h2>tmplx Docs</h2>
+    <tx-nav></tx-nav>
+    <div class="docs">
+    <nav class="toc">
       <ul>
         <li><a href="#introduction">Introduction</a></li>
         <li><a href="#installing">Installing</a></li>
@@ -37,7 +32,18 @@
         </li>
         <li><a href="#state">State</a></li>
         <li><a href="#derived">Derived</a></li>
-        <li><a href="#event-handler">Event Handler</a></li>
+        <li>
+          <a href="#event-handler">Event Handlers</a>
+          <ul>
+            <li><a href="#event-properties">Event Properties</a></li>
+          </ul>
+        </li>
+        <li>
+          <a href="#functions">Functions</a>
+          <ul>
+            <li><a href="#captured-locals">Captured Locals</a></li>
+          </ul>
+        </li>
         <li><a href="#init">init()</a></li>
         <li><a href="#path-parameter">Path Parameter</a></li>
         <li>
@@ -93,31 +99,12 @@
       <tx-example-wrapper>
         <tx-todo></tx-todo>
       </tx-example-wrapper>
-      <pre>
-        <code tx-ignore class="language-html">&lt;script type=&quot;text/tmplx&quot;&gt;
-  var list []string
-
-  func add(item string) {
-    list = append(list, item)
-  }
-
-  func remove(i int) {
-    list = append(list[0:i], list[i+1:]...)
-  }
-&lt;/script&gt;
-
-&lt;form tx-action=&quot;add&quot;&gt;
-  &lt;label&gt;&lt;input name=&quot;item&quot; type=&quot;text&quot; required&gt;&lt;/label&gt;
-  &lt;button type=&quot;submit&quot;&gt;Add&lt;/button&gt;
-&lt;/form&gt;
-&lt;ol&gt;
-  &lt;li
-    tx-for=&quot;i, l := range list&quot;
-    tx-key=&quot;l&quot;
-    tx-onclick=&quot;remove(i)&quot;&gt;
-    { l }
-  &lt;/li&gt;
-&lt;/ol&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-01"></div>
+      </div>
 
       <p>
         You start by creating an HTML file. It can be a page or a reusable
@@ -154,13 +141,23 @@
       <h2 id="installing">Installing</h2>
 
       <p>tmplx requires Go 1.25 or later.</p>
-      <pre><code tx-ignore>$ go install github.com/gnituy18/tmplx@latest</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">shell</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-02"></div>
+      </div>
       <p>
         This adds tmplx to your Go bin directory (usually $GOPATH/bin or
         $HOME/go/bin). Make sure that directory is in your PATH.
       </p>
       <p>After installation, verify it works:</p>
-      <pre><code tx-ignore>$ tmplx --help</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">shell</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-03"></div>
+      </div>
 
       <h2 id="quick-start">Quick Start</h2>
       <p>Get a tmplx app running in minutes.</p>
@@ -168,61 +165,52 @@
       <ol>
         <li>
           <p><strong>Create a project</strong></p>
-          <pre><code tx-ignore>$ mkdir hello-tmplx
-$ cd hello-tmplx
-$ go mod init hello-tmplx
-$ mkdir pages</code></pre>
+          <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">shell</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-04"></div>
+      </div>
         </li>
 
         <li>
           <p><strong>Add your first page (pages/index.html)</strong></p>
-          <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
-&lt;html lang=&quot;en&quot;&gt;
-&lt;head&gt;
-  &lt;meta charset=&quot;UTF-8&quot;&gt;
-  &lt;title&gt;Hello tmplx&lt;/title&gt;
-&lt;/head&gt;
-&lt;body&gt;
-  &lt;script type=&quot;text/tmplx&quot;&gt;
-    var count int
-  &lt;/script&gt;
-
-  &lt;h1&gt;Counter&lt;/h1&gt;
-
-  &lt;button tx-onclick=&quot;count--&quot;&gt;-&lt;/button&gt;
-  &lt;span&gt;{ count }&lt;/span&gt;
-  &lt;button tx-onclick=&quot;count++&quot;&gt;+&lt;/button&gt;
-&lt;/body&gt;
-&lt;/html&gt;</code></pre>
+          <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-05"></div>
+      </div>
         </li>
 
         <li>
           <p><strong>Generate the Go code</strong></p>
-          <pre><code tx-ignore>$ tmplx</code></pre>
+          <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">shell</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-06"></div>
+      </div>
         </li>
 
         <li>
           <p><strong>Create main.go to serve the app</strong></p>
-          <pre><code tx-ignore>package main
-
-import (
-	&quot;log&quot;
-	&quot;net/http&quot;
-)
-
-func main() {
-	for _, route := range Routes() {
-		http.Handle(route.Pattern, route.Handler)
-	}
-
-	log.Fatal(http.ListenAndServe(&quot;:8080&quot;, nil))
-}</code></pre>
+          <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">go</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-07"></div>
+      </div>
         </li>
 
         <li>
           <p><strong>Run the server</strong></p>
-          <pre><code tx-ignore>$ go run .
-&gt; Listening on :8080</code></pre>
+          <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">shell</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-08"></div>
+      </div>
         </li>
       </ol>
 
@@ -242,7 +230,12 @@ func main() {
         pages location is <code>./pages</code>. Change it with the
         <code>-pages-dir</code> flag:
       </p>
-      <pre><code tx-ignore>$ tmplx -pages-dir="/some/other/location"</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">shell</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-09"></div>
+      </div>
       <p>
         tmplx uses <strong>filesystem-based routing</strong>. The route for a
         page is the relative path of the HTML file inside the
@@ -309,7 +302,8 @@ func main() {
         <code>&lt;script type="text/tmplx"&gt;</code> is a special tag that you
         can add to your page or component to declare <a href="#state">state</a>,
         <a href="#derived">derived</a>,
-        <a href="#event-handler">event handler</a>, and the special
+        <a href="#event-handler">event handlers</a>,
+        <a href="#functions">functions</a>, and the special
         <a href="#init">init()</a> function to control your UI or add backend
         logic.
       </p>
@@ -321,26 +315,19 @@ func main() {
         In pages, place it anywhere inside <code>&lt;head&gt;</code> or
         <code>&lt;body&gt;</code>.
       </p>
-      <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
-&lt;html lang="en"&gt;
-  &lt;head&gt;
-    ...
-    &lt;script type="text/tmplx"&gt;
-      // Go code here
-    &lt;/script&gt;
-    ...
-  &lt;/head&gt;
-  &lt;body&gt;
-    ...
-  &lt;/body&gt;
-&lt;/html&gt;</code>
-      </pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-10"></div>
+      </div>
       <p>In components, place it at the root level.</p>
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  // Go code here
-&lt;/script&gt;
-...
-...</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-11"></div>
+      </div>
 
       <h3 id="reserved-names">Reserved Names</h3>
       <p>
@@ -388,14 +375,19 @@ func main() {
         render.
       </p>
 
-      <pre><code tx-ignore class="language-html">&lt;p class='{ strings.Join([]string{"c1", "c2"}, " ") }'&gt;
- Hello, { user.GetNameById(0) }!
-&lt;/p&gt;</code>
-      </pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-12"></div>
+      </div>
 
-      <pre><code tx-ignore class="language-html">&lt;p class="c1 c2"&gt;
- Hello, tmplx!
-&lt;/p&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-13"></div>
+      </div>
 
       <p tx-ignore>
         Add the <code>tx-ignore</code> attribute to an element to disable
@@ -403,16 +395,19 @@ func main() {
         text children. Descendant elements are still processed normally.
       </p>
 
-      <pre><code tx-ignore class="language-html">&lt;p tx-ignore&gt;
-  { "ignored" }
-  &lt;span&gt;{ "not" + " ignored" }&lt;/span&gt;
-&lt;/p&gt;</code>
-      </pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-14"></div>
+      </div>
 
-      <pre><code tx-ignore class="language-html">&lt;p tx-ignore&gt;
-  { "ignored" }
-  &lt;span&gt;not ignored&lt;/span&gt;
-&lt;/p&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-15"></div>
+      </div>
 
       <h2 id="state">State</h2>
       <p>
@@ -425,14 +420,20 @@ func main() {
         you provide no initial value, the state starts with the zero value for
         its type.
       </p>
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-var name string
-&lt;/script&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-16"></div>
+      </div>
 
       <p>To set an initial value, use the <code>=</code> operator.</p>
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-var name string = "tmplx"
-&lt;/script&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-17"></div>
+      </div>
 
       <p>Although the syntax follows valid Go code, these rules apply:</p>
       <ol>
@@ -445,44 +446,39 @@ var name string = "tmplx"
         </li>
       </ol>
       <p>
-        The 1st rule is enforced by the compiler. JSON-compatibility is not
-        checked at compile time (for now) and will cause a runtime error if
-        violated.
+        The 1st rule is enforced by the compiler. General JSON-compatibility is
+        not checked at compile time (for now)&mdash;an interface or channel type
+        compiles and then fails at runtime. The one exception is a
+        <strong>function-typed</strong> state, which is rejected at compile time;
+        use a <a href="#callback-props">callback prop</a> for a function input.
       </p>
 
       <h3>Some invalid state declarations:</h3>
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-// ❌ Cannot use the := short declaration (Go does not allow it at package scope)
-num := 1
-
-// ❌ Type must be JSON-marshalable/unmarshalable
-var f func(int) = func(i int) { ... }
-var w io.Writer
-
-// ❌ Only one identifier per declaration
-var a, b int = 10, 20
-var a, b int = f()
-&lt;/script&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-18"></div>
+      </div>
 
       <h3>Some valid state declarations:</h3>
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-// ✅ Zero value
-var id int64
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-19"></div>
+      </div>
 
-// ✅ With initial value (explicit type)
-var address string = "..."
-
-// ✅ Type inferred from the initializer
-var counter = 0
-var fruits = []string{"apple", "banana"}
-var stock = map[string]int{"apple": 10}
-
-// ✅ Initialized with a function call (assuming the package is imported)
-var username = user.GetNameById("id")
-
-// ✅ Complex JSON-compatible types
-var m map[string]int = map[string]int{"key": 100}
-&lt;/script&gt;</code></pre>
+      <p>State can hold any JSON-compatible Go type. A few of them, live:</p>
+      <tx-example-wrapper>
+        <tx-types></tx-types>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">types.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="types"></div>
+      </div>
 
       <p>
         The tmplx script cannot contain Go <code>type</code> declarations. To
@@ -524,54 +520,69 @@ var m map[string]int = map[string]int{"key": 100}
         </li>
       </ol>
 
-      <pre>
-        <code tx-ignore>&lt;script type="text/tmplx"&gt;
-  var num1 int = 100 // state
-  var num2 int = num1 * 2 // derived
-&lt;/script&gt;
+      <tx-example-wrapper>
+        <tx-derived></tx-derived>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">derived.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="derived"></div>
+      </div>
 
-...
-&lt;p&gt;{num1} * 2 = {num2}&lt;/p&gt;</code></pre>
-
-      <pre>
-        <code tx-ignore>&lt;script type="text/tmplx"&gt;
-  var classStrs []string = []string{"c1", "c2", "c3"} // state
-  var class string = strings.Join(classStrs, " ") // derived
-&lt;/script&gt;
-
-...
-&lt;p class="{class}"&gt; ... &lt;/p&gt;</code></pre>
-
-      <h2 id="event-handler">Event Handler</h2>
       <p>
-        Event handlers let you respond to frontend events with backend logic or
-        update state to trigger UI changes.
+        <code>doubled</code> reads <code>count</code>, so it is derived:
+        clicking the button mutates <code>count</code> and
+        <code>doubled</code> recomputes on its own. A derived can read any number
+        of states&mdash;here a slice is joined into a class string:
+      </p>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-21"></div>
+      </div>
+
+      <h2 id="event-handler">Event Handlers</h2>
+      <p>
+        An <strong>event handler</strong> binds a DOM event to Go code that runs
+        on the server. Add an attribute that starts with <code>tx-on</code>
+        followed by the event name (<code>tx-onclick</code>,
+        <code>tx-oninput</code>, <code>tx-onchange</code>, &hellip;); its value
+        is a body of Go statements.
       </p>
       <p>
-        To declare an event handler, define a Go function in the global scope of
-        the <code>&lt;script type="text/tmplx"&gt;</code> block. Bind it to a
-        DOM event by adding an attribute that starts with
-        <code>tx-on</code> followed by the event name (e.g.,
-        <code>tx-onclick</code>).
+        The body is plain Go&mdash;mutate state directly, call a
+        <a href="#functions">function</a>, or both. The simplest handler just
+        assigns to a state variable; no function is required.
       </p>
-      <pre><code tx-ignore>&lt;script type="text/tmplx"&gt;
-  var counter int = 0
-
-  func add1() {
-    counter += 1
-  }
-&lt;/script&gt;
-
-&lt;p&gt;{ counter }&lt;/p&gt;
-&lt;button tx-onclick="add1()"&gt;Add 1&lt;/button&gt;</code></pre>
+      <tx-example-wrapper>
+        <tx-counter></tx-counter>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">counter.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="counter"></div>
+      </div>
 
       <p>
-        In this example, the <code>add1</code> handler runs every time the
-        button is clicked. The <code>counter</code> state increases by 1, and
-        the paragraph updates automatically.
+        Both buttons mutate <code>counter</code> inline and the span re-renders
+        with the new value. Any valid Go statement works in the body&mdash;here a
+        compound assignment doubles a value on each click:
       </p>
+      <tx-example-wrapper>
+        <tx-double></tx-double>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">double.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="double"></div>
+      </div>
       <p>
-        It’s not magic. tmplx compiles each event handler into an HTTP endpoint.
+        It’s not magic. tmplx compiles each <code>tx-on*</code> binding into one
+        HTTP endpoint.
         The runtime JavaScript attaches a lightweight listener that sends the
         required state to the endpoint, receives the updated HTML fragment,
         merges the new state, and swaps the affected part of the DOM. It feels
@@ -579,20 +590,96 @@ var m map[string]int = map[string]int{"key": 100}
         call with targeted DOM swapping.
       </p>
 
-      <h3>Captured Locals</h3>
+      <h3 id="event-properties">Event Properties</h3>
+      <p>
+        For events fired on a form control, you can read values directly from
+        the DOM event object inside the handler body. The runtime injects them
+        into the request automatically.
+      </p>
+      <ul>
+        <li>
+          <code>event.target.value</code> resolves to the target&rsquo;s
+          current string value. It is available on the value-bearing events:
+          <code>input</code>, <code>change</code>, <code>keydown</code>,
+          <code>keyup</code>, <code>keypress</code>, <code>blur</code>,
+          <code>focus</code>, <code>focusin</code>, <code>focusout</code>, and
+          <code>search</code> (i.e. <code>tx-oninput</code>,
+          <code>tx-onkeyup</code>, <code>tx-onblur</code>, &hellip;).
+        </li>
+        <li>
+          On <code>keydown</code> and <code>keypress</code> the value is the one
+          <strong>before</strong> the keystroke is applied&mdash;use
+          <code>keyup</code> or <code>input</code> for the value after.
+        </li>
+        <li>
+          Reading <code>event.target.value</code> on any other event is a
+          compile error.
+        </li>
+      </ul>
+      <tx-example-wrapper>
+        <tx-inputlive></tx-inputlive>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">inputlive.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="inputlive"></div>
+      </div>
+
+      <h2 id="functions">Functions</h2>
+      <p>
+        A <strong>function</strong> is a standalone, reusable Go function
+        declared in the tmplx script as
+        <code tx-ignore>func name(...) { ... }</code>. It is a
+        <strong>separate idea</strong> from an event handler: a handler is a
+        <code>tx-on*</code> binding, while a function is plain logic you can call
+        from many places&mdash;an event handler, a <a href="#forms">form</a>,
+        <a href="#init">init()</a>, another function, or an expression.
+      </p>
+      <p>
+        Functions are not one-to-one with events. One function can back many
+        bindings, and a binding may call no function at all (inline statements,
+        as above) or several. Only <code>tx-on*</code> and
+        <code>tx-action</code> bindings compile to HTTP endpoints&mdash;a
+        function on its own does not.
+      </p>
+      <p>
+        Functions take parameters and may return values. Below, a single
+        <code>addNum</code> backs ten buttons; each click passes a different
+        argument:
+      </p>
+      <tx-example-wrapper>
+        <tx-addn></tx-addn>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">addn.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="addn"></div>
+      </div>
+      <p>
+        A state-mutating function runs on the server through the handler or form
+        that calls it. A function used inside an
+        <a href="#expression-interpolation">expression</a> or
+        <a href="#derived">derived</a> value runs on
+        <strong>every render</strong>, so keep functions in that position
+        pure&mdash;no state mutation or write-side effects.
+      </p>
+
+      <h3 id="captured-locals">Captured Locals</h3>
       <p>
         Any local variable bound by an enclosing <code>tx-for</code> init
         clause, <code>tx-for</code> range form, or <code>tx-if</code>/
         <code>tx-else-if</code> init form is <strong>automatically
-        captured</strong> by event handlers in the subtree. Just reference the
-        local by name; the framework figures out which values cross the wire
-        and decodes them with their inferred Go type.
+        captured</strong> by handlers in the subtree. Just reference the local by
+        name; the framework figures out which values cross the wire and decodes
+        them with their inferred Go type.
       </p>
       <ul>
         <li>
           The captured local can appear anywhere in the handler
-          body&mdash;as a function argument, an array index, an expression
-          operand. Whatever is valid Go.
+          body&mdash;a function argument, an array index, an expression operand.
+          Whatever is valid Go.
         </li>
         <li>
           Types are recovered from the binding&rsquo;s context (the surrounding
@@ -604,89 +691,22 @@ var m map[string]int = map[string]int{"key": 100}
           saved state.
         </li>
       </ul>
-
-      <tx-example-wrapper>
-        <tx-addn></tx-addn>
-      </tx-example-wrapper>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var counter int = 0
-
-  func addNum(num int) {
-    counter += num
-  }
-&lt;/script&gt;
-
-&lt;p&gt;{ counter }&lt;/p&gt;
-&lt;button tx-for=&quot;i := 0; i &lt; 10; i++&quot; tx-key=&quot;i&quot; tx-onclick=&quot;addNum(i)&quot;&gt;
-  +{ i }
-&lt;/button&gt;</code></pre>
-
       <p>
-        <code>i</code> is captured from <code>tx-for</code> and decoded as
-        <code>int</code> on the server. Captures from <code>tx-if</code>/
-        <code>tx-else-if</code> init forms work the same way:
+        In the <code>addn</code> example above, <code>i</code> is captured from
+        the <code>tx-for</code> init clause and decoded as <code>int</code> on
+        the server. Captures from <code>tx-if</code>/<code>tx-else-if</code> init
+        forms work the same way:
       </p>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var stock = map[string]int{&quot;apple&quot;: 10, &quot;banana&quot;: 5}
-  var fruits = []string{&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;}
-&lt;/script&gt;
-
-&lt;div tx-for=&quot;_, f := range fruits&quot; tx-key=&quot;f&quot;&gt;
-  &lt;p tx-if=&quot;n, ok := stock[f]; ok&quot;&gt;
-    { f } in stock: { n }
-    &lt;button tx-onclick=&quot;stock[f] = n - 1&quot;&gt;buy&lt;/button&gt;
-  &lt;/p&gt;
-&lt;/div&gt;</code></pre>
-
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-24"></div>
+      </div>
       <p>
         Both <code>f</code> (from <code>tx-for</code>) and <code>n</code>
-        (from <code>tx-if</code> init) are captured automatically.
+        (from the <code>tx-if</code> init) are captured automatically.
       </p>
-
-      <h3>Inline Statements</h3>
-
-      <p>
-        For simple actions, embed Go statements directly in
-        <code>tx-on*</code> attributes to update state. This avoids defining
-        separate handler functions. The body can be any valid Go statement
-        sequence&mdash;direct state mutation, function calls, or compound
-        expressions&mdash;not just a single function call.
-      </p>
-      <tx-example-wrapper>
-        <tx-double></tx-double>
-      </tx-example-wrapper>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var val int = 1
-&lt;/script&gt;
-
-&lt;p&gt;{ val }&lt;/p&gt;
-&lt;button tx-onclick=&quot;val *= 2&quot;&gt;double it!&lt;/button&gt;</code>
-      </pre>
-
-      <h3>Event Properties</h3>
-      <p>
-        For input-typed events, you can read values directly from the DOM
-        event object inside the handler body. The runtime injects them into
-        the request automatically.
-      </p>
-      <ul>
-        <li>
-          <code>tx-oninput</code>, <code>tx-onchange</code>:
-          <code>event.target.value</code> resolves to the input&rsquo;s
-          current string value.
-        </li>
-      </ul>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var query = &quot;&quot;
-&lt;/script&gt;
-
-&lt;input type=&quot;text&quot; tx-oninput=&quot;query = event.target.value&quot; /&gt;
-&lt;p&gt;You typed: { query }&lt;/p&gt;</code>
-      </pre>
       <h2 id="init">init()</h2>
       <p>
         <code>init()</code> is a special function that runs automatically the
@@ -701,29 +721,23 @@ var m map[string]int = map[string]int{"key": 100}
         <tx-current-time></tx-current-time>
       </tx-example-wrapper>
 
-      <pre>
-        <code tx-ignore>&lt;script type="text/tmplx"&gt;
-  var t string
-
-  func init() {
-    t = fmt.Sprint(time.Now().Format(time.RFC3339))
-  }
-&lt;/script&gt;
-
-&lt;p&gt;{ t }&lt;/p&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">current-time.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="current-time"></div>
+      </div>
 
       <p>
         Another common use case is to initialize one state from another state
         without turning the second variable into a derived state.
       </p>
-      <pre><code tx-ignore>&lt;script type="text/tmplx"&gt;
-  var a int = 1
-  var b int
-
-  func init() {
-    b = a * 2 // b remains a regular state
-  }
-&lt;/script&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-28"></div>
+      </div>
 
       <h2 id="path-parameter">Path Parameters</h2>
       <p>
@@ -765,24 +779,12 @@ var m map[string]int = map[string]int{"key": 100}
         <code tx-ignore>pages/blog/post/{post_id}.html</code>:
       </p>
 
-      <pre><code tx-ignore>&lt;!DOCTYPE html&gt;
-&lt;html&gt;
-  &lt;head&gt;
-    &lt;script type=&quot;text/tmplx&quot;&gt;
-      // tx:path post_id
-      var postId string
-
-      var post Post
-
-      func init() {
-        post = db.GetPost(postId)
-      }
-    &lt;/script&gt;
-  &lt;/head&gt;
-  &lt;body&gt;
-    &lt;h1&gt;{ post.Title }&lt;/h1&gt;
-  &lt;/body&gt;
-&lt;/html&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-29"></div>
+      </div>
 
       <p>
         <strong>Multiple parameters.</strong> Each wildcard gets its own
@@ -790,21 +792,31 @@ var m map[string]int = map[string]int{"key": 100}
         <code tx-ignore>pages/blog/{year}/{slug}.html</code>:
       </p>
 
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  // tx:path year
-  var year string
-
-  // tx:path slug
-  var slug string
-&lt;/script&gt;
-
-&lt;p&gt;Viewing { slug } from { year }&lt;/p&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-30"></div>
+      </div>
 
       <p>
         After initialization, the variable behaves like any other state:
         it's serialized, sent to the server on events, and can be reassigned
         from handlers (though reassigning it does not change the URL).
       </p>
+
+      <p>
+        Try it live: <a href="/hello/world">/hello/world</a> &middot;
+        <a href="/hello/tmplx">/hello/tmplx</a>. This page binds the
+        <code tx-ignore>{name}</code> URL segment with
+        <code>//tx:path name</code>:
+      </p>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name" tx-ignore>pages/hello/{name}.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="pathparam"></div>
+      </div>
 
       <h2 id="control-flow">Control Flow</h2>
       <p>
@@ -827,18 +839,12 @@ var m map[string]int = map[string]int{"key": 100}
       <tx-example-wrapper>
         <tx-cond></tx-cond>
       </tx-example-wrapper>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var num int
-&lt;/script&gt;
-
-&lt;button tx-onclick=&quot;num++&quot;&gt;change&lt;/button&gt;
-&lt;div&gt;
-  &lt;p tx-if=&quot;num % 3 == 0&quot; style=&quot;background: red; color: white&quot;&gt;red&lt;/p&gt;
-  &lt;p tx-else-if=&quot;num % 3 == 1&quot; style=&quot;background: blue; color: white&quot;&gt;blue&lt;/p&gt;
-  &lt;p tx-else style=&quot;background: green; color: white&quot;&gt;green&lt;/p&gt;
-&lt;/div&gt;</code>
-      </pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">cond.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="cond"></div>
+      </div>
 
       <p>
         You can declare <strong>local variables</strong> and handle errors
@@ -846,11 +852,12 @@ var m map[string]int = map[string]int{"key": 100}
         conditionals are available to the element and its descendants, just like
         in Go.
       </p>
-      <pre><code tx-ignore>&lt;p tx-if=&quot;user, err := user.GetUser(); err != nil&quot;&gt;
-  &lt;span tx-if=&quot;err == ErrNotFound&quot;&gt;User not found&lt;/span&gt;
-&lt;/p&gt;
-&lt;p tx-else-if='user.Name == &quot;&quot;'&gt;user.Name not set&lt;/p&gt;
-&lt;p tx-else&gt;Hi, { user.Name }&lt;/p&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-32"></div>
+      </div>
 
       <p>
         A conditional group consists of
@@ -881,24 +888,37 @@ var m map[string]int = map[string]int{"key": 100}
       <tx-example-wrapper>
         <tx-triangle></tx-triangle>
       </tx-example-wrapper>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var counter int = 5
-&lt;/script&gt;
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">triangle.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="triangle"></div>
+      </div>
 
-&lt;div&gt;
-  &lt;span&gt; { counter } &lt;/span&gt;
-  &lt;button tx-onclick=&quot;counter++&quot;&gt;+&lt;/button&gt;
-&lt;/div&gt;
-&lt;div tx-for=&quot;h := 0; h &lt; counter; h++&quot; tx-key=&quot;h&quot;&gt;
-  &lt;span tx-for=&quot;s := 0; s &lt; counter-h-1; s++&quot; tx-key=&quot;s&quot;&gt;_&lt;/span&gt;
-  &lt;span tx-for=&quot;i := 0; i &lt; h*2+1; i++&quot; tx-key=&quot;i&quot;&gt;*&lt;/span&gt;
-&lt;/div&gt;</code>
-      </pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-34"></div>
+      </div>
 
-      <pre><code tx-ignore>&lt;div tx-for=&quot;_, user := range users&quot; tx-key=&quot;user.Id&quot;&gt;
-  { user.Id }: { user.Name }
-&lt;/div&gt;</code></pre>
+      <p>
+        To branch per item, do <strong>not</strong> put <code>tx-if</code> and
+        <code>tx-for</code> on the same element&mdash;the condition is compiled
+        outside the loop and cannot see the loop variable, which is a compile
+        error. Put the conditional on an element <strong>inside</strong> the loop
+        so it can read the bound variable:
+      </p>
+      <tx-example-wrapper>
+        <tx-condrows></tx-condrows>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">condrows.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="condrows"></div>
+      </div>
+
       <h2 id="template">&lt;template&gt;</h2>
       <p>
         The <code>&lt;template&gt;</code> tag is a non-rendering container that
@@ -915,38 +935,19 @@ var m map[string]int = map[string]int{"key": 100}
         other control flow attributes on child elements.
       </p>
 
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var loggedIn bool = true
-&lt;/script&gt;
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-35"></div>
+      </div>
 
-&lt;template tx-if=&quot;loggedIn&quot;&gt;
-  &lt;p&gt;Welcome back!&lt;/p&gt;
-  &lt;button tx-onclick=&quot;logout()&quot;&gt;Logout&lt;/button&gt;
-&lt;/template&gt;
-
-&lt;template tx-else&gt;
-  &lt;p&gt;Please sign in.&lt;/p&gt;
-  &lt;button tx-onclick=&quot;login()&quot;&gt;Login&lt;/button&gt;
-&lt;/template&gt;</code>
-      </pre>
-
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var posts []Post = []Post{
-    {Title: &quot;First Post&quot;, Body: &quot;Hello world&quot;},
-    {Title: &quot;Second Post&quot;, Body: &quot;tmplx is great&quot;},
-  }
-&lt;/script&gt;
-
-&lt;template tx-for=&quot;i, p := range posts&quot; tx-key=&quot;i&quot;&gt;
-  &lt;article&gt;
-    &lt;h3&gt;{ p.Title }&lt;/h3&gt;
-    &lt;p&gt;{ p.Body }&lt;/p&gt;
-    &lt;hr&gt;
-  &lt;/article&gt;
-&lt;/template&gt;</code>
-      </pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-36"></div>
+      </div>
 
       <h2 id="forms">Forms</h2>
       <p>
@@ -965,21 +966,12 @@ var m map[string]int = map[string]int{"key": 100}
       <tx-example-wrapper>
         <tx-greeting></tx-greeting>
       </tx-example-wrapper>
-      <pre>
-        <code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var greeting string
-
-  func greet(name string) {
-    greeting = &quot;Hello, &quot; + name
-  }
-&lt;/script&gt;
-
-&lt;form tx-action=&quot;greet&quot;&gt;
-  &lt;input name=&quot;name&quot; type=&quot;text&quot; required /&gt;
-  &lt;button type=&quot;submit&quot;&gt;Greet&lt;/button&gt;
-&lt;/form&gt;
-
-&lt;p tx-if='greeting != &quot;&quot;'&gt;{ greeting }&lt;/p&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">greeting.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="greeting"></div>
+      </div>
 
       <p>
         Values are JSON-decoded into each parameter's Go type, so the parameter
@@ -1069,16 +1061,12 @@ var m map[string]int = map[string]int{"key": 100}
         <code>//tx:prop</code> doc comment.
       </p>
 
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  //tx:prop
-  var title string
-
-  //tx:prop
-  var count int = 0
-&lt;/script&gt;
-
-&lt;h3&gt;{ title }&lt;/h3&gt;
-&lt;span&gt;{ count } items&lt;/span&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-38"></div>
+      </div>
 
       <p>Rules:</p>
       <ul>
@@ -1114,19 +1102,35 @@ var m map[string]int = map[string]int{"key": 100}
         its name.
       </p>
 
-      <pre><code tx-ignore>&lt;!-- Go string literal (quotes are part of the expression) --&gt;
-&lt;tx-card title='&quot;Hello&quot;' count=&quot;5&quot;&gt;&lt;/tx-card&gt;
-
-&lt;!-- A parent state/derived/prop variable by name --&gt;
-&lt;tx-card title=&quot;heading&quot; count=&quot;itemCount&quot;&gt;&lt;/tx-card&gt;
-
-&lt;!-- Any Go expression that matches the prop type --&gt;
-&lt;tx-card title='strings.ToUpper(heading)' count=&quot;len(items)&quot;&gt;&lt;/tx-card&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-39"></div>
+      </div>
 
       <p>
         The expression is re-evaluated whenever the parent re-renders, so
-        the child stays in sync with the parent's state automatically.
+        the child stays in sync with the parent's state automatically. Here a
+        <code>&lt;tx-stat&gt;</code> component is given a literal label and a
+        live <code>value</code> expression&mdash;clicking the button updates the
+        parent state and both stats re-render:
       </p>
+      <tx-example-wrapper>
+        <tx-props></tx-props>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">stat.html (the component)</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="stat"></div>
+      </div>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">props.html (using it)</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="props"></div>
+      </div>
 
       <h4 id="callback-props">Callback Props</h4>
 
@@ -1139,29 +1143,26 @@ var m map[string]int = map[string]int{"key": 100}
         to make the parent override optional.
       </p>
 
-      <p>In the child, call it like any other event handler:</p>
+      <p>In the child, call it from a handler the same way you call a function:</p>
 
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  //tx:prop
-  var onselect func(id int)
-&lt;/script&gt;
-
-&lt;button tx-onclick=&quot;onselect(42)&quot;&gt;Pick&lt;/button&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-40"></div>
+      </div>
 
       <p>
         In the parent, pass the <strong>bare name</strong> of a tmplx-script
         function as the attribute whose key matches the child's prop name:
       </p>
 
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var selected int
-
-  func pick(id int) {
-    selected = id
-  }
-&lt;/script&gt;
-
-&lt;tx-picker onselect=&quot;pick&quot;&gt;&lt;/tx-picker&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-41"></div>
+      </div>
 
       <p>
         When the child calls <code>onselect(42)</code>, the parent's
@@ -1177,10 +1178,33 @@ var m map[string]int = map[string]int{"key": 100}
         back to its own implementation:
       </p>
 
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  //tx:prop
-  var onselect func(id int) = func(id int) {}
-&lt;/script&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-42"></div>
+      </div>
+
+      <p>
+        A runnable version: <code>&lt;tx-incbtn&gt;</code> takes a
+        <code>label</code> and an <code>onpress</code> callback; the parent
+        passes its own <code>add</code> function and counts the presses.
+      </p>
+      <tx-example-wrapper>
+        <tx-callback></tx-callback>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">incbtn.html (the component)</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="incbtn"></div>
+      </div>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">callback.html (using it)</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="callback"></div>
+      </div>
 
       <h3 id="slot">&lt;slot&gt;</h3>
 
@@ -1200,13 +1224,12 @@ var m map[string]int = map[string]int{"key": 100}
         Slots cannot be nested inside other slots.
       </p>
 
-      <pre><code tx-ignore>&lt;div class=&quot;card&quot;&gt;
-  &lt;slot name=&quot;header&quot;&gt;Default Header&lt;/slot&gt;
-  &lt;div class=&quot;body&quot;&gt;
-    &lt;slot&gt;Default Body&lt;/slot&gt;
-  &lt;/div&gt;
-  &lt;slot name=&quot;footer&quot;&gt;&lt;/slot&gt;
-&lt;/div&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-43"></div>
+      </div>
 
       <p>
         Content placed inside <code>&lt;slot&gt;...&lt;/slot&gt;</code> is
@@ -1222,17 +1245,34 @@ var m map[string]int = map[string]int{"key": 100}
         slot; everything else becomes the default fill.
       </p>
 
-      <pre><code tx-ignore>&lt;tx-card&gt;
-  &lt;h2 slot=&quot;header&quot;&gt;Custom Title&lt;/h2&gt;
-  &lt;p&gt;Custom content goes in the default slot.&lt;/p&gt;
-  &lt;div slot=&quot;footer&quot;&gt;Actions&lt;/div&gt;
-&lt;/tx-card&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-44"></div>
+      </div>
 
       <p>
         Only the <strong>direct children</strong> of the component tag are
         considered when matching slots&mdash;a <code>slot</code> attribute
         on a deeply nested element has no effect.
       </p>
+
+      <tx-example-wrapper>
+        <tx-slotdemo></tx-slotdemo>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">slotcard.html (the component)</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="slotcard"></div>
+      </div>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">slotdemo.html (using it)</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="slotdemo"></div>
+      </div>
 
       <h4>Scope: fills use the parent's state</h4>
 
@@ -1243,18 +1283,12 @@ var m map[string]int = map[string]int{"key": 100}
         prop variables&mdash;not the child's.
       </p>
 
-      <pre><code tx-ignore>&lt;script type=&quot;text/tmplx&quot;&gt;
-  var user string = &quot;tmplx&quot;
-
-  func logout() {
-    user = &quot;&quot;
-  }
-&lt;/script&gt;
-
-&lt;tx-card&gt;
-  &lt;h2 slot=&quot;header&quot;&gt;Hello, { user }&lt;/h2&gt;
-  &lt;button tx-onclick=&quot;logout()&quot;&gt;Sign out&lt;/button&gt;
-&lt;/tx-card&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">tmplx</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-45"></div>
+      </div>
 
       <p>
         Here <code>user</code> and <code>logout</code> are defined on the
@@ -1271,15 +1305,21 @@ var m map[string]int = map[string]int{"key": 100}
         this page. The component is just:
       </p>
 
-      <pre><code tx-ignore>&lt;div class=&quot;example-frame&quot;&gt;
-  &lt;slot&gt;&lt;/slot&gt;
-&lt;/div&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">example-wrapper.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="example-wrapper"></div>
+      </div>
 
       <p>And callers wrap any demo with it:</p>
 
-      <pre><code tx-ignore>&lt;tx-example-wrapper&gt;
-  &lt;tx-counter&gt;&lt;/tx-counter&gt;
-&lt;/tx-example-wrapper&gt;</code></pre>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="docs-47"></div>
+      </div>
 
       <h2 id="cli">CLI</h2>
       <p>
@@ -1327,5 +1367,7 @@ var m map[string]int = map[string]int{"key": 100}
       <h2 id="syntax-highlight">Syntax Highlight</h2>
       <a href="https://github.com/gnituy18/tmplx.nvim">Neovim Plugin</a>
     </main>
+    </div>
+      <script src="/snippets.js"></script>
   </body>
 </html>

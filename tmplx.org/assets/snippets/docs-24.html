@@ -1,0 +1,11 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>stock</span> <span class='operator'>=</span> <span class='keyword'>map</span>[<span class='type'>string</span>]<span class='type'>int</span>{<span class='string'>&quot;apple&quot;</span>: <span class='number'>10</span>, <span class='string'>&quot;banana&quot;</span>: <span class='number'>5</span>}
+  <span class='keyword'>var</span> <span class='variable'>fruits</span> <span class='operator'>=</span> []<span class='type'>string</span>{<span class='string'>&quot;apple&quot;</span>, <span class='string'>&quot;banana&quot;</span>, <span class='string'>&quot;cherry&quot;</span>}
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>div</span> <span class='attribute'>tx-for</span>=&quot;<span class='string'>_, f := range fruits</span>&quot; <span class='attribute'>tx-key</span>=&quot;<span class='string'>f</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>p</span> <span class='attribute'>tx-if</span>=&quot;<span class='string'>n, ok := stock[f]; ok</span>&quot;<span class='punctuation bracket'>&gt;</span>
+    { f } in stock: { n }
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>stock[f] = n - 1</span>&quot;<span class='punctuation bracket'>&gt;</span>buy<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>div</span><span class='punctuation bracket'>&gt;</span></code></pre>

@@ -1,0 +1,14 @@
+<script type="text/tmplx">
+  var posts []Post = []Post{
+    {Title: "First Post", Body: "Hello world"},
+    {Title: "Second Post", Body: "tmplx is great"},
+  }
+</script>
+
+<template tx-for="i, p := range posts" tx-key="i">
+  <article>
+    <h3>{ p.Title }</h3>
+    <p>{ p.Body }</p>
+    <hr>
+  </article>
+</template>

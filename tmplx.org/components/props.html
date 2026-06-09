@@ -1,0 +1,8 @@
+<script type="text/tmplx">
+  var clicks int
+  var doubled int = clicks * 2
+</script>
+
+<p><tx-stat label='"Clicks"' value="clicks"></tx-stat></p>
+<p><tx-stat label='"Doubled"' value="doubled"></tx-stat></p>
+<button tx-onclick="clicks++">click</button>

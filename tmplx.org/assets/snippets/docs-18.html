@@ -1,0 +1,12 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+<span class='comment'>// ❌ Cannot use the := short declaration (Go does not allow it at package scope)</span>
+<span class='variable'>num</span> <span class='operator'>:=</span> <span class='number'>1</span>
+
+<span class='comment'>// ❌ Type must be JSON-marshalable/unmarshalable</span>
+<span class='keyword'>var</span> <span class='variable'>f</span> <span class='keyword'>func</span>(<span class='type'>int</span>) <span class='operator'>=</span> <span class='keyword'>func</span>(<span class='variable'>i</span> <span class='type'>int</span>) { <span class='operator'>...</span> }
+<span class='keyword'>var</span> <span class='variable'>w</span> io.<span class='type'>Writer</span>
+
+<span class='comment'>// ❌ Only one identifier per declaration</span>
+<span class='keyword'>var</span> <span class='variable'>a</span>, <span class='variable'>b</span> <span class='type'>int</span> <span class='operator'>=</span> <span class='number'>10</span>, <span class='number'>20</span>
+<span class='keyword'>var</span> <span class='variable'>a</span>, <span class='variable'>b</span> <span class='type'>int</span> <span class='operator'>=</span> <span class='variable'>f</span>()
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span></code></pre>

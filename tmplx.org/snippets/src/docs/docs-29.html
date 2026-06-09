@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/tmplx">
+      //tx:path post_id
+      var postId string
+
+      var post Post
+
+      func init() {
+        post = db.GetPost(postId)
+      }
+    </script>
+  </head>
+  <body>
+    <h1>{ post.Title }</h1>
+  </body>
+</html>

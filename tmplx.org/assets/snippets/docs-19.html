@@ -1,0 +1,18 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+<span class='comment'>// ✅ Zero value</span>
+<span class='keyword'>var</span> <span class='variable'>id</span> <span class='type'>int64</span>
+
+<span class='comment'>// ✅ With initial value (explicit type)</span>
+<span class='keyword'>var</span> <span class='variable'>address</span> <span class='type'>string</span> <span class='operator'>=</span> <span class='string'>&quot;...&quot;</span>
+
+<span class='comment'>// ✅ Type inferred from the initializer</span>
+<span class='keyword'>var</span> <span class='variable'>counter</span> <span class='operator'>=</span> <span class='number'>0</span>
+<span class='keyword'>var</span> <span class='variable'>fruits</span> <span class='operator'>=</span> []<span class='type'>string</span>{<span class='string'>&quot;apple&quot;</span>, <span class='string'>&quot;banana&quot;</span>}
+<span class='keyword'>var</span> <span class='variable'>stock</span> <span class='operator'>=</span> <span class='keyword'>map</span>[<span class='type'>string</span>]<span class='type'>int</span>{<span class='string'>&quot;apple&quot;</span>: <span class='number'>10</span>}
+
+<span class='comment'>// ✅ Initialized with a function call (assuming the package is imported)</span>
+<span class='keyword'>var</span> <span class='variable'>username</span> <span class='operator'>=</span> <span class='variable'>user</span>.<span class='property'>GetNameById</span>(<span class='string'>&quot;id&quot;</span>)
+
+<span class='comment'>// ✅ Complex JSON-compatible types</span>
+<span class='keyword'>var</span> <span class='variable'>m</span> <span class='keyword'>map</span>[<span class='type'>string</span>]<span class='type'>int</span> <span class='operator'>=</span> <span class='keyword'>map</span>[<span class='type'>string</span>]<span class='type'>int</span>{<span class='string'>&quot;key&quot;</span>: <span class='number'>100</span>}
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span></code></pre>

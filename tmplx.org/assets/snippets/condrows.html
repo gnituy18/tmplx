@@ -1,0 +1,10 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>nums</span> <span class='operator'>=</span> []<span class='type'>int</span>{<span class='number'>1</span>, <span class='number'>2</span>, <span class='number'>3</span>, <span class='number'>4</span>, <span class='number'>5</span>, <span class='number'>6</span>}
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>ul</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>li</span> <span class='attribute'>tx-for</span>=&quot;<span class='string'>_, n := range nums</span>&quot; <span class='attribute'>tx-key</span>=&quot;<span class='string'>n</span>&quot;<span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>b</span> <span class='attribute'>tx-if</span>=&quot;<span class='string'>n &gt; 3</span>&quot;<span class='punctuation bracket'>&gt;</span>{ n } (big)<span class='punctuation bracket'>&lt;/</span><span class='tag'>b</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>i</span> <span class='attribute'>tx-else</span><span class='punctuation bracket'>&gt;</span>{ n } (small)<span class='punctuation bracket'>&lt;/</span><span class='tag'>i</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>ul</span><span class='punctuation bracket'>&gt;</span></code></pre>

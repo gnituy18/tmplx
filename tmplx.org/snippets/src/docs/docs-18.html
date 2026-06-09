@@ -1,0 +1,12 @@
+<script type="text/tmplx">
+// ❌ Cannot use the := short declaration (Go does not allow it at package scope)
+num := 1
+
+// ❌ Type must be JSON-marshalable/unmarshalable
+var f func(int) = func(i int) { ... }
+var w io.Writer
+
+// ❌ Only one identifier per declaration
+var a, b int = 10, 20
+var a, b int = f()
+</script>

@@ -50,9 +50,12 @@ func (tx_comp *tx_H_badge) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_badge) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <span> <span data-test=\"badge-text\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <span> <span data-test=\"badge-text\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_name)))
 	tx_w.WriteString(": ")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_ticks)))
@@ -60,9 +63,12 @@ func (tx_comp *tx_H_badge) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
-	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+1</button> </span> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+1</button> </span> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_box struct {
@@ -88,17 +94,23 @@ func tx_new_tx_H_box(tx_prev url.Values, tx_next map[string]any, tx_trigger stri
 }
 
 func (tx_comp *tx_H_box) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func()) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <div data-test=\"box\"> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <div data-test=\"box\"> ")
 	if tx_render_fill_ != nil {
 		tx_render_fill_()
 	} else {
 		tx_w.WriteString("fallback content")
 	}
-	tx_w.WriteString(" </div> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString(" </div> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_button struct {
@@ -144,17 +156,23 @@ func (tx_comp *tx_H_button) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_button) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <button data-test=\"btn\" data-tx-trigger=\"")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <button data-test=\"btn\" data-tx-trigger=\"")
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
 	tx_w.WriteString("\" data-tx-eh1-on=\"click\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_label)))
-	tx_w.WriteString("</button> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_calc struct {
@@ -183,13 +201,19 @@ func tx_new_tx_H_calc(tx_prev url.Values, tx_next map[string]any, tx_trigger str
 }
 
 func (tx_comp *tx_H_calc) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <div data-test=\"calc\">result: ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <div data-test=\"calc\">result: ")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_compute(5))))
-	tx_w.WriteString("</div> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("</div> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_compound struct {
@@ -233,17 +257,23 @@ func (tx_comp *tx_H_compound) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_compound) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <div data-test=\"compound-local\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <div data-test=\"compound-local\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_local)))
 	tx_w.WriteString("</div> <button data-test=\"compound-btn\" data-tx-trigger=\"")
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
-	tx_w.WriteString("\" data-tx-eh1-on=\"click\">go</button> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("\" data-tx-eh1-on=\"click\">go</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_counter struct {
@@ -284,17 +314,23 @@ func (tx_comp *tx_H_counter) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_counter) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <button data-test=\"cbtn\" data-tx-trigger=\"")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <button data-test=\"cbtn\" data-tx-trigger=\"")
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
 	tx_w.WriteString("\" data-tx-eh1-on=\"click\">click me (")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_clicks)))
-	tx_w.WriteString(")</button> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString(")</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_defaulter struct {
@@ -352,9 +388,12 @@ func (tx_comp *tx_H_defaulter) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_defaulter) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <p data-test=\"def-label\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <p data-test=\"def-label\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_label)))
 	tx_w.WriteString("</p> <p data-test=\"def-n\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_n)))
@@ -362,9 +401,12 @@ func (tx_comp *tx_H_defaulter) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
-	tx_w.WriteString("\" data-tx-eh1-on=\"click\">bump</button> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("\" data-tx-eh1-on=\"click\">bump</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_init_H_derived struct {
@@ -413,9 +455,12 @@ func (tx_comp *tx_H_init_H_derived) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_init_H_derived) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <p data-test=\"comp-a\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <p data-test=\"comp-a\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_a)))
 	tx_w.WriteString("</p> <p data-test=\"comp-b\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_b)))
@@ -423,9 +468,12 @@ func (tx_comp *tx_H_init_H_derived) tx_render(tx_w *bytes.Buffer, tx_id string) 
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
-	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+</button> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_panel struct {
@@ -463,9 +511,12 @@ func (tx_comp *tx_H_panel) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_panel) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <section data-test=\"panel\"> <h2 data-test=\"panel-heading\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <section data-test=\"panel\"> <h2 data-test=\"panel-heading\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_heading)))
 	tx_w.WriteString("</h2> ")
 	{
@@ -473,9 +524,12 @@ func (tx_comp *tx_H_panel) tx_render(tx_w *bytes.Buffer, tx_id string) {
 		tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
 		tx_child.tx_render(tx_w, tx_id)
 	}
-	tx_w.WriteString(" </section> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString(" </section> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_seeded struct {
@@ -518,17 +572,23 @@ func (tx_comp *tx_H_seeded) tx_compute(tx_id string) {
 }
 
 func (tx_comp *tx_H_seeded) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <span data-test=\"seeded-n\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <span data-test=\"seeded-n\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_n)))
 	tx_w.WriteString("</span> <button data-test=\"seeded-plus\" data-tx-trigger=\"")
 	fmt.Fprint(tx_w, tx_id)
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
-	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+1</button> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+1</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_slot_H_card struct {
@@ -557,9 +617,12 @@ func tx_new_tx_H_slot_H_card(tx_prev url.Values, tx_next map[string]any, tx_trig
 }
 
 func (tx_comp *tx_H_slot_H_card) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func(), tx_render_fill_footer func()) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <div> <h3 data-test=\"card-title\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <div> <h3 data-test=\"card-title\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_title)))
 	tx_w.WriteString("</h3> ")
 	if tx_render_fill_ != nil {
@@ -569,9 +632,12 @@ func (tx_comp *tx_H_slot_H_card) tx_render(tx_w *bytes.Buffer, tx_id string, tx_
 	if tx_render_fill_footer != nil {
 		tx_render_fill_footer()
 	}
-	tx_w.WriteString("</small> </div> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("</small> </div> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_H_stat struct {
@@ -602,15 +668,21 @@ func tx_new_tx_H_stat(tx_prev url.Values, tx_next map[string]any, tx_trigger str
 }
 
 func (tx_comp *tx_H_stat) tx_render(tx_w *bytes.Buffer, tx_id string) {
-	tx_w.WriteString("<!--tx:")
-	fmt.Fprint(tx_w, tx_id)
-	tx_w.WriteString("--> <span data-test=\"stat\">")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <span data-test=\"stat\">")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_label)))
 	tx_w.WriteString(": ")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(*tx_comp.V_value)))
-	tx_w.WriteString("</span> <!--tx:")
-	fmt.Fprint(tx_w, tx_id+"_e")
-	tx_w.WriteString("-->")
+	tx_w.WriteString("</span> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
 }
 
 type tx_S_attr_H_interp struct {
@@ -3568,6 +3640,8 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
     }
   }
 
+  const underTarget = (k, t) => k === t || (k.startsWith(t) && ':@;'.includes(k[t.length]))
+
   const morph = (a, b) => {
     if (a.nodeName !== b.nodeName) {
       a.replaceWith(b.cloneNode(true))
@@ -3611,7 +3685,9 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
     params.append("target", target === 'page' ? page : target)
 
     for (let key in state) {
-      params.append(key, JSON.stringify(state[key]))
+      if (target === 'page' || underTarget(key, target)) {
+        params.append(key, JSON.stringify(state[key]))
+      }
     }
 
     const res = await fetch("/tx/" + fun, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
@@ -3620,7 +3696,7 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
     if (target === 'page') {
       const doc = new DOMParser().parseFromString(html, 'text/html')
       const txState = doc.getElementById('tx-saved')
-      if (txState) state = { ...state, ...JSON.parse(txState.textContent) }
+      if (txState) state = JSON.parse(txState.textContent)
       morph(document.documentElement, doc.documentElement)
       return
     }
@@ -3629,7 +3705,11 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
     comp.innerHTML = html
     const txState = comp.querySelector("#tx-saved")
     if (!txState) return
-    state = { ...state, ...JSON.parse(txState.textContent) }
+    const next = JSON.parse(txState.textContent)
+    for (const k in state) {
+      if (underTarget(k, target)) delete state[k]
+    }
+    Object.assign(state, next)
 
     const respStart = findComment(comp, 'tx:' + target)
     const respEnd = findComment(comp, 'tx:' + target + '_e')
@@ -3666,7 +3746,7 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
         const argPfx = 'data-tx-' + id + '-arg-'
         cn.addEventListener(eventName, (e) => {
           const p = new URLSearchParams()
-          if (eventName === 'input' || eventName === 'change') {
+          if (typeof e.target.value === 'string') {
             p.append('tx_ev_target_value', JSON.stringify(e.target.value))
           }
           for (let a of cn.attributes) {
@@ -3684,13 +3764,13 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
           e.preventDefault()
           const params = new URLSearchParams()
           for (const el of cn.elements) {
-            if (!el.name) continue
-            if (el.type === 'radio' && !el.checked) continue
-            let v
-            if (el.type === 'checkbox') v = el.checked ? 'true' : 'false'
-            else if (el.type === 'number' || el.type === 'range') v = el.value === '' ? 'null' : el.value
-            else v = JSON.stringify(el.value)
-            params.append(el.name, v)
+            if (el.name && (el.type !== 'radio' || el.checked)) {
+              let v
+              if (el.type === 'checkbox') v = el.checked ? 'true' : 'false'
+              else if (el.type === 'number' || el.type === 'range') v = el.value === '' ? 'null' : el.value
+              else v = JSON.stringify(el.value)
+              params.append(el.name, v)
+            }
           }
           tasks.push(() => send(cn, fun, target, params))
           processQueue()

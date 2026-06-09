@@ -1,0 +1,8 @@
+<!-- Go string literal (quotes are part of the expression) -->
+<tx-card title='"Hello"' count="5"></tx-card>
+
+<!-- A parent state/derived/prop variable by name -->
+<tx-card title="heading" count="itemCount"></tx-card>
+
+<!-- Any Go expression that matches the prop type -->
+<tx-card title='strings.ToUpper(heading)' count="len(items)"></tx-card>

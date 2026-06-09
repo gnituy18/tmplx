@@ -1,1 +1,7 @@
 tmp
+
+# compiled server binary (air build output)
+/tmplx.org
+
+# tree-sitter grammars for snippet highlighting (run: node snippets/build.mjs)
+snippets/.ts/grammars/

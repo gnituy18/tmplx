@@ -1,0 +1,11 @@
+<script type="text/tmplx">
+  var stock = map[string]int{"apple": 10, "banana": 5}
+  var fruits = []string{"apple", "banana", "cherry"}
+</script>
+
+<div tx-for="_, f := range fruits" tx-key="f">
+  <p tx-if="n, ok := stock[f]; ok">
+    { f } in stock: { n }
+    <button tx-onclick="stock[f] = n - 1">buy</button>
+  </p>
+</div>

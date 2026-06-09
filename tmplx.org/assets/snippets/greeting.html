@@ -1,0 +1,14 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>greeting</span> <span class='type'>string</span>
+
+  <span class='keyword'>func</span> <span class='variable'>greet</span>(<span class='variable'>name</span> <span class='type'>string</span>) {
+    <span class='variable'>greeting</span> <span class='operator'>=</span> <span class='string'>&quot;Hello, &quot;</span> <span class='operator'>+</span> <span class='variable'>name</span>
+  }
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>form</span> <span class='attribute'>tx-action</span>=&quot;<span class='string'>greet</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>input</span> <span class='attribute'>name</span>=&quot;<span class='string'>name</span>&quot; <span class='attribute'>type</span>=&quot;<span class='string'>text</span>&quot; <span class='attribute'>required</span> <span class='punctuation bracket'>/&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>type</span>=&quot;<span class='string'>submit</span>&quot;<span class='punctuation bracket'>&gt;</span>Greet<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>form</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>p</span> <span class='attribute'>tx-if</span>=&#39;<span class='string'>greeting != &quot;&quot;</span>&#39;<span class='punctuation bracket'>&gt;</span>{ greeting }<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span></code></pre>

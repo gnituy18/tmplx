@@ -31,20 +31,18 @@ func TestConditionalChain(t *testing.T) {
 }
 
 // A component inside a tx-if unmounts when the branch goes false and mounts
-// again when true. NOTE (current behavior, recorded as an open question in
-// memory): on re-mount it does NOT start fresh — its state is restored, because
-// unmount does not purge the instance's entry from the client state blob. This
-// test pins the as-is behavior; if "fresh on remount" is later chosen, flip the
-// final assertion back to "click me (0)".
-func TestConditionalComponentStateSurvivesRemount(t *testing.T) {
+// again when true. On re-mount it starts FRESH: unmount purges the instance's
+// entry from the client state blob (the swap response replaces the whole rebuilt
+// subtree's state), so a hidden component's old state does not come back.
+func TestConditionalComponentStateFreshOnRemount(t *testing.T) {
 	ctx := newPage(t, "/conditionals")
 	waitText(t, ctx, `[data-test="cbtn"]`, "click me (0)")
 	click(t, ctx, `[data-test="cbtn"]`) // bump the inner counter to 1
 	waitText(t, ctx, `[data-test="cbtn"]`, "click me (1)")
 
-	click(t, ctx, `[data-test="cond-toggle"]`) // hide -> counter unmounts from DOM
+	click(t, ctx, `[data-test="cond-toggle"]`) // hide -> counter unmounts, state purged
 	waitCount(t, ctx, `[data-test="cbtn"]`, 0)
 
-	click(t, ctx, `[data-test="cond-toggle"]`) // show -> state restored, not reset
-	waitText(t, ctx, `[data-test="cbtn"]`, "click me (1)")
+	click(t, ctx, `[data-test="cond-toggle"]`) // show -> remounts fresh, not restored
+	waitText(t, ctx, `[data-test="cbtn"]`, "click me (0)")
 }

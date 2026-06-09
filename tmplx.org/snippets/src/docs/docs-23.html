@@ -1,0 +1,12 @@
+<script type="text/tmplx">
+  var counter int = 0
+
+  func addNum(num int) {
+    counter += num
+  }
+</script>
+
+<p>{ counter }</p>
+<button tx-for="i := 0; i < 10; i++" tx-key="i" tx-onclick="addNum(i)">
+  +{ i }
+</button>

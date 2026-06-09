@@ -1,0 +1,10 @@
+<script type="text/tmplx">
+  var nums = []int{1, 2, 3, 4, 5, 6}
+</script>
+
+<ul>
+  <li tx-for="_, n := range nums" tx-key="n">
+    <b tx-if="n > 3">{ n } (big)</b>
+    <i tx-else>{ n } (small)</i>
+  </li>
+</ul>

@@ -1,0 +1,13 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>loggedIn</span> <span class='type'>bool</span> <span class='operator'>=</span> <span class='constant builtin'>true</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>template</span> <span class='attribute'>tx-if</span>=&quot;<span class='string'>loggedIn</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>Welcome back!<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>logout()</span>&quot;<span class='punctuation bracket'>&gt;</span>Logout<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>template</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>template</span> <span class='attribute'>tx-else</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>Please sign in.<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>login()</span>&quot;<span class='punctuation bracket'>&gt;</span>Login<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>template</span><span class='punctuation bracket'>&gt;</span></code></pre>

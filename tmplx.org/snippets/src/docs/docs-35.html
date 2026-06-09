@@ -1,0 +1,13 @@
+<script type="text/tmplx">
+  var loggedIn bool = true
+</script>
+
+<template tx-if="loggedIn">
+  <p>Welcome back!</p>
+  <button tx-onclick="logout()">Logout</button>
+</template>
+
+<template tx-else>
+  <p>Please sign in.</p>
+  <button tx-onclick="login()">Login</button>
+</template>

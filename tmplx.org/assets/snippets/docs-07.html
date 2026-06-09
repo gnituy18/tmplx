@@ -1,0 +1,14 @@
+<pre class="tmplx-code"><code><span class='keyword'>package</span> main
+
+<span class='keyword'>import</span> (
+	<span class='string'>&quot;log&quot;</span>
+	<span class='string'>&quot;net/http&quot;</span>
+)
+
+<span class='keyword'>func</span> <span class='variable'>main</span>() {
+	<span class='keyword'>for</span> <span class='variable'>_</span>, <span class='variable'>route</span> <span class='operator'>:=</span> <span class='keyword'>range</span> <span class='variable'>Routes</span>() {
+		<span class='variable'>http</span>.<span class='property'>Handle</span>(<span class='variable'>route</span>.<span class='property'>Pattern</span>, <span class='variable'>route</span>.<span class='property'>Handler</span>)
+	}
+
+	<span class='variable'>log</span>.<span class='property'>Fatal</span>(<span class='variable'>http</span>.<span class='property'>ListenAndServe</span>(<span class='string'>&quot;:8080&quot;</span>, <span class='constant builtin'>nil</span>))
+}</code></pre>

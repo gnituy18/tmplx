@@ -1,0 +1,12 @@
+<script type="text/tmplx">
+  var user string = "tmplx"
+
+  func logout() {
+    user = ""
+  }
+</script>
+
+<tx-card>
+  <h2 slot="header">Hello, { user }</h2>
+  <button tx-onclick="logout()">Sign out</button>
+</tx-card>

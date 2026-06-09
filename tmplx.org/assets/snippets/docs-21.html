@@ -1,0 +1,7 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>classStrs</span> []<span class='type'>string</span> <span class='operator'>=</span> []<span class='type'>string</span>{<span class='string'>&quot;c1&quot;</span>, <span class='string'>&quot;c2&quot;</span>, <span class='string'>&quot;c3&quot;</span>} <span class='comment'>// state</span>
+  <span class='keyword'>var</span> <span class='variable'>class</span> <span class='type'>string</span> <span class='operator'>=</span> <span class='variable'>strings</span>.<span class='property'>Join</span>(<span class='variable'>classStrs</span>, <span class='string'>&quot; &quot;</span>) <span class='comment'>// derived</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+...
+<span class='punctuation bracket'>&lt;</span><span class='tag'>p</span> <span class='attribute'>class</span>=&quot;<span class='string'>{class}</span>&quot;<span class='punctuation bracket'>&gt;</span> ... <span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span></code></pre>

@@ -1,0 +1,21 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>list</span> []<span class='type'>string</span>
+
+  <span class='keyword'>func</span> <span class='variable'>add</span>(<span class='variable'>item</span> <span class='type'>string</span>) {
+    <span class='variable'>list</span> <span class='operator'>=</span> <span class='variable'>append</span>(<span class='variable'>list</span>, <span class='variable'>item</span>)
+  }
+
+  <span class='keyword'>func</span> <span class='variable'>remove</span>(<span class='variable'>i</span> <span class='type'>int</span>) {
+    <span class='variable'>list</span> <span class='operator'>=</span> <span class='variable'>append</span>(<span class='variable'>list</span>[<span class='number'>0</span>:<span class='variable'>i</span>], <span class='variable'>list</span>[<span class='variable'>i</span><span class='operator'>+</span><span class='number'>1</span>:]<span class='operator'>...</span>)
+  }
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>form</span> <span class='attribute'>tx-action</span>=&quot;<span class='string'>add</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>label</span><span class='punctuation bracket'>&gt;</span><span class='punctuation bracket'>&lt;</span><span class='tag'>input</span> <span class='attribute'>name</span>=&quot;<span class='string'>item</span>&quot; <span class='attribute'>type</span>=&quot;<span class='string'>text</span>&quot; <span class='attribute'>required</span><span class='punctuation bracket'>&gt;</span><span class='punctuation bracket'>&lt;/</span><span class='tag'>label</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>type</span>=&quot;<span class='string'>submit</span>&quot;<span class='punctuation bracket'>&gt;</span>Add<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>form</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>ol</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>li</span> <span class='attribute'>tx-for</span>=&quot;<span class='string'>i, l := range list</span>&quot; <span class='attribute'>tx-key</span>=&quot;<span class='string'>l</span>&quot; <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>remove(i)</span>&quot;<span class='punctuation bracket'>&gt;</span>
+    { l }
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>ol</span><span class='punctuation bracket'>&gt;</span></code></pre>

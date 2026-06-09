@@ -1,0 +1,5 @@
+<p tx-if="user, err := user.GetUser(); err != nil">
+  <span tx-if="err == ErrNotFound">User not found</span>
+</p>
+<p tx-else-if='user.Name == ""'>user.Name not set</p>
+<p tx-else>Hi, { user.Name }</p>

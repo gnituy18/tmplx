@@ -1,0 +1,18 @@
+<pre class="tmplx-code"><code><span class='constant'>&lt;!DOCTYPE html<span class='punctuation bracket'>&gt;</span></span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>html</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>head</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+      <span class='comment'>//tx:path post_id</span>
+      <span class='keyword'>var</span> <span class='variable'>postId</span> <span class='type'>string</span>
+
+      <span class='keyword'>var</span> <span class='variable'>post</span> <span class='type'>Post</span>
+
+      <span class='keyword'>func</span> <span class='variable'>init</span>() {
+        <span class='variable'>post</span> <span class='operator'>=</span> <span class='variable'>db</span>.<span class='property'>GetPost</span>(<span class='variable'>postId</span>)
+      }
+    <span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>head</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>body</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>h1</span><span class='punctuation bracket'>&gt;</span>{ post.Title }<span class='punctuation bracket'>&lt;/</span><span class='tag'>h1</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>body</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>html</span><span class='punctuation bracket'>&gt;</span></code></pre>

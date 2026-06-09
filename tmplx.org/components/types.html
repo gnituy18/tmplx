@@ -1,0 +1,14 @@
+<script type="text/tmplx">
+  var count int = 3
+  var name string = "tmplx"
+  var enabled bool = true
+  var tags []string = []string{"go", "html"}
+</script>
+
+<ul>
+  <li>int: { count }</li>
+  <li>string: { name }</li>
+  <li>bool: { enabled }</li>
+  <li>slice: { len(tags) } items</li>
+</ul>
+<button tx-onclick="count++">count++</button>

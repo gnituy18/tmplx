@@ -1,0 +1,14 @@
+<script type="text/tmplx">
+  var greeting string
+
+  func greet(name string) {
+    greeting = "Hello, " + name
+  }
+</script>
+
+<form tx-action="greet">
+  <input name="name" type="text" required />
+  <button type="submit">Greet</button>
+</form>
+
+<p tx-if='greeting != ""'>{ greeting }</p>

@@ -1,0 +1,8 @@
+<pre class="tmplx-code"><code><span class='comment'>&lt;!-- Go string literal (quotes are part of the expression) --&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>tx-card</span> <span class='attribute'>title</span>=&#39;<span class='string'>&quot;Hello&quot;</span>&#39; <span class='attribute'>count</span>=&quot;<span class='string'>5</span>&quot;<span class='punctuation bracket'>&gt;</span><span class='punctuation bracket'>&lt;/</span><span class='tag'>tx-card</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='comment'>&lt;!-- A parent state/derived/prop variable by name --&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>tx-card</span> <span class='attribute'>title</span>=&quot;<span class='string'>heading</span>&quot; <span class='attribute'>count</span>=&quot;<span class='string'>itemCount</span>&quot;<span class='punctuation bracket'>&gt;</span><span class='punctuation bracket'>&lt;/</span><span class='tag'>tx-card</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='comment'>&lt;!-- Any Go expression that matches the prop type --&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>tx-card</span> <span class='attribute'>title</span>=&#39;<span class='string'>strings.ToUpper(heading)</span>&#39; <span class='attribute'>count</span>=&quot;<span class='string'>len(items)</span>&quot;<span class='punctuation bracket'>&gt;</span><span class='punctuation bracket'>&lt;/</span><span class='tag'>tx-card</span><span class='punctuation bracket'>&gt;</span></code></pre>

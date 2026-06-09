@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="tmplx">
+  <title>tmplx</title>
+  <!-- top-left & bottom-right: 2 equilateral triangles each; bottom-left & top-right: long parallelograms -->
+  <path fill="#e34f26" d="M100 100 70 48.04 10 48.04 40 100ZM100 100 70 190 10 190 40 100Z" />
+  <path fill="#00add8" d="M100 100 130 10 190 10 160 100ZM100 100 130 151.96 190 151.96 160 100Z" />
+</svg>

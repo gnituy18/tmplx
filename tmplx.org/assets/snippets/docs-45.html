@@ -1,0 +1,12 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>user</span> <span class='type'>string</span> <span class='operator'>=</span> <span class='string'>&quot;tmplx&quot;</span>
+
+  <span class='keyword'>func</span> <span class='variable'>logout</span>() {
+    <span class='variable'>user</span> <span class='operator'>=</span> <span class='string'>&quot;&quot;</span>
+  }
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>tx-card</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>h2</span> <span class='attribute'>slot</span>=&quot;<span class='string'>header</span>&quot;<span class='punctuation bracket'>&gt;</span>Hello, { user }<span class='punctuation bracket'>&lt;/</span><span class='tag'>h2</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>logout()</span>&quot;<span class='punctuation bracket'>&gt;</span>Sign out<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>tx-card</span><span class='punctuation bracket'>&gt;</span></code></pre>

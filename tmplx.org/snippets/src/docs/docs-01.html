@@ -1,0 +1,24 @@
+<script type="text/tmplx">
+  var list []string
+
+  func add(item string) {
+    list = append(list, item)
+  }
+
+  func remove(i int) {
+    list = append(list[0:i], list[i+1:]...)
+  }
+</script>
+
+<form tx-action="add">
+  <label><input name="item" type="text" required></label>
+  <button type="submit">Add</button>
+</form>
+<ol>
+  <li
+    tx-for="i, l := range list"
+    tx-key="l"
+    tx-onclick="remove(i)">
+    { l }
+  </li>
+</ol>

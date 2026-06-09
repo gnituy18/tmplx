@@ -1,0 +1,18 @@
+<script type="text/tmplx">
+// ✅ Zero value
+var id int64
+
+// ✅ With initial value (explicit type)
+var address string = "..."
+
+// ✅ Type inferred from the initializer
+var counter = 0
+var fruits = []string{"apple", "banana"}
+var stock = map[string]int{"apple": 10}
+
+// ✅ Initialized with a function call (assuming the package is imported)
+var username = user.GetNameById("id")
+
+// ✅ Complex JSON-compatible types
+var m map[string]int = map[string]int{"key": 100}
+</script>

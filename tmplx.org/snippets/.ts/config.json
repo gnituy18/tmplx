@@ -1,0 +1,14 @@
+{
+  "parser-directories": ["/Users/hsuyuting/tmplx/tmplx.org/snippets/.ts/grammars"],
+  "theme": {
+    "comment":"#888","keyword":"#c678dd","keyword.import":"#c678dd","keyword.function":"#c678dd","keyword.return":"#c678dd","keyword.operator":"#c678dd","keyword.repeat":"#c678dd","keyword.conditional":"#c678dd",
+    "function":"#61afef","function.builtin":"#61afef","function.method":"#61afef",
+    "type":"#e5c07b","type.builtin":"#e5c07b","constructor":"#e5c07b",
+    "constant":"#d19a66","constant.builtin":"#d19a66",
+    "string":"#98c379","string.special":"#98c379","escape":"#56b6c2",
+    "number":"#d19a66","operator":"#56b6c2","property":"#61afef",
+    "variable":"#abb2bf","variable.builtin":"#e5c07b","variable.parameter":"#abb2bf","variable.member":"#e06c75",
+    "punctuation.bracket":"#abb2bf","punctuation.delimiter":"#abb2bf","punctuation.special":"#c678dd",
+    "label":"#e06c75","attribute":"#d19a66","tag":"#e06c75","tag.error":"#e06c75","embedded":"#abb2bf"
+  }
+}

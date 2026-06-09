@@ -1,0 +1,6 @@
+<script type="text/tmplx">
+  var inputValue string
+</script>
+
+<input type="text" tx-oninput="inputValue = event.target.value" placeholder="type here" />
+<p>You typed: { inputValue } ({ len(inputValue) } chars)</p>

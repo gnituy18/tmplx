@@ -1,0 +1,12 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>counter</span> <span class='type'>int</span> <span class='operator'>=</span> <span class='number'>0</span>
+
+  <span class='keyword'>func</span> <span class='variable'>addNum</span>(<span class='variable'>num</span> <span class='type'>int</span>) {
+    <span class='variable'>counter</span> <span class='operator'>+=</span> <span class='variable'>num</span>
+  }
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>{ counter }<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>tx-for</span>=&quot;<span class='string'>i := 0; i &lt; 10; i++</span>&quot; <span class='attribute'>tx-key</span>=&quot;<span class='string'>i</span>&quot; <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>addNum(i)</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  +{ i }
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span></code></pre>

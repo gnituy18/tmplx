@@ -1,0 +1,14 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>count</span> <span class='type'>int</span> <span class='operator'>=</span> <span class='number'>3</span>
+  <span class='keyword'>var</span> <span class='variable'>name</span> <span class='type'>string</span> <span class='operator'>=</span> <span class='string'>&quot;tmplx&quot;</span>
+  <span class='keyword'>var</span> <span class='variable'>enabled</span> <span class='type'>bool</span> <span class='operator'>=</span> <span class='constant builtin'>true</span>
+  <span class='keyword'>var</span> <span class='variable'>tags</span> []<span class='type'>string</span> <span class='operator'>=</span> []<span class='type'>string</span>{<span class='string'>&quot;go&quot;</span>, <span class='string'>&quot;html&quot;</span>}
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>ul</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>int: { count }<span class='punctuation bracket'>&lt;/</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>string: { name }<span class='punctuation bracket'>&lt;/</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>bool: { enabled }<span class='punctuation bracket'>&lt;/</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>slice: { len(tags) } items<span class='punctuation bracket'>&lt;/</span><span class='tag'>li</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>ul</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>button</span> <span class='attribute'>tx-onclick</span>=&quot;<span class='string'>count++</span>&quot;<span class='punctuation bracket'>&gt;</span>count++<span class='punctuation bracket'>&lt;/</span><span class='tag'>button</span><span class='punctuation bracket'>&gt;</span></code></pre>

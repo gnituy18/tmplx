@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  const underTarget = (k, t) => k === t || (k.startsWith(t) && ':@;'.includes(k[t.length]))
+
   const morph = (a, b) => {
     if (a.nodeName !== b.nodeName) {
       a.replaceWith(b.cloneNode(true))
@@ -55,7 +57,9 @@ document.addEventListener('DOMContentLoaded', function() {
     params.append("target", target === 'page' ? page : target)
 
     for (let key in state) {
-      params.append(key, JSON.stringify(state[key]))
+      if (target === 'page' || underTarget(key, target)) {
+        params.append(key, JSON.stringify(state[key]))
+      }
     }
 
     const res = await fetch("TX_HANDLER_PREFIX" + fun, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
@@ -64,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (target === 'page') {
       const doc = new DOMParser().parseFromString(html, 'text/html')
       const txState = doc.getElementById('tx-saved')
-      if (txState) state = { ...state, ...JSON.parse(txState.textContent) }
+      if (txState) state = JSON.parse(txState.textContent)
       morph(document.documentElement, doc.documentElement)
       return
     }
@@ -73,7 +77,11 @@ document.addEventListener('DOMContentLoaded', function() {
     comp.innerHTML = html
     const txState = comp.querySelector("#tx-saved")
     if (!txState) return
-    state = { ...state, ...JSON.parse(txState.textContent) }
+    const next = JSON.parse(txState.textContent)
+    for (const k in state) {
+      if (underTarget(k, target)) delete state[k]
+    }
+    Object.assign(state, next)
 
     const respStart = findComment(comp, 'tx:' + target)
     const respEnd = findComment(comp, 'tx:' + target + '_e')
@@ -110,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const argPfx = 'data-tx-' + id + '-arg-'
         cn.addEventListener(eventName, (e) => {
           const p = new URLSearchParams()
-          if (eventName === 'input' || eventName === 'change') {
+          if (typeof e.target.value === 'string') {
             p.append('tx_ev_target_value', JSON.stringify(e.target.value))
           }
           for (let a of cn.attributes) {
@@ -128,13 +136,13 @@ document.addEventListener('DOMContentLoaded', function() {
           e.preventDefault()
           const params = new URLSearchParams()
           for (const el of cn.elements) {
-            if (!el.name) continue
-            if (el.type === 'radio' && !el.checked) continue
-            let v
-            if (el.type === 'checkbox') v = el.checked ? 'true' : 'false'
-            else if (el.type === 'number' || el.type === 'range') v = el.value === '' ? 'null' : el.value
-            else v = JSON.stringify(el.value)
-            params.append(el.name, v)
+            if (el.name && (el.type !== 'radio' || el.checked)) {
+              let v
+              if (el.type === 'checkbox') v = el.checked ? 'true' : 'false'
+              else if (el.type === 'number' || el.type === 'range') v = el.value === '' ? 'null' : el.value
+              else v = JSON.stringify(el.value)
+              params.append(el.name, v)
+            }
           }
           tasks.push(() => send(cn, fun, target, params))
           processQueue()
