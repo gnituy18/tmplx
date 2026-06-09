@@ -16,6 +16,8 @@
     <tx-nav></tx-nav>
     <div class="docs">
     <nav class="toc">
+      <details>
+        <summary>☰ Contents</summary>
       <ul>
         <li><a href="#introduction">Introduction</a></li>
         <li><a href="#installing">Installing</a></li>
@@ -24,6 +26,7 @@
         <li>
           <a href="#tmplx-script">tmplx Script</a>
           <ul>
+            <li><a href="#imports">Imports</a></li>
             <li><a href="#reserved-names">Reserved Names</a></li>
           </ul>
         </li>
@@ -75,6 +78,7 @@
           </ul>
         </li>
       </ul>
+      </details>
     </nav>
     <main>
       <h2 id="introduction">Introduction</h2>
@@ -329,6 +333,33 @@
         <div class="snippet-code" data-snippet="docs-11"></div>
       </div>
 
+      <h3 id="imports">Imports</h3>
+      <p>
+        The script is plain Go, so you pull in packages with normal Go
+        <code>import</code> declarations&mdash;single or grouped&mdash;at the top
+        of the block.
+      </p>
+      <p>
+        Imports resolve against your project's <code>go.mod</code>. tmplx walks
+        up from the working directory to the nearest <code>go.mod</code> (see
+        <a href="#cli">CLI</a>) and type-checks the script against that module,
+        so you can import:
+      </p>
+      <ul>
+        <li>the <strong>standard library</strong>;</li>
+        <li>
+          any <strong>third-party module</strong> already in your
+          <code>go.mod</code> (run <code>go get</code> first);
+        </li>
+        <li>your <strong>own packages</strong> within the module.</li>
+      </ul>
+      <p>
+        An import that does not resolve fails compilation with
+        <code>cannot import &lt;path&gt;</code>. Imported struct or named types
+        can be used as <a href="#state">state</a>. The
+        <a href="/playground">playground</a> resolves the standard library only.
+      </p>
+
       <h3 id="reserved-names">Reserved Names</h3>
       <p>
         The compiler reserves two naming patterns for its own use:
@@ -440,8 +471,7 @@
         <li><strong>Only one identifier per declaration.</strong></li>
         <li>
           <strong>
-            The type must be JSON-compatible. It may be either declared
-            explicitly or inferred from the initializer.
+            The type must be JSON-compatible.
           </strong>
         </li>
       </ol>
@@ -507,12 +537,6 @@
       <ol>
         <li><strong>Only one identifier per declaration.</strong></li>
         <li>
-          <strong>
-            The type may be inferred from the right-hand side or declared
-            explicitly</strong
-          >, just like state.
-        </li>
-        <li>
           <strong
             >Derived values cannot be modified directly in event handlers,
             though they may be read.</strong
@@ -531,10 +555,8 @@
       </div>
 
       <p>
-        <code>doubled</code> reads <code>count</code>, so it is derived:
-        clicking the button mutates <code>count</code> and
-        <code>doubled</code> recomputes on its own. A derived can read any number
-        of states&mdash;here a slice is joined into a class string:
+        A derived can read any number of states&mdash;here a slice is joined
+        into a class string:
       </p>
       <div class="snippet">
         <div class="snippet-bar"><span class="snippet-name">tmplx</span>
@@ -567,9 +589,8 @@
       </div>
 
       <p>
-        Both buttons mutate <code>counter</code> inline and the span re-renders
-        with the new value. Any valid Go statement works in the body&mdash;here a
-        compound assignment doubles a value on each click:
+        Any valid Go statement works in the body&mdash;here a compound
+        assignment doubles a value on each click:
       </p>
       <tx-example-wrapper>
         <tx-double></tx-double>
@@ -580,15 +601,6 @@
         </div>
         <div class="snippet-code" data-snippet="double"></div>
       </div>
-      <p>
-        It’s not magic. tmplx compiles each <code>tx-on*</code> binding into one
-        HTTP endpoint.
-        The runtime JavaScript attaches a lightweight listener that sends the
-        required state to the endpoint, receives the updated HTML fragment,
-        merges the new state, and swaps the affected part of the DOM. It feels
-        like direct backend access from the client, but it’s just a simple API
-        call with targeted DOM swapping.
-      </p>
 
       <h3 id="event-properties">Event Properties</h3>
       <p>
@@ -820,9 +832,8 @@
 
       <h2 id="control-flow">Control Flow</h2>
       <p>
-        tmplx avoids new custom syntax for conditionals and loops because that
-        would increase compiler complexity. Instead, it embeds control flow
-        directly into HTML attributes, similar to Vue.js and
+        tmplx avoids new custom syntax for conditionals and loops. It embeds
+        control flow directly into HTML attributes, similar to Vue.js and
         <a href="https://alpinejs.dev/">Alpine.js</a>.
       </p>
 
@@ -1111,10 +1122,7 @@
 
       <p>
         The expression is re-evaluated whenever the parent re-renders, so
-        the child stays in sync with the parent's state automatically. Here a
-        <code>&lt;tx-stat&gt;</code> component is given a literal label and a
-        live <code>value</code> expression&mdash;clicking the button updates the
-        parent state and both stats re-render:
+        the child stays in sync with the parent's state automatically.
       </p>
       <tx-example-wrapper>
         <tx-props></tx-props>

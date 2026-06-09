@@ -195,6 +195,25 @@ code {
   width: 100%;
 }
 
+.toc summary {
+  display: none;
+  cursor: pointer;
+  font-weight: bold;
+  list-style: none;
+}
+
+.toc summary::-webkit-details-marker {
+  display: none;
+}
+
+.toc details > ul {
+  display: block;
+}
+
+.toc details::details-content {
+  content-visibility: visible;
+}
+
 .btn {
   text-decoration: none;
   border: 1px solid var(--border);
@@ -226,5 +245,18 @@ code {
     max-height: none;
     border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+
+  .toc summary {
+    display: block;
+    padding: 0.25rem 0;
+  }
+
+  .toc details:not([open]) > ul {
+    display: none;
+  }
+
+  .toc details:not([open])::details-content {
+    content-visibility: hidden;
   }
 }

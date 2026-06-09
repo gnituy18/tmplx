@@ -409,6 +409,65 @@ func (tx_comp *tx_H_defaulter) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
+type tx_H_definput struct {
+	tx_target          string         `json:"-"`
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+
+	V_n int `json:"n"`
+}
+
+func tx_new_tx_H_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_definput {
+	tx_comp := &tx_H_definput{}
+	tx_comp.tx_target = tx_target
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get(tx_id)
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_H_definput) tx_eh1(tx_ev_target_value string) {
+	tx_comp.V_n++
+}
+
+func (tx_comp *tx_H_definput) tx_compute(tx_id string) {
+	if tx_id == tx_comp.tx_trigger {
+		switch tx_comp.tx_trigger_handler {
+		case "eh1":
+			var tx_ev_target_value string
+			json.Unmarshal([]byte(tx_comp.tx_prev.Get("tx_ev_target_value")), &tx_ev_target_value)
+			tx_comp.tx_eh1(tx_ev_target_value)
+		}
+	}
+}
+
+func (tx_comp *tx_H_definput) tx_render(tx_w *bytes.Buffer, tx_id string) {
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <input data-test=\"def-input\" type=\"text\" value=\"seed\" data-tx-trigger=\"")
+	fmt.Fprint(tx_w, tx_id)
+	tx_w.WriteString("\" data-tx-target=\"")
+	fmt.Fprint(tx_w, tx_comp.tx_target)
+	tx_w.WriteString("\" data-tx-eh1-on=\"input\"/> <span data-test=\"def-count\">")
+	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_n)))
+	tx_w.WriteString("</span> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
+}
+
 type tx_H_init_H_derived struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
@@ -469,6 +528,65 @@ func (tx_comp *tx_H_init_H_derived) tx_render(tx_w *bytes.Buffer, tx_id string) 
 	tx_w.WriteString("\" data-tx-target=\"")
 	fmt.Fprint(tx_w, tx_comp.tx_target)
 	tx_w.WriteString("\" data-tx-eh1-on=\"click\">+</button> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
+}
+
+type tx_H_liveinput struct {
+	tx_target          string         `json:"-"`
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+
+	V_n int `json:"n"`
+}
+
+func tx_new_tx_H_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_liveinput {
+	tx_comp := &tx_H_liveinput{}
+	tx_comp.tx_target = tx_target
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get(tx_id)
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_H_liveinput) tx_eh1(tx_ev_target_value string) {
+	tx_comp.V_n++
+}
+
+func (tx_comp *tx_H_liveinput) tx_compute(tx_id string) {
+	if tx_id == tx_comp.tx_trigger {
+		switch tx_comp.tx_trigger_handler {
+		case "eh1":
+			var tx_ev_target_value string
+			json.Unmarshal([]byte(tx_comp.tx_prev.Get("tx_ev_target_value")), &tx_ev_target_value)
+			tx_comp.tx_eh1(tx_ev_target_value)
+		}
+	}
+}
+
+func (tx_comp *tx_H_liveinput) tx_render(tx_w *bytes.Buffer, tx_id string) {
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <input data-test=\"li-input\" type=\"text\" data-tx-trigger=\"")
+	fmt.Fprint(tx_w, tx_id)
+	tx_w.WriteString("\" data-tx-target=\"")
+	fmt.Fprint(tx_w, tx_comp.tx_target)
+	tx_w.WriteString("\" data-tx-eh1-on=\"input\"/> <span data-test=\"li-count\">")
+	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_n)))
+	tx_w.WriteString("</span> ")
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id+"_e")
@@ -1158,6 +1276,48 @@ func (tx_comp *tx_S_defaulter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffe
 	tx_w2.WriteString(" </body></html>")
 }
 
+type tx_S_definput struct {
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+}
+
+func tx_new_tx_S_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_definput {
+	tx_comp := &tx_S_definput{}
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get("page")
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_S_definput) tx_compute() {
+	{
+		tx_id := "tx-definput-1"
+		tx_child := tx_new_tx_H_definput(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child.tx_compute(tx_id)
+		tx_comp.tx_next[tx_id] = tx_child
+	}
+}
+
+func (tx_comp *tx_S_definput) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>definput</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/definput\">")
+	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
+	fmt.Fprint(tx_w2, tx_runtime_script)
+	tx_w2.WriteString("</script></head> <body> ")
+	{
+		tx_id := "tx-definput-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_H_definput)
+		tx_child.tx_render(tx_w2, tx_id)
+	}
+	tx_w2.WriteString(" </body></html>")
+}
+
 type tx_S_derived_H_chain struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -1620,6 +1780,48 @@ func (tx_comp *tx_S_input) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w2.WriteString(" (")
 	tx_w2.WriteString(html.EscapeString(fmt.Sprint(len(tx_comp.V_inputValue))))
 	tx_w2.WriteString(" chars)</p> </body></html>")
+}
+
+type tx_S_liveinput struct {
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+}
+
+func tx_new_tx_S_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_liveinput {
+	tx_comp := &tx_S_liveinput{}
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get("page")
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_S_liveinput) tx_compute() {
+	{
+		tx_id := "tx-liveinput-1"
+		tx_child := tx_new_tx_H_liveinput(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child.tx_compute(tx_id)
+		tx_comp.tx_next[tx_id] = tx_child
+	}
+}
+
+func (tx_comp *tx_S_liveinput) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>liveinput</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/liveinput\">")
+	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
+	fmt.Fprint(tx_w2, tx_runtime_script)
+	tx_w2.WriteString("</script></head> <body> ")
+	{
+		tx_id := "tx-liveinput-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_H_liveinput)
+		tx_child.tx_render(tx_w2, tx_id)
+	}
+	tx_w2.WriteString(" </body></html>")
 }
 
 type tx_S_loop_H_comps struct {
@@ -2701,6 +2903,17 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		tx_w.Write(tx_json)
 		tx_w.Write(tx_buf2.Bytes())
 		return
+	case "/definput":
+		var tx_buf1, tx_buf2 bytes.Buffer
+		tx_comp := tx_new_tx_S_definput(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_next["page"] = tx_comp
+		tx_comp.tx_compute()
+		tx_comp.tx_render(&tx_buf1, &tx_buf2)
+		tx_json, _ := json.Marshal(tx_next)
+		tx_w.Write(tx_buf1.Bytes())
+		tx_w.Write(tx_json)
+		tx_w.Write(tx_buf2.Bytes())
+		return
 	case "/derived-chain":
 		var tx_buf1, tx_buf2 bytes.Buffer
 		tx_comp := tx_new_tx_S_derived_H_chain(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
@@ -2799,6 +3012,17 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 	case "/input":
 		var tx_buf1, tx_buf2 bytes.Buffer
 		tx_comp := tx_new_tx_S_input(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_next["page"] = tx_comp
+		tx_comp.tx_compute()
+		tx_comp.tx_render(&tx_buf1, &tx_buf2)
+		tx_json, _ := json.Marshal(tx_next)
+		tx_w.Write(tx_buf1.Bytes())
+		tx_w.Write(tx_json)
+		tx_w.Write(tx_buf2.Bytes())
+		return
+	case "/liveinput":
+		var tx_buf1, tx_buf2 bytes.Buffer
+		tx_comp := tx_new_tx_S_liveinput(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3014,8 +3238,18 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
+	case "tx-definput":
+		tx_comp := tx_new_tx_H_definput(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_next[tx_target] = tx_comp
+		tx_comp.tx_compute(tx_target)
+		tx_comp.tx_render(&buf, tx_target)
 	case "tx-init-derived":
 		tx_comp := tx_new_tx_H_init_H_derived(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_next[tx_target] = tx_comp
+		tx_comp.tx_compute(tx_target)
+		tx_comp.tx_render(&buf, tx_target)
+	case "tx-liveinput":
+		tx_comp := tx_new_tx_H_liveinput(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
@@ -3150,6 +3384,21 @@ var tx_routes []TxRoute = []TxRoute{
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
 			tx_comp := tx_new_tx_S_defaulter(nil, tx_next, "", "")
+			tx_next["page"] = tx_comp
+			tx_comp.tx_compute()
+			var tx_buf1, tx_buf2 bytes.Buffer
+			tx_comp.tx_render(&tx_buf1, &tx_buf2)
+			tx_json, _ := json.Marshal(tx_next)
+			tx_w.Write(tx_buf1.Bytes())
+			tx_w.Write(tx_json)
+			tx_w.Write(tx_buf2.Bytes())
+		},
+	},
+	{
+		Pattern: "GET /definput",
+		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
+			tx_next := map[string]any{}
+			tx_comp := tx_new_tx_S_definput(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3318,6 +3567,21 @@ var tx_routes []TxRoute = []TxRoute{
 	{
 		Pattern: "POST /tx/%2Finput/eh1",
 		Handler: tx_dispatch,
+	},
+	{
+		Pattern: "GET /liveinput",
+		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
+			tx_next := map[string]any{}
+			tx_comp := tx_new_tx_S_liveinput(nil, tx_next, "", "")
+			tx_next["page"] = tx_comp
+			tx_comp.tx_compute()
+			var tx_buf1, tx_buf2 bytes.Buffer
+			tx_comp.tx_render(&tx_buf1, &tx_buf2)
+			tx_json, _ := json.Marshal(tx_next)
+			tx_w.Write(tx_buf1.Bytes())
+			tx_w.Write(tx_json)
+			tx_w.Write(tx_buf2.Bytes())
+		},
 	},
 	{
 		Pattern: "GET /loop-comps",
@@ -3615,7 +3879,15 @@ var tx_routes []TxRoute = []TxRoute{
 		Handler: tx_dispatch,
 	},
 	{
+		Pattern: "POST /tx/tx-definput/eh1",
+		Handler: tx_dispatch,
+	},
+	{
 		Pattern: "POST /tx/tx-init-derived/eh1",
+		Handler: tx_dispatch,
+	},
+	{
+		Pattern: "POST /tx/tx-liveinput/eh1",
 		Handler: tx_dispatch,
 	},
 	{
@@ -3657,21 +3929,24 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
     for (const at of b.attributes) {
       if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value)
     }
-    let an = a.firstChild, bn = b.firstChild
-    while (an && bn) {
-      const an2 = an.nextSibling, bn2 = bn.nextSibling
-      morph(an, bn)
-      an = an2
-      bn = bn2
+    morphChildren(a, a.firstChild, b.firstChild, null, null)
+  }
+
+  const morphChildren = (parent, a, b, aEnd, bEnd) => {
+    while (a !== aEnd && b !== bEnd) {
+      const a2 = a.nextSibling, b2 = b.nextSibling
+      morph(a, b)
+      a = a2
+      b = b2
     }
-    while (an) {
-      const n = an.nextSibling
-      an.remove()
-      an = n
+    while (a !== aEnd) {
+      const n = a.nextSibling
+      a.remove()
+      a = n
     }
-    while (bn) {
-      a.appendChild(bn.cloneNode(true))
-      bn = bn.nextSibling
+    while (b !== bEnd) {
+      parent.insertBefore(b.cloneNode(true), aEnd)
+      b = b.nextSibling
     }
   }
 
@@ -3717,15 +3992,7 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
     const docEnd = findComment(document.documentElement, 'tx:' + target + '_e')
     if (!respStart || !respEnd || !docStart || !docEnd) return
 
-    const respRange = document.createRange()
-    respRange.setStartBefore(respStart)
-    respRange.setEndAfter(respEnd)
-
-    const range = document.createRange()
-    range.setStartBefore(docStart)
-    range.setEndAfter(docEnd)
-    range.deleteContents()
-    range.insertNode(respRange.extractContents())
+    morphChildren(docStart.parentNode, docStart.nextSibling, respStart.nextSibling, docEnd, respEnd)
   }
 
   const init = (cn) => {

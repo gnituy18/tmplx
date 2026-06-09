@@ -29,21 +29,24 @@ document.addEventListener('DOMContentLoaded', function() {
     for (const at of b.attributes) {
       if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value)
     }
-    let an = a.firstChild, bn = b.firstChild
-    while (an && bn) {
-      const an2 = an.nextSibling, bn2 = bn.nextSibling
-      morph(an, bn)
-      an = an2
-      bn = bn2
+    morphChildren(a, a.firstChild, b.firstChild, null, null)
+  }
+
+  const morphChildren = (parent, a, b, aEnd, bEnd) => {
+    while (a !== aEnd && b !== bEnd) {
+      const a2 = a.nextSibling, b2 = b.nextSibling
+      morph(a, b)
+      a = a2
+      b = b2
     }
-    while (an) {
-      const n = an.nextSibling
-      an.remove()
-      an = n
+    while (a !== aEnd) {
+      const n = a.nextSibling
+      a.remove()
+      a = n
     }
-    while (bn) {
-      a.appendChild(bn.cloneNode(true))
-      bn = bn.nextSibling
+    while (b !== bEnd) {
+      parent.insertBefore(b.cloneNode(true), aEnd)
+      b = b.nextSibling
     }
   }
 
@@ -89,15 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const docEnd = findComment(document.documentElement, 'tx:' + target + '_e')
     if (!respStart || !respEnd || !docStart || !docEnd) return
 
-    const respRange = document.createRange()
-    respRange.setStartBefore(respStart)
-    respRange.setEndAfter(respEnd)
-
-    const range = document.createRange()
-    range.setStartBefore(docStart)
-    range.setEndAfter(docEnd)
-    range.deleteContents()
-    range.insertNode(respRange.extractContents())
+    morphChildren(docStart.parentNode, docStart.nextSibling, respStart.nextSibling, docEnd, respEnd)
   }
 
   const init = (cn) => {
