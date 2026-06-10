@@ -1,0 +1,20 @@
+<script type="text/tmplx">
+  import "tmplx.org/albums"
+
+  var q string
+  var results = albums.Search(q)
+</script>
+
+<input
+  type="search"
+  placeholder="Search albums…"
+  tx-oninput="q = event.target.value"
+/>
+<table>
+  <tr tx-for="_, a := range results" tx-key="a.Title">
+    <td>{ a.Title }</td>
+    <td>{ a.Artist }</td>
+    <td>{ a.Year }</td>
+  </tr>
+</table>
+<p tx-if="len(results) == 0">No albums match “{ q }”.</p>

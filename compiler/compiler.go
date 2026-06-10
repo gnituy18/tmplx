@@ -25,46 +25,53 @@ import (
 	"golang.org/x/net/html/atom"
 	"golang.org/x/text/unicode/norm"
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/imports"
 )
 
-// Compiler holds one compilation. Importer resolves the user's imported Go
-// packages; build it for a real project with PackageImporter. Leave it nil for
-// standard-library-only resolution (the playground) - non-stdlib imports then
-// surface as ordinary "cannot import" errors. OutputFile is only used for
-// goimports context; the caller writes the bytes. PackageName and HandlerPrefix
-// default to "main" / "/tx/". Add inputs with NewComponent / NewPage, then call
-// Compile. A Compiler keeps no package-level state, so distinct Compilers run
-// concurrently.
+// Compiler holds one compilation: add sources with NewComponent / NewPage,
+// then call Compile. Importer resolves the user's packages (PackageImporter);
+// nil resolves the standard library only. ComponentsDir and PagesDir are only
+// how errors and editor queries name files (default components / pages); set
+// them before adding sources. A Compiler keeps no package-level state, so
+// distinct Compilers run concurrently.
 type Compiler struct {
 	Importer      types.Importer
 	PackageName   string
 	HandlerPrefix string
-	OutputFile    string
 
-	components map[string]*Component
-	pages      []*Component
+	ComponentsDir string
+	components    map[string]*Component
+	PagesDir      string
+	pages         []*Component
 
 	errs []error
 }
 
 // NewComponent registers a reusable component read from path (slash-separated,
 // relative to the components dir, e.g. "foo/bar.html") with the given file
-// bytes. The component is named tx-<stem> (slashes become dashes). An invalid
-// name or a duplicate is recorded and surfaced by Compile.
+// bytes. The component is named tx-<stem> (slashes become dashes) and the file
+// is identified as <ComponentsDir>/<path> in diagnostics and editor queries.
+// An invalid name or a duplicate is recorded and surfaced by Compile.
 func (c *Compiler) NewComponent(path string, content []byte) {
 	if c.components == nil {
 		c.components = map[string]*Component{}
 	}
-	stem, _ := strings.CutSuffix(path, ".html")
-	if stem == "" {
-		c.errs = append(c.errs, fmt.Errorf("%s: invalid filename: .html (missing name before extension)", path))
+	if c.ComponentsDir == "" {
+		c.ComponentsDir = "components"
+	}
+
+	stem, ok := strings.CutSuffix(path, ".html")
+	// from here on path is namespaced: a page and a component may share a file
+	// name, so errors and editor queries identify files by their dir
+	path = strings.TrimSuffix(c.ComponentsDir, "/") + "/" + path
+	if !ok || stem == "" || strings.HasSuffix(stem, "/") {
+		c.errs = append(c.errs, fmt.Errorf("%s: invalid filename: want name.html", path))
 		return
 	}
+
 	name := "tx-" + strings.ReplaceAll(stem, "/", "-")
 	for _, r := range name {
 		if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
-			c.errs = append(c.errs, fmt.Errorf("%s: invalid character \"%s\" in <%s>: use only a-z, 0-9, -, _", path, string(r), name))
+			c.errs = append(c.errs, fmt.Errorf("%s: invalid character %q in <%s>: use only a-z, 0-9, -, _", path, string(r), name))
 			return
 		}
 	}
@@ -72,6 +79,7 @@ func (c *Compiler) NewComponent(path string, content []byte) {
 		c.errs = append(c.errs, fmt.Errorf("%s: duplicate component <%s>, first defined in %s", path, name, existing.Path))
 		return
 	}
+
 	c.components[name] = &Component{
 		compiler: c,
 		content:  content,
@@ -81,9 +89,8 @@ func (c *Compiler) NewComponent(path string, content []byte) {
 		Name:     name,
 		GoName:   goIdent(name),
 
-		ChildCounters: map[string]*Counter{},
-		Children:      map[*html.Node]*Child{},
-
+		ChildCounters:       map[string]*Counter{},
+		Children:            map[*html.Node]*Child{},
 		EventHandlers:       map[*html.Node][]*EventHandler{},
 		EventHandlerCounter: &Counter{},
 	}
@@ -91,42 +98,58 @@ func (c *Compiler) NewComponent(path string, content []byte) {
 
 // NewPage registers a page read from path (slash-separated, relative to the
 // pages dir) with the given file bytes. The route is derived from the path
-// (index.html -> "/", foo/bar.html -> "/foo/bar"). A duplicate route is recorded
-// and surfaced by Compile.
+// (index.html -> "/", foo/bar.html -> "/foo/bar") and the file is identified
+// as <PagesDir>/<path> in diagnostics and editor queries. A duplicate route is
+// recorded and surfaced by Compile.
 func (c *Compiler) NewPage(path string, content []byte) {
+	if c.PagesDir == "" {
+		c.PagesDir = "pages"
+	}
+
 	base := path[strings.LastIndex(path, "/")+1:]
-	urlDir, _ := strings.CutSuffix(path, base)
-	baseName, _ := strings.CutSuffix(base, ".html")
-	if baseName == "" {
-		c.errs = append(c.errs, fmt.Errorf("%s: invalid filename: .html (missing name before extension)", path))
+	dir, _ := strings.CutSuffix(path, base)
+	stem, ok := strings.CutSuffix(base, ".html")
+	path = strings.TrimSuffix(c.PagesDir, "/") + "/" + path // namespaced; see NewComponent
+	if !ok || stem == "" {
+		c.errs = append(c.errs, fmt.Errorf("%s: invalid filename: want name.html", path))
 		return
 	}
-	urlPath := "/" + urlDir
-	if baseName != "index" {
-		urlPath += baseName
+
+	route := "/" + dir
+	if stem != "index" {
+		route += stem
 	}
-	urlPath = norm.NFC.String(urlPath)
-	if strings.HasSuffix(urlPath, "/") {
-		urlPath += "{$}"
+	// macOS filenames arrive NFD-decomposed (e + combining accent) but
+	// browsers request NFC (precomposed); ServeMux compares bytes, so
+	// normalize the route to the form browsers send
+	route = norm.NFC.String(route)
+	// a ServeMux pattern ending in "/" matches the whole subtree, so a bare
+	// index route would swallow every unmatched URL under it; {$} pins it to
+	// exactly the directory URL (a {rest...}.html page is the explicit
+	// catch-all)
+	if strings.HasSuffix(route, "/") {
+		route += "{$}"
 	}
 	for _, p := range c.pages {
-		if p.Name == urlPath {
-			c.errs = append(c.errs, fmt.Errorf("%s: duplicate page route %s, first defined in %s", path, urlPath, p.Path))
+		if p.Name == route {
+			c.errs = append(c.errs, fmt.Errorf("%s: duplicate page route %s, first defined in %s", path, route, p.Path))
 			return
 		}
 	}
+
 	c.pages = append(c.pages, &Component{
 		compiler: c,
 		content:  content,
 		lineMap:  newLineMap(content),
 		Type:     CompTypePage,
 		Path:     path,
-		Name:     urlPath,
-		GoName:   "tx" + goIdent(urlPath),
+		Name:     route,
+		// route starts with "/" (-> _SL_), so this is always tx_SL_... -
+		// inside the reserved tx_ namespace, the encoding owning the underscore
+		GoName: "tx" + goIdent(route),
 
-		ChildCounters: map[string]*Counter{},
-		Children:      map[*html.Node]*Child{},
-
+		ChildCounters:       map[string]*Counter{},
+		Children:            map[*html.Node]*Child{},
 		EventHandlers:       map[*html.Node][]*EventHandler{},
 		EventHandlerCounter: &Counter{},
 	})
@@ -134,11 +157,11 @@ func (c *Compiler) NewPage(path string, content []byte) {
 
 // analyze runs the front of the pipeline - naming, parse, type-check (probe) -
 // and returns the sorted components plus any diagnostics, without codegen, so
-// the language server and playground can reuse it. It mutates the registered
+// Diagnose and the editor queries reuse it. It mutates the registered
 // Components, so call it once per Compiler.
 func (c *Compiler) analyze() ([]*Component, error) {
 	if c.Importer == nil {
-		c.Importer = importer.Default()
+		c.Importer = &lockedImporter{imp: importer.Default()}
 	}
 	if c.PackageName == "" {
 		c.PackageName = "main"
@@ -146,15 +169,12 @@ func (c *Compiler) analyze() ([]*Component, error) {
 	if c.HandlerPrefix == "" {
 		c.HandlerPrefix = "/tx/"
 	}
-	if c.OutputFile == "" {
-		c.OutputFile = "routes.go"
-	}
 	if err := sortedJoin(errors.Join(c.errs...)); err != nil {
 		return nil, err
 	}
 
-	// parse each <script> in parallel: var types, slots, effects. Each goroutine
-	// owns one error slot, so there is no shared mutable state to lock.
+	// parse the components in parallel; each goroutine owns one error slot, so
+	// there is no shared mutable state to lock
 	var wg sync.WaitGroup
 	components := slices.SortedFunc(maps.Values(c.components), func(a, b *Component) int {
 		return strings.Compare(a.Name, b.Name)
@@ -218,7 +238,7 @@ func (c *Compiler) analyze() ([]*Component, error) {
 				return
 			}
 			page.TemplateNode = parsed
-			page.annotatePositions() // record offsets on the pristine tree, before injection
+			page.annotatePositions()
 
 			txSavedNode := &html.Node{
 				Type:     html.ElementNode,
@@ -273,421 +293,26 @@ func (c *Compiler) analyze() ([]*Component, error) {
 		return nil, err
 	}
 
-	// type-check (go/types) and collect child/fill metadata in one walk
-	all := slices.Concat(components, c.pages)
-	probeErrs := make([]error, len(all))
-	for i, comp := range all {
-		wg.Go(func() { probeErrs[i] = comp.probe() })
+	// type-check (go/types) and collect child/fill metadata in one walk.
+	// Sequential on purpose: a parent's probeTmpl reads its child components'
+	// Vars (prop kinds/types) while probe also rewrites Vars, so parallel
+	// probes race. (Parallelizing again needs a build/apply barrier inside
+	// probe.)
+	var probeErrs []error
+	for _, comp := range slices.Concat(components, c.pages) {
+		probeErrs = append(probeErrs, comp.probe())
 	}
-	wg.Wait()
 	if err := sortedJoin(errors.Join(probeErrs...)); err != nil {
 		return nil, err
 	}
 	return components, nil
 }
 
-// Diagnose runs analyze and returns the diagnostics (parse + type errors) for
-// the language server and the playground.
+// Diagnose runs analyze and returns the diagnostics (parse + type errors)
+// without generating code.
 func (c *Compiler) Diagnose() []Diagnostic {
 	_, err := c.analyze()
 	return diagnostics(err)
-}
-
-// Def is a go-to-definition target. Either it names a tmplx file in the project
-// (Path + Span — a state/prop/func decl, or a component's file), or it is an
-// external Go symbol (Pkg + Name) the caller resolves in that package's source.
-type Def struct {
-	Path string // rel path of a tmplx file in the project; "" if external
-	Span Span
-	Pkg  string // import path of an external package; "" if in-project
-	Name string // the external symbol's name
-}
-
-// Definition resolves what is at the .html line/col in the component or page at
-// path and returns its declaration. It uses go/types (so it handles state, props,
-// derived, locals, funcs, imports, and stdlib like fmt.Println alike) plus tmplx
-// component references (<tx-foo> -> its file, a prop attr -> the child's prop).
-// Best-effort: analyzes once, resolves even when the project has diagnostics.
-func (c *Compiler) Definition(path string, line, col int) (Def, bool) {
-	c.analyze()
-	comp := c.byPath(path)
-	if comp == nil {
-		return Def{}, false
-	}
-	off := comp.lineMap.Offset(line, col)
-	if d, ok := comp.componentRefAt(off); ok {
-		return d, true
-	}
-	sem := comp.semantic()
-	if sem == nil {
-		return Def{}, false
-	}
-	obj := sem.objOf(sem.identAt(off))
-	if obj == nil || obj.Pkg() == nil {
-		return Def{}, false // builtin (len, string, ...) or unresolved
-	}
-	if obj.Pkg().Path() != "tx_probe" {
-		return Def{Pkg: obj.Pkg().Path(), Name: obj.Name()}, true // external symbol
-	}
-	if obj.Pos() == token.NoPos {
-		return Def{}, false
-	}
-	h, ok := sem.goToHTML(sem.fset.Position(obj.Pos()).Offset)
-	if !ok {
-		return Def{}, false
-	}
-	return Def{Path: comp.Path, Span: Span{
-		Start: comp.lineMap.Pos(h),
-		End:   comp.lineMap.Pos(h + len(obj.Name())),
-	}}, true
-}
-
-// Hover returns a one-line description (the go/types object string) of the symbol
-// at the .html line/col, plus the .html span of the hovered identifier.
-func (c *Compiler) Hover(path string, line, col int) (string, Span, bool) {
-	c.analyze()
-	comp := c.byPath(path)
-	if comp == nil {
-		return "", Span{}, false
-	}
-	sem := comp.semantic()
-	if sem == nil {
-		return "", Span{}, false
-	}
-	id := sem.identAt(comp.lineMap.Offset(line, col))
-	obj := sem.objOf(id)
-	if obj == nil {
-		return "", Span{}, false
-	}
-	span := Span{}
-	if h, ok := sem.goToHTML(sem.fset.Position(id.Pos()).Offset); ok {
-		span = Span{Start: comp.lineMap.Pos(h), End: comp.lineMap.Pos(h + len(id.Name))}
-	}
-	qual := func(p *types.Package) string {
-		if p.Path() == "tx_probe" {
-			return "" // the synthetic package: show local symbols unqualified
-		}
-		return p.Name()
-	}
-	return types.ObjectString(obj, qual), span, true
-}
-
-// Symbol is one entry in a file's outline (document symbols).
-type Symbol struct {
-	Name string
-	Kind int // LSP SymbolKind: Field=8 (prop), Function=12, Variable=13 (state/derived)
-	Span Span
-}
-
-// Symbols returns the outline of the component or page at path: its state, props,
-// derived/path vars, and funcs, each with its declaration span.
-func (c *Compiler) Symbols(path string) []Symbol {
-	c.analyze()
-	comp := c.byPath(path)
-	if comp == nil {
-		return nil
-	}
-	var out []Symbol
-	for _, v := range comp.Vars {
-		kind := 13 // Variable
-		switch {
-		case v.IsFunc():
-			kind = 12 // Function
-		case v.Kind == VarKindProp:
-			kind = 8 // Field (a component input)
-		}
-		if v.Span != (Span{}) {
-			out = append(out, Symbol{Name: v.Name, Kind: kind, Span: v.Span})
-		}
-	}
-	for _, f := range comp.Funcs {
-		if f.Span != (Span{}) {
-			out = append(out, Symbol{Name: f.Decl.Name.Name, Kind: 12, Span: f.Span})
-		}
-	}
-	return out
-}
-
-// References returns every .html span in the component/page at path that refers
-// to the symbol at line/col (its declaration plus all uses, across the script and
-// template). Resolution is within the one file via go/types.
-func (c *Compiler) References(path string, line, col int) []Span {
-	c.analyze()
-	comp := c.byPath(path)
-	if comp == nil {
-		return nil
-	}
-	sem := comp.semantic()
-	if sem == nil {
-		return nil
-	}
-	target := sem.objOf(sem.identAt(comp.lineMap.Offset(line, col)))
-	if target == nil {
-		return nil
-	}
-	var spans []Span
-	mark := func(id *ast.Ident, obj types.Object) {
-		if obj != target {
-			return
-		}
-		if h, ok := sem.goToHTML(sem.fset.Position(id.Pos()).Offset); ok {
-			spans = append(spans, Span{Start: comp.lineMap.Pos(h), End: comp.lineMap.Pos(h + len(id.Name))})
-		}
-	}
-	for id, obj := range sem.info.Uses {
-		mark(id, obj)
-	}
-	for id, obj := range sem.info.Defs {
-		mark(id, obj)
-	}
-	return spans
-}
-
-func (c *Compiler) byPath(path string) *Component {
-	for _, comp := range c.components {
-		if comp.Path == path {
-			return comp
-		}
-	}
-	for _, page := range c.pages {
-		if page.Path == path {
-			return page
-		}
-	}
-	return nil
-}
-
-// semantic is a go/types view of a component built for editor queries: the script
-// block verbatim plus every template text expression, type-checked, with a source
-// map (sem.go byte ranges <-> .html byte ranges) and captured Uses/Defs. It is
-// independent of the diagnostic probe and best-effort (type errors are ignored).
-type semantic struct {
-	fset *token.FileSet
-	file *ast.File
-	info *types.Info
-	maps []semMap // verbatim fragments
-}
-
-type semMap struct{ goStart, length, htmlStart int }
-
-func (comp *Component) semantic() *semantic {
-	if comp.TmplxScriptNode == nil || comp.TmplxScriptNode.FirstChild == nil {
-		return nil
-	}
-	var b strings.Builder
-	var maps []semMap
-	b.WriteString("package tx_probe\n")
-	script := comp.TmplxScriptNode.FirstChild.Data
-	maps = append(maps, semMap{goStart: b.Len(), length: len(script), htmlStart: comp.scriptStart})
-	b.WriteString(script)
-	b.WriteString("\nfunc tx_tmpl() {\n")
-	comp.collectExprs(comp.TemplateNode, &b, &maps)
-	b.WriteString("\n}\n")
-
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "sem.go", b.String(), parser.SkipObjectResolution)
-	if err != nil {
-		return nil
-	}
-	info := &types.Info{
-		Defs: map[*ast.Ident]types.Object{},
-		Uses: map[*ast.Ident]types.Object{},
-	}
-	(&types.Config{Importer: comp.compiler.Importer, Error: func(error) {}}).Check("tx_probe", fset, []*ast.File{file}, info)
-	return &semantic{fset: fset, file: file, info: info, maps: maps}
-}
-
-// collectExprs emits every Go fragment in the template — text interpolations,
-// attribute interpolations, tx-if/tx-for/tx-key/tx-action, tx-on handlers, and
-// component prop values — into the probe function, recording each fragment's
-// .html source span so a click anywhere in template Go resolves through go/types.
-// Emission is flat (no scope nesting), so a tx-for loop variable used in a child
-// element won't resolve; everything else does.
-func (comp *Component) collectExprs(node *html.Node, b *strings.Builder, maps *[]semMap) {
-	emit := func(prefix, raw, suffix string, htmlOff int) {
-		b.WriteString(prefix)
-		*maps = append(*maps, semMap{goStart: b.Len(), length: len(raw), htmlStart: htmlOff})
-		b.WriteString(raw)
-		b.WriteString(suffix)
-	}
-	interp := func(s string, base int) {
-		comp.scanTmplStr(s, false, func(rune) {}, func(expr string, off int) error {
-			if _, err := parser.ParseExpr(expr); err == nil {
-				emit("_ = (", expr, ")\n", base+off)
-			}
-			return nil
-		})
-	}
-	switch node.Type {
-	case html.TextNode:
-		if node.Parent != nil {
-			if _, ign := hasAttr(node.Parent, "tx-ignore"); !ign && !isVerbatimSerialize(node.Parent.DataAtom) {
-				if base, ok := comp.nodePos[node]; ok {
-					interp(node.Data, base)
-				}
-			}
-		}
-	case html.ElementNode:
-		isComp := comp.compiler.components[node.Data] != nil
-		for _, attr := range node.Attr {
-			off, ok := comp.attrValueOffset(node, attr.Key)
-			if ok && attr.Val != "" {
-				parses := func() bool { _, err := parser.ParseExpr(attr.Val); return err == nil }
-				switch {
-				case attr.Key == "tx-if" || attr.Key == "tx-else-if":
-					if parses() {
-						emit("if (", attr.Val, ") {\n}\n", off)
-					}
-				case attr.Key == "tx-for":
-					emit("for ", attr.Val, " {\n}\n", off)
-				case attr.Key == "tx-key" || attr.Key == "tx-action":
-					if parses() {
-						emit("_ = (", attr.Val, ")\n", off)
-					}
-				case strings.HasPrefix(attr.Key, "tx-on"):
-					emit("{\n", attr.Val, "\n}\n", off)
-				case isComp && !strings.HasPrefix(attr.Key, "tx-") && attr.Key != "slot":
-					if parses() {
-						emit("_ = (", attr.Val, ")\n", off)
-					}
-				default:
-					if strings.Contains(attr.Val, "{") {
-						interp(attr.Val, off)
-					}
-				}
-			}
-		}
-	}
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		comp.collectExprs(c, b, maps)
-	}
-}
-
-func (s *semantic) htmlToGo(off int) (int, bool) {
-	for _, m := range s.maps {
-		if off >= m.htmlStart && off < m.htmlStart+m.length {
-			return m.goStart + (off - m.htmlStart), true
-		}
-	}
-	return 0, false
-}
-
-func (s *semantic) goToHTML(off int) (int, bool) {
-	for _, m := range s.maps {
-		if off >= m.goStart && off < m.goStart+m.length {
-			return m.htmlStart + (off - m.goStart), true
-		}
-	}
-	return 0, false
-}
-
-// identAt finds the innermost identifier covering the .html byte offset.
-func (s *semantic) identAt(htmlOff int) *ast.Ident {
-	goOff, ok := s.htmlToGo(htmlOff)
-	if !ok {
-		return nil
-	}
-	var found *ast.Ident
-	ast.Inspect(s.file, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok {
-			if p := s.fset.Position(id.Pos()).Offset; goOff >= p && goOff < p+len(id.Name) {
-				found = id
-			}
-		}
-		return true
-	})
-	return found
-}
-
-func (s *semantic) objOf(id *ast.Ident) types.Object {
-	if id == nil {
-		return nil
-	}
-	if obj := s.info.Uses[id]; obj != nil {
-		return obj
-	}
-	return s.info.Defs[id]
-}
-
-// componentRefAt resolves a click on a <tx-foo> usage: on the tag name -> the
-// component's file; on a prop attribute's key -> the child component's prop decl.
-func (comp *Component) componentRefAt(off int) (Def, bool) {
-	for node, start := range comp.nodePos {
-		if node.Type != html.ElementNode {
-			continue
-		}
-		used, isComp := comp.compiler.components[node.Data]
-		if !isComp {
-			continue
-		}
-		gt := bytes.IndexByte(comp.content[start:], '>')
-		if gt < 0 || off < start || off > start+gt {
-			continue
-		}
-		if off <= start+1+len(node.Data) { // on "<tx-foo"
-			return Def{Path: used.Path}, true
-		}
-		for _, attr := range node.Attr {
-			ks, ke, found := comp.attrKeyRange(node, attr.Key)
-			if found && off >= ks && off < ke {
-				if v := used.varByName(attr.Key); v != nil && v.Kind == VarKindProp {
-					return Def{Path: used.Path, Span: v.Span}, true
-				}
-			}
-		}
-	}
-	return Def{}, false
-}
-
-// attrKeyRange returns the byte range of an attribute's key within node's open tag.
-func (comp *Component) attrKeyRange(node *html.Node, key string) (int, int, bool) {
-	start, ok := comp.nodePos[node]
-	if !ok {
-		return 0, 0, false
-	}
-	gt := bytes.IndexByte(comp.content[start:], '>')
-	if gt < 0 {
-		return 0, 0, false
-	}
-	tag := comp.content[start : start+gt]
-	for i := 1; i+len(key) <= len(tag); i++ {
-		if (tag[i-1] == ' ' || tag[i-1] == '\t' || tag[i-1] == '\n') && string(tag[i:i+len(key)]) == key {
-			after := i + len(key)
-			if after == len(tag) || tag[after] == '=' || tag[after] == ' ' || tag[after] == '\t' || tag[after] == '\n' || tag[after] == '/' {
-				return start + i, start + i + len(key), true
-			}
-		}
-	}
-	return 0, 0, false
-}
-
-// attrValueOffset returns the byte offset of an attribute's value (the first
-// character inside the quotes) within node's open tag.
-func (comp *Component) attrValueOffset(node *html.Node, key string) (int, bool) {
-	start, ok := comp.nodePos[node]
-	if !ok {
-		return 0, false
-	}
-	_, ke, found := comp.attrKeyRange(node, key)
-	if !found {
-		return 0, false
-	}
-	tag := comp.content[start : start+bytes.IndexByte(comp.content[start:], '>')]
-	j := ke - start
-	for j < len(tag) && (tag[j] == ' ' || tag[j] == '\t' || tag[j] == '\n') {
-		j++
-	}
-	if j >= len(tag) || tag[j] != '=' {
-		return 0, false // boolean attribute, no value
-	}
-	j++
-	for j < len(tag) && (tag[j] == ' ' || tag[j] == '\t' || tag[j] == '\n') {
-		j++
-	}
-	if j < len(tag) && (tag[j] == '"' || tag[j] == '\'') {
-		j++
-	}
-	return start + j, true
 }
 
 // Compile type-checks the registered components and pages and returns the
@@ -700,23 +325,9 @@ func (c *Compiler) Compile() ([]byte, error) {
 		return nil, err
 	}
 
-	// assemble routes.go: emit the code, run goimports, return the bytes
+	// the body is emitted first, the package/import header after: the import
+	// block depends on what the body used (code.needsFmt / needsHTML)
 	var code CodeBuilder
-
-	code.write("package %s\n", c.PackageName)
-
-	code.write("import(\n")
-	for _, page := range c.pages {
-		for _, im := range page.Imports {
-			code.write("%s\n", astToSource(im))
-		}
-	}
-	for _, comp := range components {
-		for _, im := range comp.Imports {
-			code.write("%s\n", astToSource(im))
-		}
-	}
-	code.write(")\n")
 
 	for _, comp := range components {
 		code.write("type %s struct {\n", comp.GoName)
@@ -877,7 +488,7 @@ func (c *Compiler) Compile() ([]byte, error) {
 		for _, child := range children {
 			for _, slotName := range child.Comp.Slots {
 				if fill := child.Fills[slotName]; fill != nil {
-					code.write("func (tx_comp *%s) tx_render_fill_%s_%s_%s(tx_w *bytes.Buffer", comp.GoName, child.Comp.GoName, child.Pos, slotName)
+					code.write("func (tx_comp *%s) tx_render_fill_%s_%s_%s(tx_w *bytes.Buffer", comp.GoName, child.Comp.GoName, child.Pos, goIdent(slotName))
 					if len(fill.Children) > 0 {
 						code.write(", tx_id string")
 					}
@@ -1008,7 +619,7 @@ func (c *Compiler) Compile() ([]byte, error) {
 		for _, child := range children {
 			for _, slotName := range child.Comp.Slots {
 				if fill := child.Fills[slotName]; fill != nil {
-					code.write("func (tx_comp *%s) tx_render_fill_%s_%s_%s(tx_w *bytes.Buffer", page.GoName, child.Comp.GoName, child.Pos, slotName)
+					code.write("func (tx_comp *%s) tx_render_fill_%s_%s_%s(tx_w *bytes.Buffer", page.GoName, child.Comp.GoName, child.Pos, goIdent(slotName))
 					if len(fill.Children) > 0 {
 						code.write(", tx_id string")
 					}
@@ -1141,93 +752,49 @@ func (c *Compiler) Compile() ([]byte, error) {
 
 	code.write("var tx_runtime_script = `%s`\n", strings.Replace(runtimeScript, "TX_HANDLER_PREFIX", c.HandlerPrefix, 1))
 
-	data := []byte(code.String())
-	formatted, err := imports.Process(c.OutputFile, data, nil)
+	var file CodeBuilder
+	file.write("package %s\n", c.PackageName)
+	file.write("import (\n")
+	seen := map[string]bool{}  // import specs already written (dedup across files)
+	bound := map[string]bool{} // paths whose package name the user's imports already bind
+	for _, comp := range slices.Concat(c.pages, components) {
+		for _, im := range comp.Imports {
+			src := astToSource(im)
+			if seen[src] {
+				continue
+			}
+			seen[src] = true
+			path, _ := strconv.Unquote(im.Path.Value)
+			if im.Name == nil || im.Name.Name == path[strings.LastIndexByte(path, '/')+1:] {
+				bound[path] = true
+			}
+			file.write("%s\n", src)
+		}
+	}
+	generated := []string{"bytes", "encoding/json", "net/http", "strings"}
+	if len(c.pages)+len(components) > 0 {
+		generated = append(generated, "net/url")
+	}
+	if code.needsFmt {
+		generated = append(generated, "fmt")
+	}
+	if code.needsHTML {
+		generated = append(generated, "html")
+	}
+	for _, path := range generated {
+		if !bound[path] {
+			file.write("\"%s\"\n", path)
+		}
+	}
+	file.write(")\n")
+	file.WriteString(code.String())
+
+	data := []byte(file.String())
+	formatted, err := format.Source(data)
 	if err != nil {
 		return data, fmt.Errorf("format generated code: %w", err)
 	}
 	return formatted, nil
-}
-
-// Format formats the <script type="text/tmplx"> block of a tmplx source file
-// the way gopls would (gofmt: tabs for nested code) while preserving the HTML
-// indentation of the <script> tag: every Go line is prefixed with the tag's own
-// indent, so a <script> nested 8 spaces deep keeps its body at 8 spaces + tabs.
-// The surrounding HTML is left untouched. With no tmplx script src is returned
-// unchanged; if the script isn't valid Go, src is returned plus the error.
-func Format(src []byte) ([]byte, error) {
-	// locate the <script type="text/tmplx"> tag and its text content
-	tagStart, contentStart, contentEnd := -1, -1, -1
-	z := html.NewTokenizer(bytes.NewReader(src))
-	for offset := 0; ; {
-		tt := z.Next()
-		if tt == html.ErrorToken {
-			break
-		}
-		raw := z.Raw()
-		if tt == html.StartTagToken {
-			if name, hasAttr := z.TagName(); string(name) == "script" {
-				tmplx := false
-				for hasAttr {
-					var k, v []byte
-					k, v, hasAttr = z.TagAttr()
-					if string(k) == "type" && string(v) == "text/tmplx" {
-						tmplx = true
-					}
-				}
-				if tmplx {
-					tagStart, contentStart = offset, offset+len(raw)
-					if z.Next() == html.TextToken {
-						contentEnd = contentStart + len(z.Raw())
-					}
-					break
-				}
-			}
-		}
-		offset += len(raw)
-	}
-	if contentEnd < 0 {
-		return src, nil // no tmplx script, or it's empty
-	}
-
-	// Format as a full file (synthetic package clause) so every top-level decl
-	// lands at column 0. format.Source's fragment mode instead indents the whole
-	// result by the first code line's indentation, which over-indents lines 2+ of
-	// an already-indented script. Then drop the package clause.
-	formatted, err := format.Source(append([]byte("package p\n"), src[contentStart:contentEnd]...))
-	if err != nil {
-		return src, fmt.Errorf("format script: %w", err)
-	}
-	if nl := bytes.IndexByte(formatted, '\n'); nl >= 0 {
-		formatted = formatted[nl+1:]
-	}
-
-	// the <script> tag's own indentation: the whitespace before '<' on its line
-	// (only when the tag is alone on its line, else don't add a base indent)
-	indent := src[bytes.LastIndexByte(src[:tagStart], '\n')+1 : tagStart]
-	if len(bytes.TrimLeft(indent, " \t")) != 0 {
-		indent = nil
-	}
-
-	var body []byte
-	for i, line := range bytes.Split(bytes.TrimSpace(formatted), []byte("\n")) {
-		if i > 0 {
-			body = append(body, '\n')
-		}
-		if len(line) > 0 {
-			body = append(body, indent...)
-			body = append(body, line...)
-		}
-	}
-
-	out := make([]byte, 0, len(src)+len(body))
-	out = append(out, src[:contentStart]...)
-	out = append(out, '\n')
-	out = append(out, body...)
-	out = append(out, '\n')
-	out = append(out, indent...)
-	out = append(out, src[contentEnd:]...)
-	return out, nil
 }
 
 type CompType int
@@ -1238,41 +805,40 @@ const (
 )
 
 type Component struct {
-	compiler    *Compiler
-	content     []byte
-	lineMap     *LineMap           // byte offset -> line/col in content (for diagnostics)
-	scriptStart int                // byte offset of the <script> content in content; set by parseScript
-	nodePos     map[*html.Node]int // element/text node -> byte offset in content (set by annotatePositions)
+	// set at construction
+	compiler *Compiler
+	content  []byte
+	lineMap  *LineMap // byte offset -> line/col in content (for diagnostics)
+	Type     CompType
+	Path     string
+	Name     string
+	GoName   string
 
-	Type   CompType
-	Path   string
-	Name   string
-	GoName string
-
+	// the parsed HTML, set in analyze
 	TmplxScriptNode *html.Node
 	TemplateNode    *html.Node
 	StyleNode       *html.Node
+	nodePos         map[*html.Node]int // node -> byte offset in content (annotatePositions)
 
-	Imports  []*ast.ImportSpec
-	Vars     []*Var
-	InitFunc *Func
-	Funcs    []*Func
-	Slots    []string
+	// the script block's declarations, set by parseScript and parseSlots
+	scriptStart int // byte offset of the <script> text in content
+	Imports     []*ast.ImportSpec
+	Vars        []*Var
+	InitFunc    *Func
+	Funcs       []*Func
+	Slots       []string
 
-	ChildCounters map[string]*Counter
-	Children      map[*html.Node]*Child
-
+	// template metadata, filled by probe
+	ChildCounters       map[string]*Counter
+	Children            map[*html.Node]*Child
 	EventHandlers       map[*html.Node][]*EventHandler
 	EventHandlerCounter *Counter
 }
 
-// -------------------- parse & analyze --------------------
-
-// checkImports verifies every import resolves through comp.compiler.Importer (the user's
-// packages for a build, the standard library for the playground). An import that
-// does not resolve is reported here as a plain "cannot import X" so it fails
-// clearly instead of cascading into a cryptic probe error; the caller skips
-// type-checking the component when this returns non-nil.
+// checkImports verifies every import resolves through comp.compiler.Importer.
+// An import that does not resolve is reported here as a plain "cannot import X"
+// so it fails clearly instead of cascading into a cryptic probe error; the
+// caller skips type-checking the component when this returns non-nil.
 func (comp *Component) checkImports() error {
 	var errs []error
 	for _, im := range comp.Imports {
@@ -1589,8 +1155,6 @@ func (comp *Component) inferEffects() {
 		f.Effect = eff
 	}
 }
-
-// -------------------- probe --------------------
 
 func (comp *Component) probe() error {
 	var errs []error
@@ -2139,8 +1703,6 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 	}
 }
 
-// -------------------- emit --------------------
-
 func (comp *Component) emitCompute(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool) {
 	switch node.Type {
 	case html.DocumentNode:
@@ -2363,6 +1925,9 @@ func (comp *Component) emitRender(code *Code, node *html.Node, localVars []Local
 }
 
 func (comp *Component) emitChildKey(code *Code, child *Child, forKeys []string, inSlot bool) {
+	if len(forKeys) > 0 {
+		code.NeedsFmt = true // the key segments below call fmt.Sprint
+	}
 	code.emitGo("tx_id := ")
 	if inSlot {
 		code.emitGo("tx_id")
@@ -2463,8 +2028,6 @@ func (comp *Component) emitChildren(code *Code, node *html.Node, localVars []Loc
 	}
 }
 
-// -------------------- queries --------------------
-
 func (comp *Component) errf(msg string, a ...any) *Diagnostic {
 	return comp.errAt(Span{}, msg, a...)
 }
@@ -2562,8 +2125,10 @@ func (comp *Component) hasCompute() bool {
 	return len(comp.Children) > 0
 }
 
-// -------------------- rewrites & locals --------------------
-
+// rewriteVarRefs rewrites bare references to component vars and funcs into
+// tx_comp selectors (count -> tx_comp.V_count), dereferencing value props. It
+// mutates node in place, so raw-AST analyses (dirtyDerivedNames) must run
+// before it - afterward they see the selectors and miss the bare idents.
 func (comp *Component) rewriteVarRefs(node ast.Node, localVars []LocalVar) ast.Node {
 	return astutil.Apply(node, func(c *astutil.Cursor) bool {
 		ident, ok := c.Node().(*ast.Ident)
@@ -2760,8 +2325,6 @@ func (comp *Component) rewriteExpr(exprStr string, localVars []LocalVar) string 
 	return astToSource(comp.rewriteVarRefs(expr, localVars))
 }
 
-// -------------------- lookups --------------------
-
 func (comp *Component) varByName(name string) *Var {
 	for _, v := range comp.Vars {
 		if v.Name == name {
@@ -2779,8 +2342,6 @@ func (comp *Component) funcByName(name string) *Func {
 	}
 	return nil
 }
-
-// -------------------- effect analysis --------------------
 
 func (comp *Component) directFuncFacts(body *ast.BlockStmt) (self bool, props []*Var, calls []*Func) {
 	if body == nil {
@@ -2966,8 +2527,6 @@ func (comp *Component) dirtyDerivedNames(body *ast.BlockStmt) []string {
 	return result
 }
 
-// -------------------- AST & scan helpers --------------------
-
 func (comp *Component) shadowingLocals(body ast.Node) []string {
 	candidates := []*ast.Ident{}
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -3015,6 +2574,11 @@ func (comp *Component) shadowingLocals(body ast.Node) []string {
 	return found
 }
 
+// scanTmplStr scans template text: onRaw receives each literal rune (runs of
+// whitespace collapse to one space when collapseWs), onExpr receives each
+// top-level { expr } trimmed, with its byte offset in str (the sourcemaps
+// depend on it). Braces inside Go string and rune literals don't open or close
+// expressions. Errors on an unclosed quote or brace.
 func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r rune), onExpr func(expr string, off int) error) error {
 	if str == "" {
 		return nil
@@ -3122,333 +2686,12 @@ func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r run
 	return nil
 }
 
-// ==================== errors ====================
-
-// Pos is a 1-based line/column in a source file. Col is a byte column; the
-// language server converts it to UTF-16 at the protocol boundary.
-type Pos struct {
-	Line, Col int
-}
-
-// Span is a half-open range in one .html file. The zero Span means "no precise
-// location" - the diagnostic points at the whole file.
-type Span struct {
-	Start, End Pos
-}
-
-type Severity int
-
-const (
-	SevError Severity = iota
-	SevWarning
-)
-
-// Diagnostic is a positioned compiler message. It implements error so it flows
-// through errors.Join with the rest of the pipeline; Diagnose collects the
-// leaves back into []Diagnostic for the language server and the playground.
-type Diagnostic struct {
-	Path     string
-	Span     Span
-	Message  string
-	Severity Severity
-	Related  []RelatedInfo
-}
-
-// RelatedInfo points at a secondary location, e.g. a component's prop
-// declaration referenced from a usage-site error in another file.
-type RelatedInfo struct {
-	Path    string
-	Span    Span
-	Message string
-}
-
-func (d *Diagnostic) Error() string {
-	if d.Span == (Span{}) {
-		return d.Path + ": " + d.Message
-	}
-	return fmt.Sprintf("%s:%d:%d: %s", d.Path, d.Span.Start.Line, d.Span.Start.Col, d.Message)
-}
-
-// diagnostics flattens a pipeline error tree into sorted Diagnostics: leaves
-// that are *Diagnostic keep their span; any others become file-less messages.
-func diagnostics(err error) []Diagnostic {
-	leaves := flattenErrs(err)
-	ds := make([]Diagnostic, 0, len(leaves))
-	for _, e := range leaves {
-		var d *Diagnostic
-		if errors.As(e, &d) {
-			ds = append(ds, *d)
-		} else {
-			ds = append(ds, Diagnostic{Message: e.Error()})
-		}
-	}
-	slices.SortStableFunc(ds, func(a, b Diagnostic) int {
-		if a.Path != b.Path {
-			return strings.Compare(a.Path, b.Path)
-		}
-		if a.Span.Start.Line != b.Span.Start.Line {
-			return a.Span.Start.Line - b.Span.Start.Line
-		}
-		return a.Span.Start.Col - b.Span.Start.Col
-	})
-	return ds
-}
-
-// LineMap converts byte offsets in a source file into 1-based line/byte-column.
-type LineMap struct {
-	lineStarts []int
-}
-
-func newLineMap(src []byte) *LineMap {
-	starts := []int{0}
-	for i, b := range src {
-		if b == '\n' {
-			starts = append(starts, i+1)
-		}
-	}
-	return &LineMap{lineStarts: starts}
-}
-
-// Pos returns the 1-based line and byte-column for a byte offset.
-func (m *LineMap) Pos(offset int) Pos {
-	lo, hi := 0, len(m.lineStarts)-1
-	for lo < hi {
-		mid := (lo + hi + 1) / 2
-		if m.lineStarts[mid] <= offset {
-			lo = mid
-		} else {
-			hi = mid - 1
-		}
-	}
-	return Pos{Line: lo + 1, Col: offset - m.lineStarts[lo] + 1}
-}
-
-// Offset is the inverse of Pos: a 1-based line/col back to a byte offset.
-func (m *LineMap) Offset(line, col int) int {
-	if line < 1 || line > len(m.lineStarts) {
-		return -1
-	}
-	return m.lineStarts[line-1] + col - 1
-}
-
-// flattenErrs returns the leaf errors of a tree produced by errors.Join, in
-// order (errors.Join nests rather than flattens its inputs).
-func flattenErrs(err error) []error {
-	if err == nil {
-		return nil
-	}
-	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		var out []error
-		for _, e := range joined.Unwrap() {
-			out = append(out, flattenErrs(e)...)
-		}
-		return out
-	}
-	return []error{err}
-}
-
-// sortedJoin flattens err and rejoins its leaves ordered by the text before the
-// first ':', so diagnostics group by file. Returns nil when there are none.
-func sortedJoin(err error) error {
-	errs := flattenErrs(err)
-	slices.SortStableFunc(errs, func(a, b error) int {
-		pa, _, _ := strings.Cut(a.Error(), ":")
-		pb, _, _ := strings.Cut(b.Error(), ":")
-		return strings.Compare(pa, pb)
-	})
-	return errors.Join(errs...)
-}
-
-// Messages returns one diagnostic string per leaf error, sorted, for callers
-// (the playground) that surface diagnostics individually.
-func Messages(err error) []string {
-	errs := flattenErrs(sortedJoin(err))
-	msgs := make([]string, len(errs))
-	for i, e := range errs {
-		msgs[i] = e.Error()
-	}
-	return msgs
-}
-
-// ==================== probe infra ====================
-
-type pkgImporter struct {
-	loaded map[string]*types.Package
-}
-
-func (p *pkgImporter) Import(path string) (*types.Package, error) {
-	if pkg, ok := p.loaded[path]; ok {
-		return pkg, nil
-	}
-	return importer.Default().Import(path)
-}
-
-// PackageImporter builds a types.Importer that resolves the given packages (keyed
-// by import path) and falls back to the standard library. The CLI loads the
-// user's module packages with golang.org/x/tools/go/packages and passes them
-// here; for stdlib-only resolution leave Compiler.Importer nil.
-func PackageImporter(loaded map[string]*types.Package) types.Importer {
-	return &pkgImporter{loaded: loaded}
-}
-
-type probeAnchor struct {
-	line int
-	span Span
-	desc string
-}
-
-type probeState struct {
-	buf       strings.Builder
-	line      int
-	span      Span // .html span of the construct currently being emitted
-	anchors   []probeAnchor
-	parseErrs []*Diagnostic
-}
-
-func newProbeState() *probeState {
-	return &probeState{line: 1}
-}
-
-func (p *probeState) write(s string) {
-	p.buf.WriteString(s)
-	p.line += strings.Count(s, "\n")
-}
-
-func (p *probeState) writef(format string, args ...any) {
-	p.write(fmt.Sprintf(format, args...))
-}
-
-func (p *probeState) anchor(span Span, desc string) {
-	if span == (Span{}) {
-		span = p.span // fall back to the current construct's span
-	}
-	p.anchors = append(p.anchors, probeAnchor{line: p.line, span: span, desc: desc})
-}
-
-func (p *probeState) descAt(line int) (Span, string) {
-	var best probeAnchor
-	for _, a := range p.anchors {
-		if a.line <= line {
-			best = a
-		} else {
-			break
-		}
-	}
-	return best.span, best.desc
-}
-
-func (p *probeState) parseErr(desc string, err error) {
-	msg := err.Error()
-	if errs, ok := err.(scanner.ErrorList); ok && len(errs) > 0 {
-		msg = errs[0].Msg
-	}
-	p.perr("%s: %s", desc, msg)
-}
-
-// perr records a template parse/validation error at the current construct's span.
-func (p *probeState) perr(format string, args ...any) {
-	p.parseErrs = append(p.parseErrs, &Diagnostic{Span: p.span, Message: fmt.Sprintf(format, args...)})
-}
-
-// ==================== codegen buffer ====================
-
-type Counter struct {
-	CurrNum int
-}
-
-func (id *Counter) next() int {
-	id.CurrNum++
-	return id.CurrNum
-}
-
-type SegmentType int
-
-const (
-	SegmentTypeStrLit SegmentType = iota
-	SegmentTypeGo
-	SegmentTypeExpr
-	SegmentTypeHtmlEscapeExpr
-)
-
-type Segment struct {
-	Type    SegmentType
-	BufName string
-	Content []byte
-}
-
-func (s Segment) empty() bool { return len(s.Content) == 0 }
-
-type Code struct {
-	PendingSegment Segment
-	Segments       []Segment
-}
-
-func newCode(buf string) Code {
-	return Code{
-		PendingSegment: Segment{
-			BufName: buf,
-		},
-	}
-}
-
-func (code *Code) emit(t SegmentType, content string) {
-	isExpr := t == SegmentTypeExpr || t == SegmentTypeHtmlEscapeExpr
-	if code.PendingSegment.Type != t || isExpr {
-		bufName := code.flush()
-		code.PendingSegment = Segment{Type: t, BufName: bufName}
-	}
-	code.PendingSegment.Content = append(code.PendingSegment.Content, content...)
-}
-
-func (code *Code) emitGo(content string) {
-	code.emit(SegmentTypeGo, content)
-}
-
-func (code *Code) emitStrLit(content string) {
-	code.emit(SegmentTypeStrLit, content)
-}
-
-func (code *Code) emitExpr(content string) {
-	code.emit(SegmentTypeExpr, content)
-}
-
-func (code *Code) emitHtmlEscapeExpr(content string) {
-	code.emit(SegmentTypeHtmlEscapeExpr, content)
-}
-
-func (code *Code) emitSplit() {
-	code.flush()
-	code.PendingSegment = Segment{
-		BufName: "tx_w2",
-	}
-}
-
-func (code *Code) writeTo(codeBuilder *CodeBuilder) {
-	code.flush()
-	for _, segment := range code.Segments {
-		switch segment.Type {
-		case SegmentTypeGo:
-			codeBuilder.WriteString(string(segment.Content))
-		case SegmentTypeStrLit:
-			codeBuilder.write("%s.WriteString(%s)\n", segment.BufName, strconv.Quote(string(segment.Content)))
-		case SegmentTypeExpr:
-			codeBuilder.write("fmt.Fprint(%s, %s)\n", segment.BufName, string(segment.Content))
-		case SegmentTypeHtmlEscapeExpr:
-			codeBuilder.write("%s.WriteString(html.EscapeString(fmt.Sprint(%s)))\n", segment.BufName, string(segment.Content))
-		}
-	}
-}
-
-func (code *Code) flush() string {
-	bufName := code.PendingSegment.BufName
-	if !code.PendingSegment.empty() {
-		code.Segments = append(code.Segments, code.PendingSegment)
-	}
-	code.PendingSegment = Segment{}
-	return bufName
-}
-
-// ==================== IR data types ====================
+// Everything below is the glossary: vocabulary shared across phases, grouped
+// by topic - IR data types, diagnostics, probe infra, the codegen buffer, and
+// pure leaf helpers. Placement rule for the whole file: breadth decides the
+// layer. Single-caller code lives right after its caller, in pipeline order;
+// anything used across phases sinks down here. First appearance only breaks
+// ties within a section.
 
 type VarKind int
 
@@ -3574,13 +2817,350 @@ type EventHandlerArg struct {
 	Type string
 }
 
-//go:embed runtime.js
-var runtimeScript string
+// Pos is a 1-based line/column in a source file. Col counts bytes, not UTF-16
+// code units.
+type Pos struct {
+	Line, Col int
+}
 
-// ==================== codegen builder ====================
+// Span is a half-open range in one .html file. The zero Span means "no precise
+// location" - the diagnostic points at the whole file.
+type Span struct {
+	Start, End Pos
+}
+
+type Severity int
+
+const (
+	SevError Severity = iota
+	SevWarning
+)
+
+// Diagnostic is a positioned compiler message. It implements error so it flows
+// through errors.Join with the rest of the pipeline; Diagnose collects the
+// leaves back into []Diagnostic.
+type Diagnostic struct {
+	Path     string
+	Span     Span
+	Message  string
+	Severity Severity
+	Related  []RelatedInfo
+}
+
+// RelatedInfo points at a secondary location, e.g. a component's prop
+// declaration referenced from a usage-site error in another file.
+type RelatedInfo struct {
+	Path    string
+	Span    Span
+	Message string
+}
+
+func (d *Diagnostic) Error() string {
+	if d.Span == (Span{}) {
+		return d.Path + ": " + d.Message
+	}
+	return fmt.Sprintf("%s:%d:%d: %s", d.Path, d.Span.Start.Line, d.Span.Start.Col, d.Message)
+}
+
+// diagnostics flattens a pipeline error tree into sorted Diagnostics: leaves
+// that are *Diagnostic keep their span; any others become file-less messages.
+func diagnostics(err error) []Diagnostic {
+	leaves := flattenErrs(err)
+	ds := make([]Diagnostic, 0, len(leaves))
+	for _, e := range leaves {
+		var d *Diagnostic
+		if errors.As(e, &d) {
+			ds = append(ds, *d)
+		} else {
+			ds = append(ds, Diagnostic{Message: e.Error()})
+		}
+	}
+	slices.SortStableFunc(ds, func(a, b Diagnostic) int {
+		if a.Path != b.Path {
+			return strings.Compare(a.Path, b.Path)
+		}
+		if a.Span.Start.Line != b.Span.Start.Line {
+			return a.Span.Start.Line - b.Span.Start.Line
+		}
+		return a.Span.Start.Col - b.Span.Start.Col
+	})
+	return ds
+}
+
+// LineMap converts byte offsets in a source file into 1-based line/byte-column.
+type LineMap struct {
+	lineStarts []int
+}
+
+func newLineMap(src []byte) *LineMap {
+	starts := []int{0}
+	for i, b := range src {
+		if b == '\n' {
+			starts = append(starts, i+1)
+		}
+	}
+	return &LineMap{lineStarts: starts}
+}
+
+// Pos returns the 1-based line and byte-column for a byte offset.
+func (m *LineMap) Pos(offset int) Pos {
+	lo, hi := 0, len(m.lineStarts)-1
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if m.lineStarts[mid] <= offset {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	return Pos{Line: lo + 1, Col: offset - m.lineStarts[lo] + 1}
+}
+
+// Offset is the inverse of Pos: a 1-based line/col back to a byte offset.
+func (m *LineMap) Offset(line, col int) int {
+	if line < 1 || line > len(m.lineStarts) {
+		return -1
+	}
+	return m.lineStarts[line-1] + col - 1
+}
+
+// flattenErrs returns the leaf errors of a tree produced by errors.Join, in
+// order (errors.Join nests rather than flattens its inputs).
+func flattenErrs(err error) []error {
+	if err == nil {
+		return nil
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var out []error
+		for _, e := range joined.Unwrap() {
+			out = append(out, flattenErrs(e)...)
+		}
+		return out
+	}
+	return []error{err}
+}
+
+// sortedJoin flattens err and rejoins its leaves ordered by the text before the
+// first ':', so diagnostics group by file. Returns nil when there are none.
+func sortedJoin(err error) error {
+	errs := flattenErrs(err)
+	slices.SortStableFunc(errs, func(a, b error) int {
+		pa, _, _ := strings.Cut(a.Error(), ":")
+		pb, _, _ := strings.Cut(b.Error(), ":")
+		return strings.Compare(pa, pb)
+	})
+	return errors.Join(errs...)
+}
+
+// Messages returns one diagnostic string per leaf error, sorted, for callers
+// that surface diagnostics individually.
+func Messages(err error) []string {
+	errs := flattenErrs(sortedJoin(err))
+	msgs := make([]string, len(errs))
+	for i, e := range errs {
+		msgs[i] = e.Error()
+	}
+	return msgs
+}
+
+type pkgImporter struct {
+	loaded map[string]*types.Package
+}
+
+func (p *pkgImporter) Import(path string) (*types.Package, error) {
+	if pkg, ok := p.loaded[path]; ok {
+		return pkg, nil
+	}
+	return importer.Default().Import(path)
+}
+
+// lockedImporter serializes Import: analyze type-checks files in parallel, and
+// importer.Default's internal package map is not safe for concurrent use.
+// (pkgImporter needs no lock: its map is read-only and its fallback builds a
+// fresh importer per call.)
+type lockedImporter struct {
+	mu  sync.Mutex
+	imp types.Importer
+}
+
+func (l *lockedImporter) Import(path string) (*types.Package, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.imp.Import(path)
+}
+
+// PackageImporter builds a types.Importer that resolves the given packages
+// (keyed by import path) and falls back to the standard library. Load the
+// user's module packages with golang.org/x/tools/go/packages; for stdlib-only
+// resolution leave Compiler.Importer nil.
+func PackageImporter(loaded map[string]*types.Package) types.Importer {
+	return &pkgImporter{loaded: loaded}
+}
+
+type probeAnchor struct {
+	line int
+	span Span
+	desc string
+}
+
+type probeState struct {
+	buf       strings.Builder
+	line      int
+	span      Span // .html span of the construct currently being emitted
+	anchors   []probeAnchor
+	parseErrs []*Diagnostic
+}
+
+func newProbeState() *probeState {
+	return &probeState{line: 1}
+}
+
+func (p *probeState) write(s string) {
+	p.buf.WriteString(s)
+	p.line += strings.Count(s, "\n")
+}
+
+func (p *probeState) writef(format string, args ...any) {
+	p.write(fmt.Sprintf(format, args...))
+}
+
+func (p *probeState) anchor(span Span, desc string) {
+	if span == (Span{}) {
+		span = p.span // fall back to the current construct's span
+	}
+	p.anchors = append(p.anchors, probeAnchor{line: p.line, span: span, desc: desc})
+}
+
+func (p *probeState) descAt(line int) (Span, string) {
+	var best probeAnchor
+	for _, a := range p.anchors {
+		if a.line <= line {
+			best = a
+		} else {
+			break
+		}
+	}
+	return best.span, best.desc
+}
+
+func (p *probeState) parseErr(desc string, err error) {
+	msg := err.Error()
+	if errs, ok := err.(scanner.ErrorList); ok && len(errs) > 0 {
+		msg = errs[0].Msg
+	}
+	p.perr("%s: %s", desc, msg)
+}
+
+// perr records a template parse/validation error at the current construct's span.
+func (p *probeState) perr(format string, args ...any) {
+	p.parseErrs = append(p.parseErrs, &Diagnostic{Span: p.span, Message: fmt.Sprintf(format, args...)})
+}
+
+type Counter struct {
+	CurrNum int
+}
+
+func (id *Counter) next() int {
+	id.CurrNum++
+	return id.CurrNum
+}
+
+type SegmentType int
+
+const (
+	SegmentTypeStrLit SegmentType = iota
+	SegmentTypeGo
+	SegmentTypeExpr
+	SegmentTypeHtmlEscapeExpr
+)
+
+type Segment struct {
+	Type    SegmentType
+	BufName string
+	Content []byte
+}
+
+func (s Segment) empty() bool { return len(s.Content) == 0 }
+
+type Code struct {
+	NeedsFmt       bool // a Go segment calls fmt directly (emitChildKey's Sprint)
+	PendingSegment Segment
+	Segments       []Segment
+}
+
+func newCode(buf string) Code {
+	return Code{
+		PendingSegment: Segment{
+			BufName: buf,
+		},
+	}
+}
+
+func (code *Code) emit(t SegmentType, content string) {
+	isExpr := t == SegmentTypeExpr || t == SegmentTypeHtmlEscapeExpr
+	if code.PendingSegment.Type != t || isExpr {
+		bufName := code.flush()
+		code.PendingSegment = Segment{Type: t, BufName: bufName}
+	}
+	code.PendingSegment.Content = append(code.PendingSegment.Content, content...)
+}
+
+func (code *Code) emitGo(content string) {
+	code.emit(SegmentTypeGo, content)
+}
+
+func (code *Code) emitStrLit(content string) {
+	code.emit(SegmentTypeStrLit, content)
+}
+
+func (code *Code) emitExpr(content string) {
+	code.emit(SegmentTypeExpr, content)
+}
+
+func (code *Code) emitHtmlEscapeExpr(content string) {
+	code.emit(SegmentTypeHtmlEscapeExpr, content)
+}
+
+func (code *Code) emitSplit() {
+	code.flush()
+	code.PendingSegment = Segment{
+		BufName: "tx_w2",
+	}
+}
+
+func (code *Code) writeTo(codeBuilder *CodeBuilder) {
+	code.flush()
+	codeBuilder.needsFmt = codeBuilder.needsFmt || code.NeedsFmt
+	for _, segment := range code.Segments {
+		switch segment.Type {
+		case SegmentTypeGo:
+			codeBuilder.WriteString(string(segment.Content))
+		case SegmentTypeStrLit:
+			codeBuilder.write("%s.WriteString(%s)\n", segment.BufName, strconv.Quote(string(segment.Content)))
+		case SegmentTypeExpr:
+			codeBuilder.needsFmt = true
+			codeBuilder.write("fmt.Fprint(%s, %s)\n", segment.BufName, string(segment.Content))
+		case SegmentTypeHtmlEscapeExpr:
+			codeBuilder.needsFmt = true
+			codeBuilder.needsHTML = true
+			codeBuilder.write("%s.WriteString(html.EscapeString(fmt.Sprint(%s)))\n", segment.BufName, string(segment.Content))
+		}
+	}
+}
+
+func (code *Code) flush() string {
+	bufName := code.PendingSegment.BufName
+	if !code.PendingSegment.empty() {
+		code.Segments = append(code.Segments, code.PendingSegment)
+	}
+	code.PendingSegment = Segment{}
+	return bufName
+}
 
 type CodeBuilder struct {
 	strings.Builder
+	needsFmt  bool
+	needsHTML bool
 }
 
 func (code *CodeBuilder) write(s string, params ...any) {
@@ -3591,10 +3171,50 @@ func (code *CodeBuilder) write(s string, params ...any) {
 	}
 }
 
-// https://html.spec.whatwg.org/#serializing-html-fragments
-// text inside these elements is serialized verbatim (no entity escaping)
-// ==================== utilities ====================
+//go:embed runtime.js
+var runtimeScript string
 
+// goIdent encodes a component name, route, or slot name as a valid Go
+// identifier: letters, digits (not leading), and _ pass through; the runes
+// that occur in real names get mnemonic codes (_SL_ slash, _HY_ hyphen, _DT_
+// dot, _LB_/_RB_ braces, _EX_ for the {$} route suffix); any other rune
+// becomes its uppercase hex. Every code contains a letter outside the hex
+// alphabet, so a code can never equal a hex escape. Component names cannot
+// collide at all - their charset is lowercase-only, the codes uppercase. Page
+// routes can in the pathological case of a literal code (a filename
+// containing _SL_); the collision emits duplicate decls, so the user's go
+// build fails closed.
+func goIdent(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) * 3)
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		switch {
+		case unicode.IsLetter(r) || r == '_' || (i > 0 && unicode.IsDigit(r)):
+			b.WriteRune(r)
+		case r == '{' && i+2 < len(runes) && runes[i+1] == '$' && runes[i+2] == '}':
+			b.WriteString("_EX_")
+			i += 2
+		case r == '/':
+			b.WriteString("_SL_")
+		case r == '-':
+			b.WriteString("_HY_")
+		case r == '.':
+			b.WriteString("_DT_")
+		case r == '{':
+			b.WriteString("_LB_")
+		case r == '}':
+			b.WriteString("_RB_")
+		default:
+			fmt.Fprintf(&b, "_%X_", r)
+		}
+	}
+	return b.String()
+}
+
+// text inside these elements is serialized verbatim, no entity escaping
+// (https://html.spec.whatwg.org/#serializing-html-fragments)
 func isVerbatimSerialize(a atom.Atom) bool {
 	switch a {
 	case atom.Script, atom.Style, atom.Xmp, atom.Iframe, atom.Noembed, atom.Noframes, atom.Plaintext, atom.Noscript:
@@ -3617,57 +3237,6 @@ func newTemplateNode() *html.Node {
 		DataAtom: atom.Template,
 		Data:     "template",
 	}
-}
-
-func goIdent(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) * 3)
-	runes := []rune(s)
-	for i := 0; i < len(runes); i++ {
-		r := runes[i]
-		switch {
-		case unicode.IsLetter(r) || r == '_' || (i > 0 && unicode.IsDigit(r)):
-			b.WriteRune(r)
-		case r == '{' && i+2 < len(runes) && runes[i+1] == '$' && runes[i+2] == '}':
-			b.WriteString("_EX_")
-			i += 2
-		case r == '/':
-			b.WriteString("_S_")
-		case r == '-':
-			b.WriteString("_H_")
-		case r == '.':
-			b.WriteString("_O_")
-		case r == ':':
-			b.WriteString("_C_")
-		case r == '@':
-			b.WriteString("_A_")
-		case r == '!':
-			b.WriteString("_B_")
-		case r == '~':
-			b.WriteString("_T_")
-		case r == '*':
-			b.WriteString("_K_")
-		case r == '+':
-			b.WriteString("_P_")
-		case r == '=':
-			b.WriteString("_E_")
-		case r == '&':
-			b.WriteString("_N_")
-		case r == '?':
-			b.WriteString("_Q_")
-		case r == '#':
-			b.WriteString("_F_")
-		case r == '$':
-			b.WriteString("_D_")
-		case r == '{':
-			b.WriteString("_L_")
-		case r == '}':
-			b.WriteString("_R_")
-		default:
-			fmt.Fprintf(&b, "_%X_", r)
-		}
-	}
-	return b.String()
 }
 
 func isTmplxScriptNode(node *html.Node) bool {
@@ -3695,14 +3264,14 @@ func hasAttr(n *html.Node, str string) (string, bool) {
 }
 
 func cleanUpTmplxScript(node *html.Node) {
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
+	for c := node.FirstChild; c != nil; {
+		next := c.NextSibling
 		if isTmplxScriptNode(c) {
-			n := c.NextSibling
 			node.RemoveChild(c)
-			c.NextSibling = n
-			continue
+		} else {
+			cleanUpTmplxScript(c)
 		}
-		cleanUpTmplxScript(c)
+		c = next
 	}
 }
 
@@ -3712,6 +3281,8 @@ func astToSource(a ast.Node) string {
 	return buf.String()
 }
 
+// atVarRefPos reports whether the cursor's ident can be a variable reference -
+// not a selector field, a declaration name, or a struct-literal key.
 func atVarRefPos(c *astutil.Cursor) bool {
 	switch c.Name() {
 	case "Sel", "Names":
@@ -3769,11 +3340,11 @@ func condState(n *html.Node) (CondState, string) {
 	return CondStateDefault, ""
 }
 
-// events on a form control whose target carries a string .value, so
-// event.target.value is available in the handler (the runtime sends it as
-// tx_ev_target_value whenever the target actually has a string value). For
-// keydown/keypress this is the value BEFORE the keystroke applies; use keyup or
-// input for the post-keystroke value.
+// eventCarriesValue reports whether the event's target carries a string
+// .value, making event.target.value available in the handler (the runtime
+// sends it as tx_ev_target_value). For keydown/keypress this is the value
+// BEFORE the keystroke applies; use keyup or input for the post-keystroke
+// value.
 func eventCarriesValue(name string) bool {
 	switch name {
 	case "input", "change", "keydown", "keyup", "keypress", "blur", "focus", "focusin", "focusout", "search":
@@ -3785,31 +3356,7 @@ func eventCarriesValue(name string) bool {
 // https://html.spec.whatwg.org/#void-elements
 func isVoidElement(name string) bool {
 	switch name {
-	case "area":
-		return true
-	case "base":
-		return true
-	case "br":
-		return true
-	case "col":
-		return true
-	case "embed":
-		return true
-	case "hr":
-		return true
-	case "img":
-		return true
-	case "input":
-		return true
-	case "link":
-		return true
-	case "meta":
-		return true
-	case "source":
-		return true
-	case "track":
-		return true
-	case "wbr":
+	case "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr":
 		return true
 	}
 	return false

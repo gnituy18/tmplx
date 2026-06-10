@@ -1,0 +1,20 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>import</span> <span class='string'>&quot;tmplx.org/albums&quot;</span>
+
+  <span class='keyword'>var</span> <span class='variable'>q</span> <span class='type'>string</span>
+  <span class='keyword'>var</span> <span class='variable'>results</span> <span class='operator'>=</span> <span class='variable'>albums</span>.<span class='property'>Search</span>(<span class='variable'>q</span>)
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>input</span>
+  <span class='attribute'>type</span>=&quot;<span class='string'>search</span>&quot;
+  <span class='attribute'>placeholder</span>=&quot;<span class='string'>Search albums…</span>&quot;
+  <span class='attribute'>tx-oninput</span>=&quot;<span class='string'>q = event.target.value</span>&quot;
+<span class='punctuation bracket'>/&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>table</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;</span><span class='tag'>tr</span> <span class='attribute'>tx-for</span>=&quot;<span class='string'>_, a := range results</span>&quot; <span class='attribute'>tx-key</span>=&quot;<span class='string'>a.Title</span>&quot;<span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>td</span><span class='punctuation bracket'>&gt;</span>{ a.Title }<span class='punctuation bracket'>&lt;/</span><span class='tag'>td</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>td</span><span class='punctuation bracket'>&gt;</span>{ a.Artist }<span class='punctuation bracket'>&lt;/</span><span class='tag'>td</span><span class='punctuation bracket'>&gt;</span>
+    <span class='punctuation bracket'>&lt;</span><span class='tag'>td</span><span class='punctuation bracket'>&gt;</span>{ a.Year }<span class='punctuation bracket'>&lt;/</span><span class='tag'>td</span><span class='punctuation bracket'>&gt;</span>
+  <span class='punctuation bracket'>&lt;/</span><span class='tag'>tr</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>table</span><span class='punctuation bracket'>&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>p</span> <span class='attribute'>tx-if</span>=&quot;<span class='string'>len(results) == 0</span>&quot;<span class='punctuation bracket'>&gt;</span>No albums match “{ q }”.<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span></code></pre>

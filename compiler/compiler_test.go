@@ -1,6 +1,11 @@
 package compiler
 
 import (
+	"go/ast"
+	"go/importer"
+	"go/parser"
+	"go/token"
+	"go/types"
 	"regexp"
 	"strings"
 	"testing"
@@ -145,6 +150,55 @@ func TestCompileIsolation(t *testing.T) {
 	}
 }
 
+// The emitter owns the import block (no goimports): user imports are deduped
+// across files, the generated set is added only when not already bound, and
+// the result must typecheck.
+func TestGeneratedImports(t *testing.T) {
+	c := &Compiler{}
+	c.NewPage("a.html", []byte(`<html><head><script type="text/tmplx">
+import "strings"
+var x = strings.ToUpper("a")
+</script></head><body>{ x }</body></html>`))
+	c.NewPage("b.html", []byte(`<html><head><script type="text/tmplx">
+import "strings"
+import "fmt"
+var y = fmt.Sprint(strings.ToLower("B"))
+</script></head><body>{ y }</body></html>`))
+	code, err := c.Compile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, im := range []string{"\t\"strings\"\n", "\t\"fmt\"\n"} {
+		if n := strings.Count(string(code), im); n != 1 {
+			t.Errorf("want exactly one %s import, got %d", strings.TrimSpace(im), n)
+		}
+	}
+	fset := token.NewFileSet()
+	f, perr := parser.ParseFile(fset, "routes.go", code, 0)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	conf := types.Config{Importer: importer.Default()}
+	if _, terr := conf.Check("main", fset, []*ast.File{f}, nil); terr != nil {
+		t.Errorf("generated code does not typecheck: %v", terr)
+	}
+}
+
+// A slot name that isn't a valid Go identifier must be goIdent-encoded the
+// same way at the fill function's definition and its call.
+func TestHyphenatedSlotName(t *testing.T) {
+	c := &Compiler{}
+	c.NewComponent("card.html", []byte(`<div><slot name="side-bar"></slot></div>`))
+	c.NewPage("index.html", []byte(`<html><head><title>x</title></head><body><tx-card><p slot="side-bar">hi</p></tx-card></body></html>`))
+	code, err := c.Compile()
+	if err != nil {
+		t.Fatalf("slot name side-bar should compile: %v", err)
+	}
+	if !strings.Contains(string(code), "tx_render_fill_tx_HY_card_1_side_HY_bar(tx_w *bytes.Buffer") {
+		t.Error("fill definition should use the goIdent-encoded slot name")
+	}
+}
+
 // posOf returns the 1-based line/col of the first occurrence of sub in src.
 func posOf(src, sub string) (int, int) {
 	i := strings.Index(src, sub)
@@ -171,40 +225,75 @@ func show() { fmt.Println(count) }
 
 	// count in the { count } text interpolation -> its declaration (line 3)
 	l, col := posOf(page, "count }")
-	if d, ok := c.Definition("index.html", l, col); !ok || d.Path != "index.html" || d.Span.Start.Line != 3 {
-		t.Errorf("text-interp count: want index.html:3, got %+v ok=%v", d, ok)
+	if d, ok := c.Definition("pages/index.html", l, col); !ok || d.Path != "pages/index.html" || d.Span.Start.Line != 3 {
+		t.Errorf("text-interp count: want pages/index.html:3, got %+v ok=%v", d, ok)
 	}
 	// fmt.Println inside the script -> external fmt.Println
 	l, col = posOf(page, "Println")
-	if d, ok := c.Definition("index.html", l, col); !ok || d.Pkg != "fmt" || d.Name != "Println" {
+	if d, ok := c.Definition("pages/index.html", l, col); !ok || d.Pkg != "fmt" || d.Name != "Println" {
 		t.Errorf("fmt.Println: want external fmt.Println, got %+v ok=%v", d, ok)
 	}
 	// show() handler call -> the func decl (line 4)
 	l, col = posOf(page, "show()\"")
-	if d, ok := c.Definition("index.html", l, col); !ok || d.Span.Start.Line != 4 {
+	if d, ok := c.Definition("pages/index.html", l, col); !ok || d.Span.Start.Line != 4 {
 		t.Errorf("handler show: want line 4, got %+v ok=%v", d, ok)
 	}
 	// label prop attr on <tx-box> -> box.html prop decl
 	l, col = posOf(page, "label=")
-	if d, ok := c.Definition("index.html", l, col); !ok || d.Path != "box.html" || d.Span.Start.Line != 3 {
-		t.Errorf("prop attr label: want box.html:3, got %+v ok=%v", d, ok)
+	if d, ok := c.Definition("pages/index.html", l, col); !ok || d.Path != "components/box.html" || d.Span.Start.Line != 3 {
+		t.Errorf("prop attr label: want components/box.html:3, got %+v ok=%v", d, ok)
 	}
 	// hover on count reports its type
 	l, col = posOf(page, "count }")
-	if h, _, ok := c.Hover("index.html", l, col); !ok || !strings.Contains(h, "var count int") {
+	if h, _, ok := c.Hover("pages/index.html", l, col); !ok || !strings.Contains(h, "var count int") {
 		t.Errorf("hover count: want 'var count int', got %q ok=%v", h, ok)
 	}
 	// references to count: declaration + script use + template use = 3
 	l, col = posOf(page, "count int")
-	if refs := c.References("index.html", l, col); len(refs) != 3 {
+	if refs := c.References("pages/index.html", l, col); len(refs) != 3 {
 		t.Errorf("references to count: want 3, got %d (%+v)", len(refs), refs)
 	}
 	// document symbols include count (state) and show (func)
 	names := map[string]bool{}
-	for _, s := range c.Symbols("index.html") {
+	for _, s := range c.Symbols("pages/index.html") {
 		names[s.Name] = true
 	}
 	if !names["count"] || !names["show"] {
 		t.Errorf("symbols: want count + show, got %v", names)
+	}
+}
+
+// A page and a component may share a rel path; diagnostics must say which is
+// which (components/foo.html vs pages/foo.html).
+func TestSameNamePageAndComponent(t *testing.T) {
+	c := &Compiler{}
+	c.NewComponent("foo.html", []byte(`<script type="text/tmplx">var a int</script><p>x</p>`))
+	c.NewPage("foo.html", []byte(`<html><head><script type="text/tmplx">var b int</script></head><body>y</body></html>`))
+
+	byPath := map[string]string{}
+	for _, d := range c.Diagnose() {
+		byPath[d.Path] = d.Message
+	}
+	if !strings.Contains(byPath["components/foo.html"], "a declared") {
+		t.Errorf("want the component's error under components/foo.html, got %v", byPath)
+	}
+	if !strings.Contains(byPath["pages/foo.html"], "b declared") {
+		t.Errorf("want the page's error under pages/foo.html, got %v", byPath)
+	}
+}
+
+// The CLI passes the user's actual dir names (-components-dir / -pages-dir),
+// so diagnostics must name files the way the user knows them.
+func TestCustomDirNames(t *testing.T) {
+	c := &Compiler{ComponentsDir: "widgets", PagesDir: "web/views"}
+	c.NewComponent("foo.html", []byte(`<script type="text/tmplx">var a int</script><p>x</p>`))
+	c.NewPage("foo.html", []byte(`<html><head><script type="text/tmplx">var b int</script></head><body>y</body></html>`))
+
+	paths := map[string]bool{}
+	for _, d := range c.Diagnose() {
+		paths[d.Path] = true
+	}
+	if !paths["widgets/foo.html"] || !paths["web/views/foo.html"] {
+		t.Errorf("want widgets/foo.html and web/views/foo.html, got %v", paths)
 	}
 }

@@ -4,10 +4,11 @@
 <html lang="en">
 
 <head>
-  <title>tmplx</title>
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <title>tmplx — Write Go in HTML</title>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="tmplx compiles HTML files with embedded Go into a single net/http server. State is a var, handlers run on the server, and there is no JavaScript to write." />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css" />
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/snippets.css" />
@@ -16,76 +17,111 @@
 <body>
   <tx-nav></tx-nav>
   <main>
-    <div style="display:flex;align-items:center;justify-content:center">
-      <img src="/logo.svg" alt="tmplx logo" width="96" height="96" />
-      <h1 style="text-align: center">tmplx</h1>
-    </div>
-
-    <h2 style="text-align: center; margin-top: 1.5rem">
-      Write Go in HTML intuitively
-    </h2>
-    <ul style="margin-top: 4rem">
-      <li>Full Go backend logic and HTML in the same file</li>
-      <li>Reactive UIs driven by plain Go variables</li>
-      <li>Reusable components written as regular HTML files</li>
-    </ul>
-    <div style="
-          display: flex;
-          flex-wrap: wrap;
-          gap: 2rem;
-          justify-content: center;
-          text-align: center;
-          margin-top: 4rem;
-        ">
-      <a class="btn" href="/docs">Docs</a>
-      <a class="btn" href="/playground">Playground</a>
-      <a class="btn" href="https://github.com/gnituy18/tmplx">GitHub</a>
-    </div>
-
-    <h2 style="text-align: center">Demos</h2>
-
-    <h3>Counter</h3>
-    <tx-example-wrapper>
-      <tx-counter></tx-counter>
-    </tx-example-wrapper>
-    <div class="snippet">
-      <div class="snippet-bar"><span class="snippet-name">counter.html</span>
-        <div class="snippet-actions">
-          <a href="https://github.com/gnituy18/tmplx/blob/master/tmplx.org/components/counter.html" target="_blank" rel="noopener">source</a>
-          <button class="copy-btn" type="button">copy</button>
-        </div>
+    <header class="hero">
+      <div class="hero-title">
+        <img src="/logo.svg" alt="tmplx logo" width="96" height="96" />
+        <h1>tmplx</h1>
       </div>
-      <div class="snippet-code" data-snippet="counter"></div>
-    </div>
-    <h3>To Do</h3>
-
-    <tx-example-wrapper>
-      <tx-todo></tx-todo>
-    </tx-example-wrapper>
-
-    <div class="snippet">
-      <div class="snippet-bar"><span class="snippet-name">todo.html</span>
-        <div class="snippet-actions">
-          <a href="https://github.com/gnituy18/tmplx/blob/master/tmplx.org/components/todo.html" target="_blank" rel="noopener">source</a>
-          <button class="copy-btn" type="button">copy</button>
-        </div>
+      <h2 class="hero-tagline">Write Go in HTML</h2>
+      <p class="hero-pitch">
+        A page is one HTML file with a Go script block. State is a
+        <code>var</code>, handlers are Go statements in attributes, and every
+        handler runs on the server. tmplx compiles it all into a single
+        <code>routes.go</code> on <code>net/http</code> — there is no
+        JavaScript to write.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/docs">Get started</a>
+        <a class="btn" href="/playground">Playground</a>
+        <a class="btn" href="https://github.com/gnituy18/tmplx">GitHub</a>
       </div>
-      <div class="snippet-code" data-snippet="todo"></div>
-    </div>
+    </header>
 
-    <h3>Triangle</h3>
-    <tx-example-wrapper>
-      <tx-triangle></tx-triangle>
-    </tx-example-wrapper>
-    <div class="snippet">
-      <div class="snippet-bar"><span class="snippet-name">triangle.html</span>
-        <div class="snippet-actions">
-          <a href="https://github.com/gnituy18/tmplx/blob/master/tmplx.org/components/triangle.html" target="_blank" rel="noopener">source</a>
-          <button class="copy-btn" type="button">copy</button>
-        </div>
+    <section class="section">
+      <h2>A query in your HTML</h2>
+      <p class="muted">
+        Type below. Every keystroke posts the state up, runs
+        <code>albums.Search(q)</code> on the server, and morphs the rows that
+        come back. <code>results</code> is derived from <code>q</code>, so it
+        recomputes whenever <code>q</code> changes.
+      </p>
+      <tx-example-wrapper>
+        <tx-search></tx-search>
+      </tx-example-wrapper>
+      <tx-snippet name='"search"'></tx-snippet>
+      <p class="muted">
+        <code>albums.Search</code> is an ordinary Go function in
+        <a href="https://github.com/gnituy18/tmplx/blob/master/tmplx.org/albums/albums.go" target="_blank" rel="noopener">an ordinary Go package</a>
+        — an in-memory table here, your real database in production.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>The tmplx way</h2>
+      <ul class="way">
+        <li>
+          <strong>State is a var.</strong> Declare it in the script block,
+          render it with <code tx-ignore>{ }</code>. When a handler changes it, every
+          place that reads it updates.
+        </li>
+        <li>
+          <strong>Handlers are server code.</strong>
+          <code>tx-onclick="counter++"</code> is Go, not JavaScript. Call
+          anything in your module — no fetch, no API routes, no JSON layer.
+        </li>
+        <li>
+          <strong>The server stays stateless.</strong> State travels with the
+          page: each event sends it up, HTML comes back down, and the DOM
+          morphs in place.
+        </li>
+        <li>
+          <strong>Components are HTML files.</strong>
+          <code>components/card.html</code> becomes
+          <code>&lt;tx-card&gt;</code>, with props, slots, and callbacks.
+        </li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Demos</h2>
+
+      <h3>Counter</h3>
+      <p class="muted">State, rendered and mutated, in five lines.</p>
+      <tx-example-wrapper>
+        <tx-counter></tx-counter>
+      </tx-example-wrapper>
+      <tx-snippet name='"counter"'></tx-snippet>
+
+      <h3>To Do</h3>
+      <p class="muted">
+        A form posts straight to a Go function; click an item to remove it.
+      </p>
+      <tx-example-wrapper>
+        <tx-todo></tx-todo>
+      </tx-example-wrapper>
+      <tx-snippet name='"todo"'></tx-snippet>
+    </section>
+
+    <section class="section">
+      <h2>From file to server</h2>
+      <ol class="steps">
+        <li>
+          Install the compiler:
+          <code>go install github.com/gnituy18/tmplx@latest</code>
+        </li>
+        <li>
+          Write pages in <code>pages/</code> and components in
+          <code>components/</code>.
+        </li>
+        <li>
+          Run <code>tmplx</code> — it type-checks every file and generates
+          <code>routes.go</code>. Then <code>go run .</code>
+        </li>
+      </ol>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/docs">Read the docs</a>
       </div>
-      <div class="snippet-code" data-snippet="triangle"></div>
-    </div>
+    </section>
   </main>
   <script src="/snippets.js"></script>
 </body>

@@ -330,14 +330,19 @@ func (s *server) build() (c *compiler.Compiler, text, relToURI, uriToRel map[str
 				}
 				content = string(b)
 			}
+			// the compiler identifies files as components/<rel> or pages/<rel>
+			// (a page and a component may share a rel path), so key the maps
+			// the same way
+			if page {
+				c.NewPage(rel, []byte(content))
+				rel = "pages/" + rel
+			} else {
+				c.NewComponent(rel, []byte(content))
+				rel = "components/" + rel
+			}
 			relToURI[rel] = uri
 			uriToRel[uri] = rel
 			text[uri] = content
-			if page {
-				c.NewPage(rel, []byte(content))
-			} else {
-				c.NewComponent(rel, []byte(content))
-			}
 			return nil
 		})
 	}

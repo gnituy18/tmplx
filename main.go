@@ -19,10 +19,11 @@ import (
 func main() {
 	log.SetFlags(0)
 
-	dir, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("error: %v\n", err)
 	}
+	dir := cwd
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			break
@@ -58,14 +59,16 @@ func main() {
 		}
 	})
 
+	cDir := filepath.Clean(*componentsDir)
+	pDir := filepath.Clean(*pagesDir)
 	c := &compiler.Compiler{
 		PackageName:   *packageName,
 		Importer:      compiler.PackageImporter(loaded),
 		HandlerPrefix: *handlerPrefix,
-		OutputFile:    *outputFile,
+		ComponentsDir: displayPath(cwd, cDir),
+		PagesDir:      displayPath(cwd, pDir),
 	}
 
-	cDir := filepath.Clean(*componentsDir)
 	if info, err := os.Stat(cDir); err != nil {
 		if !os.IsNotExist(err) {
 			log.Fatalf("error: %s: %v\n", cDir, err)
@@ -95,7 +98,6 @@ func main() {
 	}
 
 	pageCount := 0
-	pDir := filepath.Clean(*pagesDir)
 	if info, err := os.Stat(pDir); err != nil {
 		if os.IsNotExist(err) {
 			log.Fatalf("pages directory not found: %s\n", pDir)
@@ -150,4 +152,14 @@ func main() {
 		log.Fatalln(err)
 	}
 	log.Printf("%s generated successfully\n", out)
+}
+
+// displayPath is how diagnostics name a source dir: relative to where the
+// user ran the command when possible, so reported file paths are openable as
+// printed.
+func displayPath(cwd, dir string) string {
+	if rel, err := filepath.Rel(cwd, dir); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return filepath.ToSlash(dir)
 }

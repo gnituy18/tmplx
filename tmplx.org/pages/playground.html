@@ -9,7 +9,6 @@
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@3.0.1/modern-normalize.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
@@ -20,23 +19,19 @@
   <link rel="stylesheet" href="/snippets.css" />
 </head>
 
-<body>
+<body class="pg">
   <tx-nav></tx-nav>
   <main class="pg-main">
-    <h1 style="text-align: center">Playground</h1>
-    <p style="text-align: center; color: var(--muted)">
-      Write a tmplx page (HTML + a <code>&lt;script type="text/tmplx"&gt;</code> block) and see the Go that tmplx compiles it to.
-    </p>
-
     <div class="pg-bar">
+      <h1>Playground</h1>
       <button id="compile" class="btn-compile" type="button">Compile</button>
-      <span class="note">Compiles on the server (type-checks only, never runs your code). Standard-library imports only.</span>
+      <span class="note">Your page compiles on the server as <code>pages/index.html</code> — type-checks only, never runs your code. Standard-library imports only.</span>
     </div>
 
     <div class="pg-wrap">
       <div class="pg-col">
-        <h3>tmplx source</h3>
-        <textarea id="src" spellcheck="false" tx-ignore><!DOCTYPE html>
+        <h3>pages/index.html — tmplx source</h3>
+        <div class="pg-box"><textarea id="src" spellcheck="false" tx-ignore><!DOCTYPE html>
 <html>
 <head>
   <title>Counter</title>
@@ -49,11 +44,11 @@
   <span>{ counter }</span>
   <button tx-onclick="counter++">+</button>
 </body>
-</html></textarea>
+</html></textarea></div>
       </div>
       <div class="pg-col">
-        <h3>generated Go (routes.go)</h3>
-        <div id="out"></div>
+        <h3>routes.go — generated Go</h3>
+        <div id="out" class="pg-box"></div>
         <pre id="errors" class="pg-errors" style="display: none"></pre>
       </div>
     </div>
@@ -63,22 +58,20 @@
     (function () {
       var inCM = CodeMirror.fromTextArea(document.getElementById("src"), {
         mode: { name: "htmlmixed", scriptTypes: [{ matches: /text\/tmplx/, mode: "go" }] },
-        theme: "material-darker",
+        theme: "tmplx",
         lineNumbers: true,
         tabSize: 2,
         indentUnit: 2,
         lineWrapping: false,
       });
-      inCM.setSize("100%", "30rem");
 
       var outCM = CodeMirror(document.getElementById("out"), {
         mode: "go",
-        theme: "material-darker",
+        theme: "tmplx",
         lineNumbers: true,
         readOnly: true,
         value: "",
       });
-      outCM.setSize("100%", "30rem");
 
       var outEl = document.getElementById("out");
       var errEl = document.getElementById("errors");

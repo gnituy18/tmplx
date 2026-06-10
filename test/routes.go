@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-type tx_H_badge struct {
+type tx_HY_badge struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -21,8 +21,8 @@ type tx_H_badge struct {
 	V_ticks int     `json:"ticks"`
 }
 
-func tx_new_tx_H_badge(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, name *string) *tx_H_badge {
-	tx_comp := &tx_H_badge{}
+func tx_new_tx_HY_badge(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, name *string) *tx_HY_badge {
+	tx_comp := &tx_HY_badge{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -36,11 +36,11 @@ func tx_new_tx_H_badge(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_H_badge) tx_eh1() {
+func (tx_comp *tx_HY_badge) tx_eh1() {
 	tx_comp.V_ticks++
 }
 
-func (tx_comp *tx_H_badge) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_badge) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -49,7 +49,7 @@ func (tx_comp *tx_H_badge) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_badge) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_badge) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -71,7 +71,7 @@ func (tx_comp *tx_H_badge) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_box struct {
+type tx_HY_box struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -79,8 +79,8 @@ type tx_H_box struct {
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_H_box(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_box {
-	tx_comp := &tx_H_box{}
+func tx_new_tx_HY_box(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_box {
+	tx_comp := &tx_HY_box{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -93,7 +93,7 @@ func tx_new_tx_H_box(tx_prev url.Values, tx_next map[string]any, tx_trigger stri
 	return tx_comp
 }
 
-func (tx_comp *tx_H_box) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func()) {
+func (tx_comp *tx_HY_box) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func()) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -113,7 +113,7 @@ func (tx_comp *tx_H_box) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_f
 	}
 }
 
-type tx_H_button struct {
+type tx_HY_button struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -125,8 +125,8 @@ type tx_H_button struct {
 	V_clicked func(amount int) `json:"-"`
 }
 
-func tx_new_tx_H_button(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, label *string, amount *int, clicked func(amount int)) *tx_H_button {
-	tx_comp := &tx_H_button{}
+func tx_new_tx_HY_button(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, label *string, amount *int, clicked func(amount int)) *tx_HY_button {
+	tx_comp := &tx_HY_button{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -142,11 +142,11 @@ func tx_new_tx_H_button(tx_prev url.Values, tx_next map[string]any, tx_trigger s
 	return tx_comp
 }
 
-func (tx_comp *tx_H_button) tx_eh1() {
+func (tx_comp *tx_HY_button) tx_eh1() {
 	tx_comp.V_clicked(*tx_comp.V_amount)
 }
 
-func (tx_comp *tx_H_button) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_button) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -155,7 +155,7 @@ func (tx_comp *tx_H_button) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_button) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_button) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -175,7 +175,7 @@ func (tx_comp *tx_H_button) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_calc struct {
+type tx_HY_calc struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -185,8 +185,8 @@ type tx_H_calc struct {
 	V_compute func(x int) int `json:"-"`
 }
 
-func tx_new_tx_H_calc(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, compute func(x int) int) *tx_H_calc {
-	tx_comp := &tx_H_calc{}
+func tx_new_tx_HY_calc(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, compute func(x int) int) *tx_HY_calc {
+	tx_comp := &tx_HY_calc{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -200,7 +200,7 @@ func tx_new_tx_H_calc(tx_prev url.Values, tx_next map[string]any, tx_trigger str
 	return tx_comp
 }
 
-func (tx_comp *tx_H_calc) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_calc) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -216,7 +216,7 @@ func (tx_comp *tx_H_calc) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_compound struct {
+type tx_HY_compound struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -227,8 +227,8 @@ type tx_H_compound struct {
 	V_notify func() `json:"-"`
 }
 
-func tx_new_tx_H_compound(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, notify func()) *tx_H_compound {
-	tx_comp := &tx_H_compound{}
+func tx_new_tx_HY_compound(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, notify func()) *tx_HY_compound {
+	tx_comp := &tx_HY_compound{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -242,12 +242,12 @@ func tx_new_tx_H_compound(tx_prev url.Values, tx_next map[string]any, tx_trigger
 	return tx_comp
 }
 
-func (tx_comp *tx_H_compound) tx_eh1() {
+func (tx_comp *tx_HY_compound) tx_eh1() {
 	tx_comp.V_local++
 	tx_comp.V_notify()
 }
 
-func (tx_comp *tx_H_compound) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_compound) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -256,7 +256,7 @@ func (tx_comp *tx_H_compound) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_compound) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_compound) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -276,7 +276,7 @@ func (tx_comp *tx_H_compound) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_counter struct {
+type tx_HY_counter struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -286,8 +286,8 @@ type tx_H_counter struct {
 	V_clicks int `json:"clicks"`
 }
 
-func tx_new_tx_H_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_counter {
-	tx_comp := &tx_H_counter{}
+func tx_new_tx_HY_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_counter {
+	tx_comp := &tx_HY_counter{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -300,11 +300,11 @@ func tx_new_tx_H_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger 
 	return tx_comp
 }
 
-func (tx_comp *tx_H_counter) tx_eh1() {
+func (tx_comp *tx_HY_counter) tx_eh1() {
 	tx_comp.V_clicks++
 }
 
-func (tx_comp *tx_H_counter) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_counter) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -313,7 +313,7 @@ func (tx_comp *tx_H_counter) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_counter) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_counter) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -333,7 +333,7 @@ func (tx_comp *tx_H_counter) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_defaulter struct {
+type tx_HY_defaulter struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -345,8 +345,8 @@ type tx_H_defaulter struct {
 	V_bump  func()  `json:"-"`
 }
 
-func tx_new_tx_H_defaulter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, label *string, bump func()) *tx_H_defaulter {
-	tx_comp := &tx_H_defaulter{}
+func tx_new_tx_HY_defaulter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, label *string, bump func()) *tx_HY_defaulter {
+	tx_comp := &tx_HY_defaulter{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -374,11 +374,11 @@ func tx_new_tx_H_defaulter(tx_prev url.Values, tx_next map[string]any, tx_trigge
 	return tx_comp
 }
 
-func (tx_comp *tx_H_defaulter) tx_eh1() {
+func (tx_comp *tx_HY_defaulter) tx_eh1() {
 	tx_comp.V_bump()
 }
 
-func (tx_comp *tx_H_defaulter) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_defaulter) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -387,7 +387,7 @@ func (tx_comp *tx_H_defaulter) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_defaulter) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_defaulter) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -409,7 +409,7 @@ func (tx_comp *tx_H_defaulter) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_definput struct {
+type tx_HY_definput struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -419,8 +419,8 @@ type tx_H_definput struct {
 	V_n int `json:"n"`
 }
 
-func tx_new_tx_H_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_definput {
-	tx_comp := &tx_H_definput{}
+func tx_new_tx_HY_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_definput {
+	tx_comp := &tx_HY_definput{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -433,11 +433,11 @@ func tx_new_tx_H_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger
 	return tx_comp
 }
 
-func (tx_comp *tx_H_definput) tx_eh1(tx_ev_target_value string) {
+func (tx_comp *tx_HY_definput) tx_eh1(tx_ev_target_value string) {
 	tx_comp.V_n++
 }
 
-func (tx_comp *tx_H_definput) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_definput) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -448,7 +448,7 @@ func (tx_comp *tx_H_definput) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_definput) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_definput) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -468,7 +468,7 @@ func (tx_comp *tx_H_definput) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_init_H_derived struct {
+type tx_HY_init_HY_derived struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -479,8 +479,8 @@ type tx_H_init_H_derived struct {
 	V_b int `json:"-"`
 }
 
-func tx_new_tx_H_init_H_derived(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_init_H_derived {
-	tx_comp := &tx_H_init_H_derived{}
+func tx_new_tx_HY_init_HY_derived(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_init_HY_derived {
+	tx_comp := &tx_HY_init_HY_derived{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -499,12 +499,12 @@ func tx_new_tx_H_init_H_derived(tx_prev url.Values, tx_next map[string]any, tx_t
 	return tx_comp
 }
 
-func (tx_comp *tx_H_init_H_derived) tx_eh1() {
+func (tx_comp *tx_HY_init_HY_derived) tx_eh1() {
 	tx_comp.V_a++
 	tx_comp.V_b = tx_comp.V_a + 1
 }
 
-func (tx_comp *tx_H_init_H_derived) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_init_HY_derived) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -513,7 +513,7 @@ func (tx_comp *tx_H_init_H_derived) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_init_H_derived) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_init_HY_derived) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -535,7 +535,7 @@ func (tx_comp *tx_H_init_H_derived) tx_render(tx_w *bytes.Buffer, tx_id string) 
 	}
 }
 
-type tx_H_liveinput struct {
+type tx_HY_liveinput struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -545,8 +545,8 @@ type tx_H_liveinput struct {
 	V_n int `json:"n"`
 }
 
-func tx_new_tx_H_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_liveinput {
-	tx_comp := &tx_H_liveinput{}
+func tx_new_tx_HY_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_liveinput {
+	tx_comp := &tx_HY_liveinput{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -559,11 +559,11 @@ func tx_new_tx_H_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigge
 	return tx_comp
 }
 
-func (tx_comp *tx_H_liveinput) tx_eh1(tx_ev_target_value string) {
+func (tx_comp *tx_HY_liveinput) tx_eh1(tx_ev_target_value string) {
 	tx_comp.V_n++
 }
 
-func (tx_comp *tx_H_liveinput) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_liveinput) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -574,7 +574,7 @@ func (tx_comp *tx_H_liveinput) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_liveinput) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_liveinput) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -594,7 +594,7 @@ func (tx_comp *tx_H_liveinput) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_panel struct {
+type tx_HY_panel struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -604,8 +604,8 @@ type tx_H_panel struct {
 	V_heading *string `json:"-"`
 }
 
-func tx_new_tx_H_panel(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, heading *string) *tx_H_panel {
-	tx_comp := &tx_H_panel{}
+func tx_new_tx_HY_panel(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, heading *string) *tx_HY_panel {
+	tx_comp := &tx_HY_panel{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -619,16 +619,16 @@ func tx_new_tx_H_panel(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_H_panel) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_panel) tx_compute(tx_id string) {
 	{
 		tx_id := tx_id + ":tx-counter-1"
-		tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_H_panel) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_panel) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -639,7 +639,7 @@ func (tx_comp *tx_H_panel) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString("</h2> ")
 	{
 		tx_id := tx_id + ":tx-counter-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 		tx_child.tx_render(tx_w, tx_id)
 	}
 	tx_w.WriteString(" </section> ")
@@ -650,7 +650,7 @@ func (tx_comp *tx_H_panel) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_seeded struct {
+type tx_HY_seeded struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -660,8 +660,8 @@ type tx_H_seeded struct {
 	V_n int `json:"n"`
 }
 
-func tx_new_tx_H_seeded(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_H_seeded {
-	tx_comp := &tx_H_seeded{}
+func tx_new_tx_HY_seeded(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_seeded {
+	tx_comp := &tx_HY_seeded{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -676,11 +676,11 @@ func tx_new_tx_H_seeded(tx_prev url.Values, tx_next map[string]any, tx_trigger s
 	return tx_comp
 }
 
-func (tx_comp *tx_H_seeded) tx_eh1() {
+func (tx_comp *tx_HY_seeded) tx_eh1() {
 	tx_comp.V_n++
 }
 
-func (tx_comp *tx_H_seeded) tx_compute(tx_id string) {
+func (tx_comp *tx_HY_seeded) tx_compute(tx_id string) {
 	if tx_id == tx_comp.tx_trigger {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -689,7 +689,7 @@ func (tx_comp *tx_H_seeded) tx_compute(tx_id string) {
 	}
 }
 
-func (tx_comp *tx_H_seeded) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_seeded) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -709,7 +709,7 @@ func (tx_comp *tx_H_seeded) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_H_slot_H_card struct {
+type tx_HY_slot_HY_card struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -719,8 +719,8 @@ type tx_H_slot_H_card struct {
 	V_title *string `json:"-"`
 }
 
-func tx_new_tx_H_slot_H_card(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, title *string) *tx_H_slot_H_card {
-	tx_comp := &tx_H_slot_H_card{}
+func tx_new_tx_HY_slot_HY_card(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, title *string) *tx_HY_slot_HY_card {
+	tx_comp := &tx_HY_slot_HY_card{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -734,7 +734,7 @@ func tx_new_tx_H_slot_H_card(tx_prev url.Values, tx_next map[string]any, tx_trig
 	return tx_comp
 }
 
-func (tx_comp *tx_H_slot_H_card) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func(), tx_render_fill_footer func()) {
+func (tx_comp *tx_HY_slot_HY_card) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func(), tx_render_fill_footer func()) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -758,7 +758,7 @@ func (tx_comp *tx_H_slot_H_card) tx_render(tx_w *bytes.Buffer, tx_id string, tx_
 	}
 }
 
-type tx_H_stat struct {
+type tx_HY_stat struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -769,8 +769,8 @@ type tx_H_stat struct {
 	V_value *int    `json:"-"`
 }
 
-func tx_new_tx_H_stat(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, label *string, value *int) *tx_H_stat {
-	tx_comp := &tx_H_stat{}
+func tx_new_tx_HY_stat(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string, label *string, value *int) *tx_HY_stat {
+	tx_comp := &tx_HY_stat{}
 	tx_comp.tx_target = tx_target
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
@@ -785,7 +785,7 @@ func tx_new_tx_H_stat(tx_prev url.Values, tx_next map[string]any, tx_trigger str
 	return tx_comp
 }
 
-func (tx_comp *tx_H_stat) tx_render(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_HY_stat) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	if tx_comp.tx_target == tx_id {
 		tx_w.WriteString("<!--tx:")
 		fmt.Fprint(tx_w, tx_id)
@@ -803,7 +803,7 @@ func (tx_comp *tx_H_stat) tx_render(tx_w *bytes.Buffer, tx_id string) {
 	}
 }
 
-type tx_S_attr_H_interp struct {
+type tx_SL_attr_HY_interp struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -813,8 +813,8 @@ type tx_S_attr_H_interp struct {
 	V_cls string `json:"cls"`
 }
 
-func tx_new_tx_S_attr_H_interp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_attr_H_interp {
-	tx_comp := &tx_S_attr_H_interp{}
+func tx_new_tx_SL_attr_HY_interp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_attr_HY_interp {
+	tx_comp := &tx_SL_attr_HY_interp{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -829,7 +829,7 @@ func tx_new_tx_S_attr_H_interp(tx_prev url.Values, tx_next map[string]any, tx_tr
 	return tx_comp
 }
 
-func (tx_comp *tx_S_attr_H_interp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_attr_HY_interp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>attribute interpolation</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/attr-interp\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -840,15 +840,15 @@ func (tx_comp *tx_S_attr_H_interp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.B
 	tx_w2.WriteString("\">x</div> </body></html>")
 }
 
-type tx_S_badge struct {
+type tx_SL_badge struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_badge(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_badge {
-	tx_comp := &tx_S_badge{}
+func tx_new_tx_SL_badge(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_badge {
+	tx_comp := &tx_SL_badge{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -860,43 +860,43 @@ func tx_new_tx_S_badge(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_S_badge) tx_compute() {
+func (tx_comp *tx_SL_badge) tx_compute() {
 	{
 		tx_id := "tx-badge-1"
 		tx_val_name := "A"
-		tx_child := tx_new_tx_H_badge(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_name)
+		tx_child := tx_new_tx_HY_badge(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_name)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 	{
 		tx_id := "tx-badge-2"
 		tx_val_name := "B"
-		tx_child := tx_new_tx_H_badge(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_name)
+		tx_child := tx_new_tx_HY_badge(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_name)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_badge) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_badge) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Badges</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/badge\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-badge-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_badge)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_badge)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" ")
 	{
 		tx_id := "tx-badge-2"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_badge)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_badge)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_compound struct {
+type tx_SL_compound struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -905,8 +905,8 @@ type tx_S_compound struct {
 	V_pageHits int `json:"pageHits"`
 }
 
-func tx_new_tx_S_compound(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_compound {
-	tx_comp := &tx_S_compound{}
+func tx_new_tx_SL_compound(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_compound {
+	tx_comp := &tx_SL_compound{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -920,20 +920,20 @@ func tx_new_tx_S_compound(tx_prev url.Values, tx_next map[string]any, tx_trigger
 	return tx_comp
 }
 
-func (tx_comp *tx_S_compound) bumpPage() {
+func (tx_comp *tx_SL_compound) bumpPage() {
 	tx_comp.V_pageHits++
 }
 
-func (tx_comp *tx_S_compound) tx_compute() {
+func (tx_comp *tx_SL_compound) tx_compute() {
 	{
 		tx_id := "tx-compound-1"
-		tx_child := tx_new_tx_H_compound(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", tx_comp.bumpPage)
+		tx_child := tx_new_tx_HY_compound(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", tx_comp.bumpPage)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_compound) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_compound) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>compound</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/compound\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -942,13 +942,13 @@ func (tx_comp *tx_S_compound) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer
 	tx_w2.WriteString("</p> ")
 	{
 		tx_id := "tx-compound-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_compound)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_compound)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_conditionals struct {
+type tx_SL_conditionals struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -958,8 +958,8 @@ type tx_S_conditionals struct {
 	V_show bool `json:"show"`
 }
 
-func tx_new_tx_S_conditionals(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_conditionals {
-	tx_comp := &tx_S_conditionals{}
+func tx_new_tx_SL_conditionals(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_conditionals {
+	tx_comp := &tx_SL_conditionals{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -974,15 +974,15 @@ func tx_new_tx_S_conditionals(tx_prev url.Values, tx_next map[string]any, tx_tri
 	return tx_comp
 }
 
-func (tx_comp *tx_S_conditionals) tx_eh1() {
+func (tx_comp *tx_SL_conditionals) tx_eh1() {
 	tx_comp.V_show = !tx_comp.V_show
 }
 
-func (tx_comp *tx_S_conditionals) tx_eh2() {
+func (tx_comp *tx_SL_conditionals) tx_eh2() {
 	tx_comp.V_n++
 }
 
-func (tx_comp *tx_S_conditionals) tx_compute() {
+func (tx_comp *tx_SL_conditionals) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -1002,7 +1002,7 @@ func (tx_comp *tx_S_conditionals) tx_compute() {
 	if tx_comp.V_show {
 		{
 			tx_id := "tx-counter-1"
-			tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+			tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 			tx_child.tx_compute(tx_id)
 			tx_comp.tx_next[tx_id] = tx_child
 		}
@@ -1010,7 +1010,7 @@ func (tx_comp *tx_S_conditionals) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_conditionals) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_conditionals) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>conditionals</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/conditionals\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1037,7 +1037,7 @@ func (tx_comp *tx_S_conditionals) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Bu
 		tx_w2.WriteString("<div> ")
 		{
 			tx_id := "tx-counter-1"
-			tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+			tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 			tx_child.tx_render(tx_w2, tx_id)
 		}
 		tx_w2.WriteString(" </div> ")
@@ -1046,15 +1046,15 @@ func (tx_comp *tx_S_conditionals) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Bu
 	tx_w2.WriteString("</body></html>")
 }
 
-type tx_S_counter_H_comp struct {
+type tx_SL_counter_HY_comp struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_counter_H_comp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_counter_H_comp {
-	tx_comp := &tx_S_counter_H_comp{}
+func tx_new_tx_SL_counter_HY_comp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_counter_HY_comp {
+	tx_comp := &tx_SL_counter_HY_comp{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1066,41 +1066,41 @@ func tx_new_tx_S_counter_H_comp(tx_prev url.Values, tx_next map[string]any, tx_t
 	return tx_comp
 }
 
-func (tx_comp *tx_S_counter_H_comp) tx_compute() {
+func (tx_comp *tx_SL_counter_HY_comp) tx_compute() {
 	{
 		tx_id := "tx-counter-1"
-		tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 	{
 		tx_id := "tx-counter-2"
-		tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_counter_H_comp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_counter_HY_comp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Counter Components</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/counter-comp\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-counter-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" ")
 	{
 		tx_id := "tx-counter-2"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_counter struct {
+type tx_SL_counter struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1110,8 +1110,8 @@ type tx_S_counter struct {
 	V_counterDouble int `json:"-"`
 }
 
-func tx_new_tx_S_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_counter {
-	tx_comp := &tx_S_counter{}
+func tx_new_tx_SL_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_counter {
+	tx_comp := &tx_SL_counter{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1127,22 +1127,22 @@ func tx_new_tx_S_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger 
 	return tx_comp
 }
 
-func (tx_comp *tx_S_counter) addAmount(amount int) {
+func (tx_comp *tx_SL_counter) addAmount(amount int) {
 	tx_comp.V_counter += amount
 	tx_comp.V_counterDouble = tx_comp.V_counter * 2
 }
 
-func (tx_comp *tx_S_counter) tx_eh1() {
+func (tx_comp *tx_SL_counter) tx_eh1() {
 	tx_comp.V_counter--
 	tx_comp.V_counterDouble = tx_comp.V_counter * 2
 }
 
-func (tx_comp *tx_S_counter) tx_eh2() {
+func (tx_comp *tx_SL_counter) tx_eh2() {
 	tx_comp.V_counter = 0
 	tx_comp.V_counterDouble = tx_comp.V_counter * 2
 }
 
-func (tx_comp *tx_S_counter) tx_compute() {
+func (tx_comp *tx_SL_counter) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -1154,20 +1154,20 @@ func (tx_comp *tx_S_counter) tx_compute() {
 	{
 		tx_id := "tx-stat-1"
 		tx_val_label := "Live"
-		tx_child := tx_new_tx_H_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_comp.V_counter)
+		tx_child := tx_new_tx_HY_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_comp.V_counter)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 	{
 		tx_id := "tx-stat-2"
 		tx_val_label := "Doubled"
-		tx_child := tx_new_tx_H_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_comp.V_counterDouble)
+		tx_child := tx_new_tx_HY_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_comp.V_counterDouble)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 	{
 		tx_id := "tx-button-1"
 		tx_val_label := "+3"
 		tx_val_amount := 3
-		tx_child := tx_new_tx_H_button(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_amount, tx_comp.addAmount)
+		tx_child := tx_new_tx_HY_button(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_amount, tx_comp.addAmount)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
@@ -1175,7 +1175,7 @@ func (tx_comp *tx_S_counter) tx_compute() {
 		tx_id := "tx-button-2"
 		tx_val_label := "+5"
 		tx_val_amount := 5
-		tx_child := tx_new_tx_H_button(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_amount, tx_comp.addAmount)
+		tx_child := tx_new_tx_HY_button(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_amount, tx_comp.addAmount)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
@@ -1186,7 +1186,7 @@ func (tx_comp *tx_S_counter) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Counter</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/counter\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1197,25 +1197,25 @@ func (tx_comp *tx_S_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer)
 	tx_w2.WriteString(")</h1> ")
 	{
 		tx_id := "tx-stat-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_stat)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_stat)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" ")
 	{
 		tx_id := "tx-stat-2"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_stat)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_stat)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" ")
 	{
 		tx_id := "tx-button-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_button)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_button)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" ")
 	{
 		tx_id := "tx-button-2"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_button)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_button)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" <button data-test=\"minus\" data-tx-trigger=\"page\" data-tx-target=\"")
@@ -1234,15 +1234,15 @@ func (tx_comp *tx_S_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer)
 	tx_w2.WriteString("</body></html>")
 }
 
-type tx_S_defaulter struct {
+type tx_SL_defaulter struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_defaulter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_defaulter {
-	tx_comp := &tx_S_defaulter{}
+func tx_new_tx_SL_defaulter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_defaulter {
+	tx_comp := &tx_SL_defaulter{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1254,37 +1254,37 @@ func tx_new_tx_S_defaulter(tx_prev url.Values, tx_next map[string]any, tx_trigge
 	return tx_comp
 }
 
-func (tx_comp *tx_S_defaulter) tx_compute() {
+func (tx_comp *tx_SL_defaulter) tx_compute() {
 	{
 		tx_id := "tx-defaulter-1"
-		tx_child := tx_new_tx_H_defaulter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id, nil, nil)
+		tx_child := tx_new_tx_HY_defaulter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id, nil, nil)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_defaulter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_defaulter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>defaulter</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/defaulter\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-defaulter-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_defaulter)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_defaulter)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_definput struct {
+type tx_SL_definput struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_definput {
-	tx_comp := &tx_S_definput{}
+func tx_new_tx_SL_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_definput {
+	tx_comp := &tx_SL_definput{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1296,29 +1296,29 @@ func tx_new_tx_S_definput(tx_prev url.Values, tx_next map[string]any, tx_trigger
 	return tx_comp
 }
 
-func (tx_comp *tx_S_definput) tx_compute() {
+func (tx_comp *tx_SL_definput) tx_compute() {
 	{
 		tx_id := "tx-definput-1"
-		tx_child := tx_new_tx_H_definput(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_definput(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_definput) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_definput) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>definput</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/definput\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-definput-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_definput)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_definput)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_derived_H_chain struct {
+type tx_SL_derived_HY_chain struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1329,8 +1329,8 @@ type tx_S_derived_H_chain struct {
 	V_c int `json:"-"`
 }
 
-func tx_new_tx_S_derived_H_chain(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_derived_H_chain {
-	tx_comp := &tx_S_derived_H_chain{}
+func tx_new_tx_SL_derived_HY_chain(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_derived_HY_chain {
+	tx_comp := &tx_SL_derived_HY_chain{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1348,13 +1348,13 @@ func tx_new_tx_S_derived_H_chain(tx_prev url.Values, tx_next map[string]any, tx_
 	return tx_comp
 }
 
-func (tx_comp *tx_S_derived_H_chain) tx_eh1() {
+func (tx_comp *tx_SL_derived_HY_chain) tx_eh1() {
 	tx_comp.V_a++
 	tx_comp.V_b = tx_comp.V_a + 1
 	tx_comp.V_c = tx_comp.V_b * 10
 }
 
-func (tx_comp *tx_S_derived_H_chain) tx_compute() {
+func (tx_comp *tx_SL_derived_HY_chain) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -1363,7 +1363,7 @@ func (tx_comp *tx_S_derived_H_chain) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_derived_H_chain) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_derived_HY_chain) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>derived chain</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/derived-chain\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1378,7 +1378,7 @@ func (tx_comp *tx_S_derived_H_chain) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes
 	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">+</button> </body></html>")
 }
 
-type tx_S_echo_S__L_msg_R_ struct {
+type tx_SL_echo_SL__LB_msg_RB_ struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1387,8 +1387,8 @@ type tx_S_echo_S__L_msg_R_ struct {
 	V_msg string `json:"-"`
 }
 
-func tx_new_tx_S_echo_S__L_msg_R_(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, msg string) *tx_S_echo_S__L_msg_R_ {
-	tx_comp := &tx_S_echo_S__L_msg_R_{}
+func tx_new_tx_SL_echo_SL__LB_msg_RB_(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, msg string) *tx_SL_echo_SL__LB_msg_RB_ {
+	tx_comp := &tx_SL_echo_SL__LB_msg_RB_{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1401,7 +1401,7 @@ func tx_new_tx_S_echo_S__L_msg_R_(tx_prev url.Values, tx_next map[string]any, tx
 	return tx_comp
 }
 
-func (tx_comp *tx_S_echo_S__L_msg_R_) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_echo_SL__LB_msg_RB_) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>echo path var</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/echo/{msg}\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1410,7 +1410,7 @@ func (tx_comp *tx_S_echo_S__L_msg_R_) tx_render(tx_w1 *bytes.Buffer, tx_w2 *byte
 	tx_w2.WriteString("</p> </body></html>")
 }
 
-type tx_S_expr_H_prop struct {
+type tx_SL_expr_HY_prop struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1419,8 +1419,8 @@ type tx_S_expr_H_prop struct {
 	V_base int `json:"base"`
 }
 
-func tx_new_tx_S_expr_H_prop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_expr_H_prop {
-	tx_comp := &tx_S_expr_H_prop{}
+func tx_new_tx_SL_expr_HY_prop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_expr_HY_prop {
+	tx_comp := &tx_SL_expr_HY_prop{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1434,11 +1434,11 @@ func tx_new_tx_S_expr_H_prop(tx_prev url.Values, tx_next map[string]any, tx_trig
 	return tx_comp
 }
 
-func (tx_comp *tx_S_expr_H_prop) tx_eh1() {
+func (tx_comp *tx_SL_expr_HY_prop) tx_eh1() {
 	tx_comp.V_base++
 }
 
-func (tx_comp *tx_S_expr_H_prop) tx_compute() {
+func (tx_comp *tx_SL_expr_HY_prop) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -1449,19 +1449,19 @@ func (tx_comp *tx_S_expr_H_prop) tx_compute() {
 		tx_id := "tx-stat-1"
 		tx_val_label := "sum"
 		tx_val_value := tx_comp.V_base*2 + 1
-		tx_child := tx_new_tx_H_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_value)
+		tx_child := tx_new_tx_HY_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_value)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_expr_H_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_expr_HY_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"/><title>expr prop</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/expr-prop\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> <!-- a component value-prop given a compound expression, not just an ident/literal --> ")
 	{
 		tx_id := "tx-stat-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_stat)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_stat)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" <button data-test=\"ep-inc\" data-tx-trigger=\"page\" data-tx-target=\"")
@@ -1469,7 +1469,7 @@ func (tx_comp *tx_S_expr_H_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buf
 	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">+</button> </body></html>")
 }
 
-type tx_S_filter struct {
+type tx_SL_filter struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1478,8 +1478,8 @@ type tx_S_filter struct {
 	V_nums []int `json:"nums"`
 }
 
-func tx_new_tx_S_filter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_filter {
-	tx_comp := &tx_S_filter{}
+func tx_new_tx_SL_filter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_filter {
+	tx_comp := &tx_SL_filter{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1493,7 +1493,7 @@ func tx_new_tx_S_filter(tx_prev url.Values, tx_next map[string]any, tx_trigger s
 	return tx_comp
 }
 
-func (tx_comp *tx_S_filter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_filter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>conditional rows (tx-if inside tx-for)</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/filter\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1518,15 +1518,15 @@ func (tx_comp *tx_S_filter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) 
 	tx_w2.WriteString(" </ul> </body></html>")
 }
 
-type tx_S_funcprop_H_return struct {
+type tx_SL_funcprop_HY_return struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_funcprop_H_return(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_funcprop_H_return {
-	tx_comp := &tx_S_funcprop_H_return{}
+func tx_new_tx_SL_funcprop_HY_return(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_funcprop_HY_return {
+	tx_comp := &tx_SL_funcprop_HY_return{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1538,32 +1538,32 @@ func tx_new_tx_S_funcprop_H_return(tx_prev url.Values, tx_next map[string]any, t
 	return tx_comp
 }
 
-func (tx_comp *tx_S_funcprop_H_return) triple(x int) int {
+func (tx_comp *tx_SL_funcprop_HY_return) triple(x int) int {
 	return x * 3
 }
 
-func (tx_comp *tx_S_funcprop_H_return) tx_compute() {
+func (tx_comp *tx_SL_funcprop_HY_return) tx_compute() {
 	{
 		tx_id := "tx-calc-1"
-		tx_child := tx_new_tx_H_calc(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", tx_comp.triple)
+		tx_child := tx_new_tx_HY_calc(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", tx_comp.triple)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_funcprop_H_return) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_funcprop_HY_return) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>func-prop return</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/funcprop-return\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-calc-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_calc)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_calc)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_importer struct {
+type tx_SL_importer struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1572,8 +1572,8 @@ type tx_S_importer struct {
 	V_name string `json:"name"`
 }
 
-func tx_new_tx_S_importer(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_importer {
-	tx_comp := &tx_S_importer{}
+func tx_new_tx_SL_importer(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_importer {
+	tx_comp := &tx_SL_importer{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1587,7 +1587,7 @@ func tx_new_tx_S_importer(tx_prev url.Values, tx_next map[string]any, tx_trigger
 	return tx_comp
 }
 
-func (tx_comp *tx_S_importer) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_importer) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"/><title>import</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/importer\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1596,15 +1596,15 @@ func (tx_comp *tx_S_importer) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer
 	tx_w2.WriteString("</p> </body></html>")
 }
 
-type tx_S__EX_ struct {
+type tx_SL__EX_ struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S__EX_(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S__EX_ {
-	tx_comp := &tx_S__EX_{}
+func tx_new_tx_SL__EX_(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL__EX_ {
+	tx_comp := &tx_SL__EX_{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1616,22 +1616,22 @@ func tx_new_tx_S__EX_(tx_prev url.Values, tx_next map[string]any, tx_trigger str
 	return tx_comp
 }
 
-func (tx_comp *tx_S__EX_) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL__EX_) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>tmplx test examples</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/{$}\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> <h1>tmplx test examples</h1> <p>Ordered simple → complex, mirroring the compiler feature flow.</p> <h2>text &amp; state</h2> <ul> <li><a href=\"/text\">text</a> — interpolation, expressions, HTML-escaping</li> <li><a href=\"/state-types\">state-types</a> — bool / float / slice state</li> <li><a href=\"/derived-chain\">derived-chain</a> — transitive derived (a → b → c)</li> <li><a href=\"/init-derived-page\">init-derived-page</a> — init() reads derived (page)</li> <li><a href=\"/init-derived-comp\">init-derived-comp</a> — init() reads derived (component)</li> </ul> <h2>handlers</h2> <ul> <li><a href=\"/counter\">counter</a> — handlers, func-prop, derived, if/else-if/else</li> <li><a href=\"/show-counter\">show-counter</a> — handler + pure func in an expression</li> <li><a href=\"/input\">input</a> — input event / event.target.value</li> </ul> <h2>conditions &amp; loops</h2> <ul> <li><a href=\"/conditionals\">conditionals</a> — tx-if / else-if / else, conditional component</li> <li><a href=\"/loops\">loops</a> — index+value, empty, range-over-int</li> <li><a href=\"/nested-loop\">nested-loop</a> — tx-for inside tx-for</li> <li><a href=\"/map-loop\">map-loop</a> — range over a map</li> <li><a href=\"/loop-comps\">loop-comps</a> — keyed components in a loop</li> </ul> <h2>components &amp; props</h2> <ul> <li><a href=\"/counter-comp\">counter-comp</a> — two independent sealed instances</li> <li><a href=\"/badge\">badge</a> — propful component, prop rewiring + morph</li> <li><a href=\"/seeded\">seeded</a> — component init() seeds state</li> <li><a href=\"/nested-comp\">nested-comp</a> — component rendering a component</li> <li><a href=\"/defaulter\">defaulter</a> — prop &amp; func-prop defaults</li> </ul> <h2>func-props &amp; slots</h2> <ul> <li><a href=\"/compound\">compound</a> — child calls a parent func-prop</li> <li><a href=\"/funcprop-return\">funcprop-return</a> — func-prop returning a value</li> <li><a href=\"/slots\">slots</a> — default + named slots</li> <li><a href=\"/slot-fallback\">slot-fallback</a> — slot fallback vs. fill</li> </ul> <h2>captured locals, path vars, swap</h2> <ul> <li><a href=\"/todos\">todos</a> — captured loop locals (removeTodo(i)); tx-action add (known gap)</li> <li><a href=\"/echo/hello\">echo/hello</a> — path variable bound from the URL segment</li> <li><a href=\"/state-survives\">state-survives</a> — page state survives a component swap</li> </ul> <h2>known gaps</h2> <ul> <li><a href=\"/attr-interp\">attr-interp</a> — attribute interpolation (NOT supported; renders literally)</li> </ul> </body></html>")
 }
 
-type tx_S_init_H_derived_H_comp struct {
+type tx_SL_init_HY_derived_HY_comp struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_init_H_derived_H_comp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_init_H_derived_H_comp {
-	tx_comp := &tx_S_init_H_derived_H_comp{}
+func tx_new_tx_SL_init_HY_derived_HY_comp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_init_HY_derived_HY_comp {
+	tx_comp := &tx_SL_init_HY_derived_HY_comp{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1643,29 +1643,29 @@ func tx_new_tx_S_init_H_derived_H_comp(tx_prev url.Values, tx_next map[string]an
 	return tx_comp
 }
 
-func (tx_comp *tx_S_init_H_derived_H_comp) tx_compute() {
+func (tx_comp *tx_SL_init_HY_derived_HY_comp) tx_compute() {
 	{
 		tx_id := "tx-init-derived-1"
-		tx_child := tx_new_tx_H_init_H_derived(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_init_HY_derived(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_init_H_derived_H_comp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_init_HY_derived_HY_comp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>init reads derived (comp)</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/init-derived-comp\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-init-derived-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_init_H_derived)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_init_HY_derived)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_init_H_derived_H_page struct {
+type tx_SL_init_HY_derived_HY_page struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1677,8 +1677,8 @@ type tx_S_init_H_derived_H_page struct {
 	V_d int `json:"-"`
 }
 
-func tx_new_tx_S_init_H_derived_H_page(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_init_H_derived_H_page {
-	tx_comp := &tx_S_init_H_derived_H_page{}
+func tx_new_tx_SL_init_HY_derived_HY_page(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_init_HY_derived_HY_page {
+	tx_comp := &tx_SL_init_HY_derived_HY_page{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1699,12 +1699,12 @@ func tx_new_tx_S_init_H_derived_H_page(tx_prev url.Values, tx_next map[string]an
 	return tx_comp
 }
 
-func (tx_comp *tx_S_init_H_derived_H_page) tx_eh1() {
+func (tx_comp *tx_SL_init_HY_derived_HY_page) tx_eh1() {
 	tx_comp.V_a++
 	tx_comp.V_b = tx_comp.V_a + 1
 }
 
-func (tx_comp *tx_S_init_H_derived_H_page) tx_compute() {
+func (tx_comp *tx_SL_init_HY_derived_HY_page) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -1713,7 +1713,7 @@ func (tx_comp *tx_S_init_H_derived_H_page) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_init_H_derived_H_page) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_init_HY_derived_HY_page) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>init reads derived (page)</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/init-derived-page\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1730,7 +1730,7 @@ func (tx_comp *tx_S_init_H_derived_H_page) tx_render(tx_w1 *bytes.Buffer, tx_w2 
 	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">+</button> </body></html>")
 }
 
-type tx_S_input struct {
+type tx_SL_input struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1739,8 +1739,8 @@ type tx_S_input struct {
 	V_inputValue string `json:"inputValue"`
 }
 
-func tx_new_tx_S_input(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_input {
-	tx_comp := &tx_S_input{}
+func tx_new_tx_SL_input(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_input {
+	tx_comp := &tx_SL_input{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1754,11 +1754,11 @@ func tx_new_tx_S_input(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_S_input) tx_eh1(tx_ev_target_value string) {
+func (tx_comp *tx_SL_input) tx_eh1(tx_ev_target_value string) {
 	tx_comp.V_inputValue = tx_ev_target_value
 }
 
-func (tx_comp *tx_S_input) tx_compute() {
+func (tx_comp *tx_SL_input) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -1769,7 +1769,7 @@ func (tx_comp *tx_S_input) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_input) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_input) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Input</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/input\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1782,15 +1782,15 @@ func (tx_comp *tx_S_input) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w2.WriteString(" chars)</p> </body></html>")
 }
 
-type tx_S_liveinput struct {
+type tx_SL_liveinput struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_liveinput {
-	tx_comp := &tx_S_liveinput{}
+func tx_new_tx_SL_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_liveinput {
+	tx_comp := &tx_SL_liveinput{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1802,29 +1802,29 @@ func tx_new_tx_S_liveinput(tx_prev url.Values, tx_next map[string]any, tx_trigge
 	return tx_comp
 }
 
-func (tx_comp *tx_S_liveinput) tx_compute() {
+func (tx_comp *tx_SL_liveinput) tx_compute() {
 	{
 		tx_id := "tx-liveinput-1"
-		tx_child := tx_new_tx_H_liveinput(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_liveinput(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_liveinput) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_liveinput) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>liveinput</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/liveinput\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-liveinput-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_liveinput)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_liveinput)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_loop_H_comps struct {
+type tx_SL_loop_HY_comps struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1833,8 +1833,8 @@ type tx_S_loop_H_comps struct {
 	V_labels []string `json:"labels"`
 }
 
-func tx_new_tx_S_loop_H_comps(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_loop_H_comps {
-	tx_comp := &tx_S_loop_H_comps{}
+func tx_new_tx_SL_loop_HY_comps(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_loop_HY_comps {
+	tx_comp := &tx_SL_loop_HY_comps{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1848,13 +1848,13 @@ func tx_new_tx_S_loop_H_comps(tx_prev url.Values, tx_next map[string]any, tx_tri
 	return tx_comp
 }
 
-func (tx_comp *tx_S_loop_H_comps) tx_compute() {
+func (tx_comp *tx_SL_loop_HY_comps) tx_compute() {
 
 	for _, lbl := range tx_comp.V_labels {
 		_ = lbl
 		{
 			tx_id := ";" + fmt.Sprint(lbl) + ":tx-counter-1"
-			tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+			tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 			tx_child.tx_compute(tx_id)
 			tx_comp.tx_next[tx_id] = tx_child
 		}
@@ -1862,7 +1862,7 @@ func (tx_comp *tx_S_loop_H_comps) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_loop_H_comps) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_loop_HY_comps) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Loop Components</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/loop-comps\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1873,7 +1873,7 @@ func (tx_comp *tx_S_loop_H_comps) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Bu
 		tx_w2.WriteString("<div> ")
 		{
 			tx_id := ";" + fmt.Sprint(lbl) + ":tx-counter-1"
-			tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+			tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 			tx_child.tx_render(tx_w2, tx_id)
 		}
 		tx_w2.WriteString(" </div>")
@@ -1882,7 +1882,7 @@ func (tx_comp *tx_S_loop_H_comps) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Bu
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_loops struct {
+type tx_SL_loops struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1892,8 +1892,8 @@ type tx_S_loops struct {
 	V_empty []string `json:"empty"`
 }
 
-func tx_new_tx_S_loops(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_loops {
-	tx_comp := &tx_S_loops{}
+func tx_new_tx_SL_loops(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_loops {
+	tx_comp := &tx_SL_loops{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1908,7 +1908,7 @@ func tx_new_tx_S_loops(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_S_loops) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_loops) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>loops</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/loops\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1945,7 +1945,7 @@ func (tx_comp *tx_S_loops) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_loopvar_H_prop struct {
+type tx_SL_loopvar_HY_prop struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -1954,8 +1954,8 @@ type tx_S_loopvar_H_prop struct {
 	V_labels []string `json:"labels"`
 }
 
-func tx_new_tx_S_loopvar_H_prop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_loopvar_H_prop {
-	tx_comp := &tx_S_loopvar_H_prop{}
+func tx_new_tx_SL_loopvar_HY_prop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_loopvar_HY_prop {
+	tx_comp := &tx_SL_loopvar_HY_prop{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -1969,7 +1969,7 @@ func tx_new_tx_S_loopvar_H_prop(tx_prev url.Values, tx_next map[string]any, tx_t
 	return tx_comp
 }
 
-func (tx_comp *tx_S_loopvar_H_prop) tx_compute() {
+func (tx_comp *tx_SL_loopvar_HY_prop) tx_compute() {
 
 	for i, l := range tx_comp.V_labels {
 		_ = i
@@ -1978,14 +1978,14 @@ func (tx_comp *tx_S_loopvar_H_prop) tx_compute() {
 			tx_id := ";" + fmt.Sprint(i) + ":tx-stat-1"
 			tx_val_label := l
 			tx_val_value := i
-			tx_child := tx_new_tx_H_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_value)
+			tx_child := tx_new_tx_HY_stat(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_label, &tx_val_value)
 			tx_comp.tx_next[tx_id] = tx_child
 		}
 
 	}
 }
 
-func (tx_comp *tx_S_loopvar_H_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_loopvar_HY_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>loop var as prop</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/loopvar-prop\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -1996,7 +1996,7 @@ func (tx_comp *tx_S_loopvar_H_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.
 		_ = l
 		{
 			tx_id := ";" + fmt.Sprint(i) + ":tx-stat-1"
-			tx_child := tx_comp.tx_next[tx_id].(*tx_H_stat)
+			tx_child := tx_comp.tx_next[tx_id].(*tx_HY_stat)
 			tx_child.tx_render(tx_w2, tx_id)
 		}
 
@@ -2004,7 +2004,7 @@ func (tx_comp *tx_S_loopvar_H_prop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_map_H_loop struct {
+type tx_SL_map_HY_loop struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2013,8 +2013,8 @@ type tx_S_map_H_loop struct {
 	V_scores map[string]int `json:"scores"`
 }
 
-func tx_new_tx_S_map_H_loop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_map_H_loop {
-	tx_comp := &tx_S_map_H_loop{}
+func tx_new_tx_SL_map_HY_loop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_map_HY_loop {
+	tx_comp := &tx_SL_map_HY_loop{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2028,7 +2028,7 @@ func tx_new_tx_S_map_H_loop(tx_prev url.Values, tx_next map[string]any, tx_trigg
 	return tx_comp
 }
 
-func (tx_comp *tx_S_map_H_loop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_map_HY_loop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>map loop</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/map-loop\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2047,15 +2047,15 @@ func (tx_comp *tx_S_map_H_loop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buff
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_nested_H_comp struct {
+type tx_SL_nested_HY_comp struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_nested_H_comp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_nested_H_comp {
-	tx_comp := &tx_S_nested_H_comp{}
+func tx_new_tx_SL_nested_HY_comp(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_nested_HY_comp {
+	tx_comp := &tx_SL_nested_HY_comp{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2067,43 +2067,43 @@ func tx_new_tx_S_nested_H_comp(tx_prev url.Values, tx_next map[string]any, tx_tr
 	return tx_comp
 }
 
-func (tx_comp *tx_S_nested_H_comp) tx_compute() {
+func (tx_comp *tx_SL_nested_HY_comp) tx_compute() {
 	{
 		tx_id := "tx-panel-1"
 		tx_val_heading := "Alpha"
-		tx_child := tx_new_tx_H_panel(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_heading)
+		tx_child := tx_new_tx_HY_panel(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_heading)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 	{
 		tx_id := "tx-panel-2"
 		tx_val_heading := "Beta"
-		tx_child := tx_new_tx_H_panel(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_heading)
+		tx_child := tx_new_tx_HY_panel(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_heading)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_nested_H_comp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_nested_HY_comp) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>nested components</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/nested-comp\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> <!-- a component (panel) that itself renders another component (counter);\n       two instances must keep independent state --> ")
 	{
 		tx_id := "tx-panel-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_panel)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_panel)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" ")
 	{
 		tx_id := "tx-panel-2"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_panel)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_panel)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_nested_H_loop struct {
+type tx_SL_nested_HY_loop struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2113,8 +2113,8 @@ type tx_S_nested_H_loop struct {
 	V_cols []int    `json:"cols"`
 }
 
-func tx_new_tx_S_nested_H_loop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_nested_H_loop {
-	tx_comp := &tx_S_nested_H_loop{}
+func tx_new_tx_SL_nested_HY_loop(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_nested_HY_loop {
+	tx_comp := &tx_SL_nested_HY_loop{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2129,7 +2129,7 @@ func tx_new_tx_S_nested_H_loop(tx_prev url.Values, tx_next map[string]any, tx_tr
 	return tx_comp
 }
 
-func (tx_comp *tx_S_nested_H_loop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_nested_HY_loop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>nested loop</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/nested-loop\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2153,7 +2153,7 @@ func (tx_comp *tx_S_nested_H_loop) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.B
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_render_H_edges struct {
+type tx_SL_render_HY_edges struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2166,8 +2166,8 @@ type tx_S_render_H_edges struct {
 	V_zero  int     `json:"zero"`
 }
 
-func tx_new_tx_S_render_H_edges(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_render_H_edges {
-	tx_comp := &tx_S_render_H_edges{}
+func tx_new_tx_SL_render_HY_edges(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_render_HY_edges {
+	tx_comp := &tx_SL_render_HY_edges{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2185,7 +2185,7 @@ func tx_new_tx_S_render_H_edges(tx_prev url.Values, tx_next map[string]any, tx_t
 	return tx_comp
 }
 
-func (tx_comp *tx_S_render_H_edges) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_render_HY_edges) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"/><title>render edges</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/render-edges\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2202,15 +2202,15 @@ func (tx_comp *tx_S_render_H_edges) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.
 	tx_w2.WriteString("]</p> </body></html>")
 }
 
-type tx_S_seeded struct {
+type tx_SL_seeded struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_seeded(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_seeded {
-	tx_comp := &tx_S_seeded{}
+func tx_new_tx_SL_seeded(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_seeded {
+	tx_comp := &tx_SL_seeded{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2222,29 +2222,29 @@ func tx_new_tx_S_seeded(tx_prev url.Values, tx_next map[string]any, tx_trigger s
 	return tx_comp
 }
 
-func (tx_comp *tx_S_seeded) tx_compute() {
+func (tx_comp *tx_SL_seeded) tx_compute() {
 	{
 		tx_id := "tx-seeded-1"
-		tx_child := tx_new_tx_H_seeded(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_seeded(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_seeded) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_seeded) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>seeded comp</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/seeded\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-seeded-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_seeded)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_seeded)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_show_H_counter struct {
+type tx_SL_show_HY_counter struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2254,8 +2254,8 @@ type tx_S_show_H_counter struct {
 	V_counterDouble int `json:"-"`
 }
 
-func tx_new_tx_S_show_H_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_show_H_counter {
-	tx_comp := &tx_S_show_H_counter{}
+func tx_new_tx_SL_show_HY_counter(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_show_HY_counter {
+	tx_comp := &tx_SL_show_HY_counter{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2271,21 +2271,21 @@ func tx_new_tx_S_show_H_counter(tx_prev url.Values, tx_next map[string]any, tx_t
 	return tx_comp
 }
 
-func (tx_comp *tx_S_show_H_counter) showCounter() int {
+func (tx_comp *tx_SL_show_HY_counter) showCounter() int {
 	return tx_comp.V_counter + 1
 }
 
-func (tx_comp *tx_S_show_H_counter) tx_eh1() {
+func (tx_comp *tx_SL_show_HY_counter) tx_eh1() {
 	tx_comp.V_counter--
 	tx_comp.V_counterDouble = tx_comp.V_counter * 2
 }
 
-func (tx_comp *tx_S_show_H_counter) tx_eh2() {
+func (tx_comp *tx_SL_show_HY_counter) tx_eh2() {
 	tx_comp.V_counter = 0
 	tx_comp.V_counterDouble = tx_comp.V_counter * 2
 }
 
-func (tx_comp *tx_S_show_H_counter) tx_compute() {
+func (tx_comp *tx_SL_show_HY_counter) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -2296,7 +2296,7 @@ func (tx_comp *tx_S_show_H_counter) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_show_H_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_show_HY_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>showCounter</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/show-counter\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2313,15 +2313,15 @@ func (tx_comp *tx_S_show_H_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.
 	tx_w2.WriteString("\" data-tx-eh2-on=\"click\">reset</button> </body></html>")
 }
 
-type tx_S_slot_H_comp_H_swap struct {
+type tx_SL_slot_HY_comp_HY_swap struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_slot_H_comp_H_swap(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_slot_H_comp_H_swap {
-	tx_comp := &tx_S_slot_H_comp_H_swap{}
+func tx_new_tx_SL_slot_HY_comp_HY_swap(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_slot_HY_comp_HY_swap {
+	tx_comp := &tx_SL_slot_HY_comp_HY_swap{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2333,54 +2333,54 @@ func tx_new_tx_S_slot_H_comp_H_swap(tx_prev url.Values, tx_next map[string]any, 
 	return tx_comp
 }
 
-func (tx_comp *tx_S_slot_H_comp_H_swap) tx_compute() {
+func (tx_comp *tx_SL_slot_HY_comp_HY_swap) tx_compute() {
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_new_tx_H_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-counter-1"
-			tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+			tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 			tx_child.tx_compute(tx_id)
 			tx_comp.tx_next[tx_id] = tx_child
 		}
 	}
 }
 
-func (tx_comp *tx_S_slot_H_comp_H_swap) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_slot_HY_comp_HY_swap) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>slot-wrapped component swap</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/slot-comp-swap\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> <!-- a SEALED component placed inside a slot: its instance id uses the slot\n       '@' separator, so the swap path must parse '@' (regression: tx_dispatch\n       used to split the type name on ':' only -> empty swap -> dead demo) --> ")
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_box)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_box)
 		tx_child.tx_render(tx_w2, tx_id, func() {
-			tx_comp.tx_render_fill_tx_H_box_1_(tx_w2, tx_id)
+			tx_comp.tx_render_fill_tx_HY_box_1_(tx_w2, tx_id)
 		})
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-func (tx_comp *tx_S_slot_H_comp_H_swap) tx_render_fill_tx_H_box_1_(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_SL_slot_HY_comp_HY_swap) tx_render_fill_tx_HY_box_1_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
 		tx_id := tx_id + "@tx-counter-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 		tx_child.tx_render(tx_w, tx_id)
 	}
 	tx_w.WriteString(" ")
 }
 
-type tx_S_slot_H_fallback struct {
+type tx_SL_slot_HY_fallback struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_slot_H_fallback(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_slot_H_fallback {
-	tx_comp := &tx_S_slot_H_fallback{}
+func tx_new_tx_SL_slot_HY_fallback(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_slot_HY_fallback {
+	tx_comp := &tx_SL_slot_HY_fallback{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2392,45 +2392,45 @@ func tx_new_tx_S_slot_H_fallback(tx_prev url.Values, tx_next map[string]any, tx_
 	return tx_comp
 }
 
-func (tx_comp *tx_S_slot_H_fallback) tx_compute() {
+func (tx_comp *tx_SL_slot_HY_fallback) tx_compute() {
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_new_tx_H_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 	{
 		tx_id := "tx-box-2"
-		tx_child := tx_new_tx_H_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_slot_H_fallback) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_slot_HY_fallback) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>slot fallback</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/slot-fallback\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> <!-- first box: no fill -> slot renders its fallback content --> ")
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_box)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_box)
 		tx_child.tx_render(tx_w2, tx_id, nil)
 	}
 	tx_w2.WriteString(" <!-- second box: a fill overrides the fallback --> ")
 	{
 		tx_id := "tx-box-2"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_box)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_box)
 		tx_child.tx_render(tx_w2, tx_id, func() {
-			tx_comp.tx_render_fill_tx_H_box_2_(tx_w2)
+			tx_comp.tx_render_fill_tx_HY_box_2_(tx_w2)
 		})
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-func (tx_comp *tx_S_slot_H_fallback) tx_render_fill_tx_H_box_2_(tx_w *bytes.Buffer) {
+func (tx_comp *tx_SL_slot_HY_fallback) tx_render_fill_tx_HY_box_2_(tx_w *bytes.Buffer) {
 	tx_w.WriteString("<span data-test=\"box-fill\">custom</span>")
 }
 
-type tx_S_slot_H_state struct {
+type tx_SL_slot_HY_state struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2439,8 +2439,8 @@ type tx_S_slot_H_state struct {
 	V_msg string `json:"msg"`
 }
 
-func tx_new_tx_S_slot_H_state(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_slot_H_state {
-	tx_comp := &tx_S_slot_H_state{}
+func tx_new_tx_SL_slot_HY_state(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_slot_HY_state {
+	tx_comp := &tx_SL_slot_HY_state{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2454,11 +2454,11 @@ func tx_new_tx_S_slot_H_state(tx_prev url.Values, tx_next map[string]any, tx_tri
 	return tx_comp
 }
 
-func (tx_comp *tx_S_slot_H_state) tx_eh1() {
+func (tx_comp *tx_SL_slot_HY_state) tx_eh1() {
 	tx_comp.V_msg = "bye"
 }
 
-func (tx_comp *tx_S_slot_H_state) tx_compute() {
+func (tx_comp *tx_SL_slot_HY_state) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -2467,21 +2467,21 @@ func (tx_comp *tx_S_slot_H_state) tx_compute() {
 	}
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_new_tx_H_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_slot_H_state) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_slot_HY_state) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>dynamic slot fill</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/slot-state\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> <!-- a slot fill that interpolates PARENT state, and updates when it changes --> ")
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_box)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_box)
 		tx_child.tx_render(tx_w2, tx_id, func() {
-			tx_comp.tx_render_fill_tx_H_box_1_(tx_w2)
+			tx_comp.tx_render_fill_tx_HY_box_1_(tx_w2)
 		})
 	}
 	tx_w2.WriteString(" <button data-test=\"change\" data-tx-trigger=\"page\" data-tx-target=\"")
@@ -2489,21 +2489,21 @@ func (tx_comp *tx_S_slot_H_state) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Bu
 	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">change</button> </body></html>")
 }
 
-func (tx_comp *tx_S_slot_H_state) tx_render_fill_tx_H_box_1_(tx_w *bytes.Buffer) {
+func (tx_comp *tx_SL_slot_HY_state) tx_render_fill_tx_HY_box_1_(tx_w *bytes.Buffer) {
 	tx_w.WriteString(" <span data-test=\"dynfill\">filled: ")
 	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_msg)))
 	tx_w.WriteString("</span> ")
 }
 
-type tx_S_slots struct {
+type tx_SL_slots struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
 	tx_trigger_handler string         `json:"-"`
 }
 
-func tx_new_tx_S_slots(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_slots {
-	tx_comp := &tx_S_slots{}
+func tx_new_tx_SL_slots(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_slots {
+	tx_comp := &tx_SL_slots{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2515,41 +2515,41 @@ func tx_new_tx_S_slots(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_S_slots) tx_compute() {
+func (tx_comp *tx_SL_slots) tx_compute() {
 	{
 		tx_id := "tx-slot-card-1"
 		tx_val_title := "Recipe"
-		tx_child := tx_new_tx_H_slot_H_card(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_title)
+		tx_child := tx_new_tx_HY_slot_HY_card(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page", &tx_val_title)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_slots) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_slots) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Slots</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/slots\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
 	tx_w2.WriteString("</script></head> <body> ")
 	{
 		tx_id := "tx-slot-card-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_slot_H_card)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_slot_HY_card)
 		tx_child.tx_render(tx_w2, tx_id, func() {
-			tx_comp.tx_render_fill_tx_H_slot_H_card_1_(tx_w2)
+			tx_comp.tx_render_fill_tx_HY_slot_HY_card_1_(tx_w2)
 		}, func() {
-			tx_comp.tx_render_fill_tx_H_slot_H_card_1_footer(tx_w2)
+			tx_comp.tx_render_fill_tx_HY_slot_HY_card_1_footer(tx_w2)
 		})
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-func (tx_comp *tx_S_slots) tx_render_fill_tx_H_slot_H_card_1_(tx_w *bytes.Buffer) {
+func (tx_comp *tx_SL_slots) tx_render_fill_tx_HY_slot_HY_card_1_(tx_w *bytes.Buffer) {
 	tx_w.WriteString(" <p data-test=\"default-fill\">Mix and bake.</p>   ")
 }
 
-func (tx_comp *tx_S_slots) tx_render_fill_tx_H_slot_H_card_1_footer(tx_w *bytes.Buffer) {
+func (tx_comp *tx_SL_slots) tx_render_fill_tx_HY_slot_HY_card_1_footer(tx_w *bytes.Buffer) {
 	tx_w.WriteString("<em data-test=\"footer-fill-1\">Approved</em><em data-test=\"footer-fill-2\">By chef</em>")
 }
 
-type tx_S_state_H_survives struct {
+type tx_SL_state_HY_survives struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2558,8 +2558,8 @@ type tx_S_state_H_survives struct {
 	V_n int `json:"n"`
 }
 
-func tx_new_tx_S_state_H_survives(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_state_H_survives {
-	tx_comp := &tx_S_state_H_survives{}
+func tx_new_tx_SL_state_HY_survives(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_state_HY_survives {
+	tx_comp := &tx_SL_state_HY_survives{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2573,11 +2573,11 @@ func tx_new_tx_S_state_H_survives(tx_prev url.Values, tx_next map[string]any, tx
 	return tx_comp
 }
 
-func (tx_comp *tx_S_state_H_survives) tx_eh1() {
+func (tx_comp *tx_SL_state_HY_survives) tx_eh1() {
 	tx_comp.V_n++
 }
 
-func (tx_comp *tx_S_state_H_survives) tx_compute() {
+func (tx_comp *tx_SL_state_HY_survives) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -2586,13 +2586,13 @@ func (tx_comp *tx_S_state_H_survives) tx_compute() {
 	}
 	{
 		tx_id := "tx-counter-1"
-		tx_child := tx_new_tx_H_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_counter(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
 		tx_child.tx_compute(tx_id)
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
 
-func (tx_comp *tx_S_state_H_survives) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_state_HY_survives) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>state survives</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/state-survives\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2603,13 +2603,13 @@ func (tx_comp *tx_S_state_H_survives) tx_render(tx_w1 *bytes.Buffer, tx_w2 *byte
 	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">+page</button> ")
 	{
 		tx_id := "tx-counter-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_H_counter)
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_counter)
 		tx_child.tx_render(tx_w2, tx_id)
 	}
 	tx_w2.WriteString(" </body></html>")
 }
 
-type tx_S_state_H_types struct {
+type tx_SL_state_HY_types struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2620,8 +2620,8 @@ type tx_S_state_H_types struct {
 	V_nums  []int   `json:"nums"`
 }
 
-func tx_new_tx_S_state_H_types(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_state_H_types {
-	tx_comp := &tx_S_state_H_types{}
+func tx_new_tx_SL_state_HY_types(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_state_HY_types {
+	tx_comp := &tx_SL_state_HY_types{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2637,11 +2637,11 @@ func tx_new_tx_S_state_H_types(tx_prev url.Values, tx_next map[string]any, tx_tr
 	return tx_comp
 }
 
-func (tx_comp *tx_S_state_H_types) tx_eh1() {
+func (tx_comp *tx_SL_state_HY_types) tx_eh1() {
 	tx_comp.V_flag = !tx_comp.V_flag
 }
 
-func (tx_comp *tx_S_state_H_types) tx_compute() {
+func (tx_comp *tx_SL_state_HY_types) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -2653,7 +2653,7 @@ func (tx_comp *tx_S_state_H_types) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_state_H_types) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_state_HY_types) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>state types</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/state-types\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2673,7 +2673,7 @@ func (tx_comp *tx_S_state_H_types) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.B
 	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">toggle</button> </body></html>")
 }
 
-type tx_S_text struct {
+type tx_SL_text struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2684,8 +2684,8 @@ type tx_S_text struct {
 	V_raw   string `json:"raw"`
 }
 
-func tx_new_tx_S_text(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_text {
-	tx_comp := &tx_S_text{}
+func tx_new_tx_SL_text(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_text {
+	tx_comp := &tx_SL_text{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2701,7 +2701,7 @@ func tx_new_tx_S_text(tx_prev url.Values, tx_next map[string]any, tx_trigger str
 	return tx_comp
 }
 
-func (tx_comp *tx_S_text) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_text) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>text interpolation</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/text\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2725,7 +2725,7 @@ func (tx_comp *tx_S_text) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w2.WriteString("</p> <!-- tx-ignore: the element's text is rendered verbatim (no { } interpolation,\n       skipped by the probe) — the escape hatch for literal braces --> <p data-test=\"ignored\">literal { name } and { undefinedVar } stay</p> </body></html>")
 }
 
-type tx_S_todos struct {
+type tx_SL_todos struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
 	tx_trigger         string         `json:"-"`
@@ -2735,8 +2735,8 @@ type tx_S_todos struct {
 	V_lastAdded string   `json:"lastAdded"`
 }
 
-func tx_new_tx_S_todos(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_S_todos {
-	tx_comp := &tx_S_todos{}
+func tx_new_tx_SL_todos(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_todos {
+	tx_comp := &tx_SL_todos{}
 	tx_comp.tx_prev = tx_prev
 	tx_comp.tx_next = tx_next
 	tx_comp.tx_trigger = tx_trigger
@@ -2751,24 +2751,24 @@ func tx_new_tx_S_todos(tx_prev url.Values, tx_next map[string]any, tx_trigger st
 	return tx_comp
 }
 
-func (tx_comp *tx_S_todos) removeTodo(i int) {
+func (tx_comp *tx_SL_todos) removeTodo(i int) {
 	tx_comp.V_todos = append(tx_comp.V_todos[:i], tx_comp.V_todos[i+1:]...)
 }
 
-func (tx_comp *tx_S_todos) addTodo(text string) {
+func (tx_comp *tx_SL_todos) addTodo(text string) {
 	tx_comp.V_todos = append(tx_comp.V_todos, text)
 	tx_comp.V_lastAdded = text
 }
 
-func (tx_comp *tx_S_todos) tx_eh1(i int) {
+func (tx_comp *tx_SL_todos) tx_eh1(i int) {
 	tx_comp.removeTodo(i)
 }
 
-func (tx_comp *tx_S_todos) tx_eh2(text string) {
+func (tx_comp *tx_SL_todos) tx_eh2(text string) {
 	tx_comp.addTodo(text)
 }
 
-func (tx_comp *tx_S_todos) tx_compute() {
+func (tx_comp *tx_SL_todos) tx_compute() {
 	if tx_comp.tx_trigger == "page" {
 		switch tx_comp.tx_trigger_handler {
 		case "eh1":
@@ -2789,7 +2789,7 @@ func (tx_comp *tx_S_todos) tx_compute() {
 	}
 }
 
-func (tx_comp *tx_S_todos) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+func (tx_comp *tx_SL_todos) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>Todos</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/todos\">")
 	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
 	fmt.Fprint(tx_w2, tx_runtime_script)
@@ -2829,7 +2829,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 	switch tx_target {
 	case "/attr-interp":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_attr_H_interp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_attr_HY_interp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -2839,7 +2839,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/badge":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_badge(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_badge(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2850,7 +2850,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/compound":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_compound(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_compound(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2861,7 +2861,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/conditionals":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_conditionals(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_conditionals(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2872,7 +2872,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/counter-comp":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_counter_H_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_counter_HY_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2883,7 +2883,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/counter":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2894,7 +2894,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/defaulter":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_defaulter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_defaulter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2905,7 +2905,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/definput":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_definput(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_definput(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2916,7 +2916,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/derived-chain":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_derived_H_chain(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_derived_HY_chain(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2927,7 +2927,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/echo/{msg}":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_echo_S__L_msg_R_(tx_prev, tx_next, tx_trigger, tx_trigger_handler, "")
+		tx_comp := tx_new_tx_SL_echo_SL__LB_msg_RB_(tx_prev, tx_next, tx_trigger, tx_trigger_handler, "")
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -2937,7 +2937,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/expr-prop":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_expr_H_prop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_expr_HY_prop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2948,7 +2948,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/filter":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_filter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_filter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -2958,7 +2958,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/funcprop-return":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_funcprop_H_return(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_funcprop_HY_return(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -2969,7 +2969,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/importer":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_importer(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_importer(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -2979,7 +2979,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/{$}":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S__EX_(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL__EX_(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -2989,7 +2989,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/init-derived-comp":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_init_H_derived_H_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_init_HY_derived_HY_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3000,7 +3000,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/init-derived-page":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_init_H_derived_H_page(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_init_HY_derived_HY_page(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3011,7 +3011,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/input":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_input(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_input(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3022,7 +3022,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/liveinput":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_liveinput(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_liveinput(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3033,7 +3033,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/loop-comps":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_loop_H_comps(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_loop_HY_comps(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3044,7 +3044,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/loops":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_loops(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_loops(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -3054,7 +3054,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/loopvar-prop":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_loopvar_H_prop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_loopvar_HY_prop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3065,7 +3065,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/map-loop":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_map_H_loop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_map_HY_loop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -3075,7 +3075,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/nested-comp":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_nested_H_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_nested_HY_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3086,7 +3086,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/nested-loop":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_nested_H_loop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_nested_HY_loop(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -3096,7 +3096,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/render-edges":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_render_H_edges(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_render_HY_edges(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -3106,7 +3106,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/seeded":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_seeded(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_seeded(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3117,7 +3117,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/show-counter":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_show_H_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_show_HY_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3128,7 +3128,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/slot-comp-swap":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_slot_H_comp_H_swap(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_slot_HY_comp_HY_swap(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3139,7 +3139,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/slot-fallback":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_slot_H_fallback(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_slot_HY_fallback(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3150,7 +3150,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/slot-state":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_slot_H_state(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_slot_HY_state(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3161,7 +3161,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/slots":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_slots(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_slots(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3172,7 +3172,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/state-survives":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_state_H_survives(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_state_HY_survives(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3183,7 +3183,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/state-types":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_state_H_types(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_state_HY_types(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3194,7 +3194,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/text":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_text(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_text(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
 		tx_json, _ := json.Marshal(tx_next)
@@ -3204,7 +3204,7 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		return
 	case "/todos":
 		var tx_buf1, tx_buf2 bytes.Buffer
-		tx_comp := tx_new_tx_S_todos(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_comp := tx_new_tx_SL_todos(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3225,36 +3225,36 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 	var buf bytes.Buffer
 	switch name {
 	case "tx-box":
-		tx_comp := tx_new_tx_H_box(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_comp := tx_new_tx_HY_box(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_render(&buf, tx_target, nil)
 	case "tx-counter":
-		tx_comp := tx_new_tx_H_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_comp := tx_new_tx_HY_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
 	case "tx-defaulter":
-		tx_comp := tx_new_tx_H_defaulter(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target, nil, nil)
+		tx_comp := tx_new_tx_HY_defaulter(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target, nil, nil)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
 	case "tx-definput":
-		tx_comp := tx_new_tx_H_definput(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_comp := tx_new_tx_HY_definput(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
 	case "tx-init-derived":
-		tx_comp := tx_new_tx_H_init_H_derived(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_comp := tx_new_tx_HY_init_HY_derived(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
 	case "tx-liveinput":
-		tx_comp := tx_new_tx_H_liveinput(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_comp := tx_new_tx_HY_liveinput(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
 	case "tx-seeded":
-		tx_comp := tx_new_tx_H_seeded(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_comp := tx_new_tx_HY_seeded(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
@@ -3278,7 +3278,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /attr-interp",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_attr_H_interp(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_attr_HY_interp(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3292,7 +3292,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /badge",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_badge(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_badge(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3307,7 +3307,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /compound",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_compound(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_compound(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3322,7 +3322,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /conditionals",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_conditionals(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_conditionals(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3345,7 +3345,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /counter-comp",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_counter_H_comp(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_counter_HY_comp(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3360,7 +3360,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /counter",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_counter(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_counter(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3383,7 +3383,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /defaulter",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_defaulter(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_defaulter(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3398,7 +3398,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /definput",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_definput(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_definput(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3413,7 +3413,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /derived-chain",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_derived_H_chain(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_derived_HY_chain(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3431,7 +3431,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /echo/{msg}",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_echo_S__L_msg_R_(nil, tx_next, "", "", tx_r.PathValue("msg"))
+			tx_comp := tx_new_tx_SL_echo_SL__LB_msg_RB_(nil, tx_next, "", "", tx_r.PathValue("msg"))
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3445,7 +3445,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /expr-prop",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_expr_H_prop(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_expr_HY_prop(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3464,7 +3464,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /filter",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_filter(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_filter(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3478,7 +3478,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /funcprop-return",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_funcprop_H_return(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_funcprop_HY_return(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3493,7 +3493,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /importer",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_importer(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_importer(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3507,7 +3507,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /{$}",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S__EX_(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL__EX_(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3521,7 +3521,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /init-derived-comp",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_init_H_derived_H_comp(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_init_HY_derived_HY_comp(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3536,7 +3536,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /init-derived-page",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_init_H_derived_H_page(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_init_HY_derived_HY_page(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3554,7 +3554,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /input",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_input(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_input(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3572,7 +3572,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /liveinput",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_liveinput(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_liveinput(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3587,7 +3587,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /loop-comps",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_loop_H_comps(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_loop_HY_comps(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3602,7 +3602,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /loops",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_loops(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_loops(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3616,7 +3616,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /loopvar-prop",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_loopvar_H_prop(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_loopvar_HY_prop(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3631,7 +3631,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /map-loop",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_map_H_loop(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_map_HY_loop(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3645,7 +3645,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /nested-comp",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_nested_H_comp(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_nested_HY_comp(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3660,7 +3660,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /nested-loop",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_nested_H_loop(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_nested_HY_loop(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3674,7 +3674,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /render-edges",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_render_H_edges(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_render_HY_edges(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3688,7 +3688,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /seeded",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_seeded(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_seeded(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3703,7 +3703,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /show-counter",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_show_H_counter(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_show_HY_counter(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3725,7 +3725,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /slot-comp-swap",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_slot_H_comp_H_swap(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_slot_HY_comp_HY_swap(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3740,7 +3740,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /slot-fallback",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_slot_H_fallback(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_slot_HY_fallback(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3755,7 +3755,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /slot-state",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_slot_H_state(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_slot_HY_state(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3774,7 +3774,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /slots",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_slots(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_slots(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3789,7 +3789,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /state-survives",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_state_H_survives(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_state_HY_survives(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			tx_comp.tx_compute()
 			var tx_buf1, tx_buf2 bytes.Buffer
@@ -3808,7 +3808,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /state-types",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_state_H_types(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_state_HY_types(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3826,7 +3826,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /text",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_text(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_text(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3840,7 +3840,7 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "GET /todos",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
-			tx_comp := tx_new_tx_S_todos(nil, tx_next, "", "")
+			tx_comp := tx_new_tx_SL_todos(nil, tx_next, "", "")
 			tx_next["page"] = tx_comp
 			var tx_buf1, tx_buf2 bytes.Buffer
 			tx_comp.tx_render(&tx_buf1, &tx_buf2)

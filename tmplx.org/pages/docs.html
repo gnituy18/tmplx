@@ -256,22 +256,51 @@
       </ul>
 
       <p>
-        When the file is named <code>index.html</code>, the
-        <code>index</code> part is omitted from the route (it serves the
-        directory path). To get a route like <code>/index</code>, place
-        <code>index.html</code> in a subdirectory named <code>index</code>.
+        When the file is named <code>index.html</code>, it serves its
+        directory's URL, which ends with a trailing slash. The page matches
+        that URL <strong>exactly</strong> — it does not catch other paths under
+        the directory — and a request without the trailing slash is redirected
+        to it.
       </p>
       <ul>
-        <li><code>pages/index/index.html</code> → <code>/index</code></li>
+        <li><code>pages/docs/index.html</code> → <code>/docs/</code></li>
+        <li><code>pages/index/index.html</code> → <code>/index/</code></li>
       </ul>
       <p>
-        Multiple file paths can map to the same route. Choose the style you
-        prefer. Duplicate routes cause compilation failure.
+        A name and a directory are <strong>different URLs</strong>:
+        <code>login.html</code> serves <code>/login</code> while
+        <code>login/index.html</code> serves <code>/login/</code>, and both can
+        exist in the same project. Two files that derive the same route cause
+        compilation failure.
       </p>
-
+      <p>
+        The exact match is what <code tx-ignore>{$}</code> does: in Go's
+        <code tx-ignore>net/http.ServeMux</code>, a pattern ending in
+        <code>/</code> matches the <em>whole subtree</em>, so a bare
+        <code>/docs/</code> pattern would serve the index page for every
+        unmatched URL under it. tmplx therefore registers every
+        <code>index.html</code> with <code tx-ignore>{$}</code> appended:
+        <code>pages/docs/index.html</code> becomes the pattern
+        <code tx-ignore>GET /docs/{$}</code>, which matches only
+        <code>/docs/</code> itself. That string is the page's
+        <strong>identity</strong>, so you will meet it wherever the page is
+        referred to — in the <code tx-ignore>Routes()</code> patterns when you
+        attach middleware, and in the event POST URLs in the network tab:
+      </p>
       <ul>
-        <li><code>pages/login/index.html</code> → <code>/login</code></li>
-        <li><code>pages/login.html</code> → <code>/login</code></li>
+        <li>
+          <code tx-ignore>pages/docs/index.html</code> → pattern
+          <code tx-ignore>GET /docs/{$}</code>
+        </li>
+        <li>
+          <code tx-ignore>pages/index.html</code> → pattern
+          <code tx-ignore>GET /{$}</code>
+        </li>
+        <li>
+          <code tx-ignore>pages/docs.html</code> → pattern
+          <code tx-ignore>GET /docs</code> (no <code tx-ignore>{$}</code>;
+          a non-index route never ends in <code>/</code>)
+        </li>
       </ul>
 
       <p>
@@ -295,6 +324,19 @@
         values are available in page initialisation through
         <code><a href="#path-parameter">tx:path</a></code> comments.
       </p>
+      <p>
+        A <code tx-ignore>{name...}</code> wildcard matches the rest of the
+        URL, slashes included — a <strong>catch-all</strong>. It serves every
+        path under its directory that no more specific page matches: an exact
+        page wins first, then the directory's <code>index.html</code>, then the
+        catch-all.
+      </p>
+      <ul>
+        <li>
+          <code tx-ignore>pages/docs/{rest...}.html</code> →
+          <code tx-ignore>/docs/{rest...}</code>
+        </li>
+      </ul>
       <p>
         tmplx compiles all pages into a single Go file you can import into your
         Go project. The pages directory can be outside your project, but keeping

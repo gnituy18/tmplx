@@ -51,6 +51,10 @@ func main() {
 		pk := os.Getenv("PK")
 		log.Fatal(http.ListenAndServeTLS(":443", cert, pk, nil))
 	} else {
-		log.Fatal(http.ListenAndServe(":8080", nil))
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		log.Fatal(http.ListenAndServe(":"+port, nil))
 	}
 }

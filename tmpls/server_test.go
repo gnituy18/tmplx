@@ -117,6 +117,49 @@ func parseMsgs(b []byte) []map[string]any {
 	}
 }
 
+// A page and a component sharing a rel path must each get their own
+// diagnostics (the uri maps are keyed by the compiler's components// pages/
+// identity, so neither overwrites the other).
+func TestServerSameNamePageAndComponent(t *testing.T) {
+	dir := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module collide\n\ngo 1.25\n"), 0644))
+	must(t, os.MkdirAll(filepath.Join(dir, "pages"), 0755))
+	must(t, os.MkdirAll(filepath.Join(dir, "components"), 0755))
+	compPath := filepath.Join(dir, "components", "foo.html")
+	pagePath := filepath.Join(dir, "pages", "foo.html")
+	pageText := "<html><head><script type=\"text/tmplx\">\nvar b int\n</script></head><body>y</body></html>"
+	must(t, os.WriteFile(compPath, []byte("<script type=\"text/tmplx\">\nvar a int\n</script><p>x</p>"), 0644))
+	must(t, os.WriteFile(pagePath, []byte(pageText), 0644))
+
+	var in bytes.Buffer
+	writeMsg(&in, map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{"rootUri": pathToURI(dir)}})
+	writeMsg(&in, map[string]any{"jsonrpc": "2.0", "method": "textDocument/didOpen",
+		"params": map[string]any{"textDocument": map[string]any{"uri": pathToURI(pagePath), "text": pageText}}})
+
+	s := &server{docs: map[string]string{}, published: map[string]bool{}}
+	var out bytes.Buffer
+	s.run(&in, &out)
+
+	msgByURI := map[string]string{}
+	for _, m := range parseMsgs(out.Bytes()) {
+		if m["method"] != "textDocument/publishDiagnostics" {
+			continue
+		}
+		p, _ := m["params"].(map[string]any)
+		if diags, _ := p["diagnostics"].([]any); len(diags) > 0 {
+			d0 := diags[0].(map[string]any)
+			msgByURI[p["uri"].(string)], _ = d0["message"].(string)
+		}
+	}
+	if !strings.Contains(msgByURI[pathToURI(compPath)], "a declared") {
+		t.Errorf("component diagnostics misrouted: %v", msgByURI)
+	}
+	if !strings.Contains(msgByURI[pathToURI(pagePath)], "b declared") {
+		t.Errorf("page diagnostics misrouted: %v", msgByURI)
+	}
+}
+
 func TestServerFormatsScriptBlock(t *testing.T) {
 	dir := t.TempDir()
 	must(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module fmttest\n\ngo 1.25\n"), 0644))
