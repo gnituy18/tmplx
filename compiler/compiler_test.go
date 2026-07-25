@@ -6,10 +6,62 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+// typecheck parses and type-checks generated routes.go bytes against the
+// standard library, so import and codegen mistakes fail here instead of in
+// the user's go build.
+func typecheck(t *testing.T, code []byte) {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "routes.go", code, 0)
+	if err != nil {
+		t.Fatalf("generated code does not parse: %v", err)
+	}
+	if _, err := (&types.Config{Importer: importer.Default()}).Check("main", fset, []*ast.File{f}, nil); err != nil {
+		t.Errorf("generated code does not typecheck: %v", err)
+	}
+}
+
+// TestCompileProject is the bridge to the E2E suite: the same fixture project
+// the browser tests exercise (test/) must compile and typecheck at the bytes
+// level, with no browser in the loop.
+func TestCompileProject(t *testing.T) {
+	c := &Compiler{}
+	for _, dir := range []string{"../test/components", "../test/pages"} {
+		page := strings.HasSuffix(dir, "pages")
+		err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() || filepath.Ext(path) != ".html" {
+				return err
+			}
+			rel, _ := filepath.Rel(dir, path)
+			b, rerr := os.ReadFile(path)
+			if rerr != nil {
+				return rerr
+			}
+			if page {
+				c.NewPage(filepath.ToSlash(rel), b)
+			} else {
+				c.NewComponent(filepath.ToSlash(rel), b)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	code, err := c.Compile()
+	if err != nil {
+		t.Fatalf("the E2E project must compile: %v", err)
+	}
+	typecheck(t, code)
+}
 
 // compilePage compiles one in-memory page the way the playground does (stdlib
 // imports only) and returns the generated Go plus any diagnostics.

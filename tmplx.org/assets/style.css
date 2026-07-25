@@ -37,7 +37,17 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, sans-serif;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* code/pre and form controls don't inherit the body font by default */
+code,
+pre,
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
 }
 
 main {
@@ -51,14 +61,12 @@ main {
 h1 {
   margin: 0;
   font-size: 3rem;
-  font-family: Verdana, sans-serif;
 }
 
 h2 {
   margin-top: 8rem;
   margin-bottom: 1rem;
   font-size: 1.5rem;
-  font-family: Verdana, sans-serif;
 }
 
 h1,

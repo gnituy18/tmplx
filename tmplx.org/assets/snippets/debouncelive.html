@@ -1,0 +1,7 @@
+<pre class="tmplx-code"><code><span class='punctuation bracket'>&lt;</span><span class='tag'>script</span> <span class='attribute'>type</span>=&quot;<span class='string'>text/tmplx</span>&quot;<span class='punctuation bracket'>&gt;</span>
+  <span class='keyword'>var</span> <span class='variable'>query</span> <span class='type'>string</span>
+  <span class='keyword'>var</span> <span class='variable'>requests</span> <span class='type'>int</span>
+<span class='punctuation bracket'>&lt;/</span><span class='tag'>script</span><span class='punctuation bracket'>&gt;</span>
+
+<span class='punctuation bracket'>&lt;</span><span class='tag'>input</span> <span class='attribute'>type</span>=&quot;<span class='string'>text</span>&quot; <span class='attribute'>tx-oninput</span>=&quot;<span class='string'>query = event.target.value; requests++</span>&quot; <span class='attribute'>tx-debounce</span>=&quot;<span class='string'>300</span>&quot; <span class='attribute'>placeholder</span>=&quot;<span class='string'>type fast, then pause</span>&quot; <span class='punctuation bracket'>/&gt;</span>
+<span class='punctuation bracket'>&lt;</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span>server saw: &quot;{ query }&quot; &amp;mdash; requests handled: { requests }<span class='punctuation bracket'>&lt;/</span><span class='tag'>p</span><span class='punctuation bracket'>&gt;</span></code></pre>

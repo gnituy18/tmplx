@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>slot fill survives swap</title>
+  <script type="text/tmplx">
+  </script>
+</head>
+
+<body>
+  <!-- an args-less component WITH a fill: it must NOT be its own swap target
+       (the fill is parent content the standalone dispatch cannot render), so
+       its handler bubbles the swap to the page and the fill survives -->
+  <tx-slotpanel><b data-test="sfill">PRECIOUS</b></tx-slotpanel>
+</body>
+
+</html>

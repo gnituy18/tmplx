@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><title>condtail</title></head>
+<body>
+<script type="text/tmplx">
+  var flag bool
+  var on bool = true
+  var text string = "hello"
+</script>
+<p id="a"><span tx-if="flag">x</span>{ text }</p>
+<p id="b">{ text }<span tx-if="flag">x</span></p>
+<p id="c"><span tx-if="flag">x</span>static</p>
+<p id="d"><span tx-if="on">x</span>{ text }</p>
+<button id="toggle" tx-onclick="flag = !flag">toggle</button>
+</body>
+</html>

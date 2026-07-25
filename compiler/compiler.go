@@ -15,16 +15,19 @@ import (
 	"go/types"
 	"maps"
 	"net/url"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"golang.org/x/text/unicode/norm"
 	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/packages"
 )
 
 // Compiler holds one compilation: add sources with NewComponent / NewPage,
@@ -39,29 +42,29 @@ type Compiler struct {
 	HandlerPrefix string
 
 	ComponentsDir string
-	components    map[string]*Component
+	components    []*component // sorted by Name; componentByName binary-searches it
 	PagesDir      string
-	pages         []*Component
+	pages         []*component
 
 	errs []error
 }
 
-// NewComponent registers a reusable component read from path (slash-separated,
-// relative to the components dir, e.g. "foo/bar.html") with the given file
-// bytes. The component is named tx-<stem> (slashes become dashes) and the file
-// is identified as <ComponentsDir>/<path> in diagnostics and editor queries.
-// An invalid name or a duplicate is recorded and surfaced by Compile.
+// NewComponent registers a reusable component. path is the .html file's path
+// relative to the components dir, forward-slash separated on every platform
+// (a caller walking a real filesystem converts with filepath.ToSlash first);
+// content is the file's bytes.
+//
+// The stem becomes the tag name, slashes turning into dashes: "button.html"
+// defines <tx-button>, "form/input.html" defines <tx-form-input>. Stems are
+// limited to a-z, 0-9, '-' and '_'. Diagnostics and editor queries identify
+// the file as <ComponentsDir>/<path>. An invalid or duplicate name is
+// recorded; Compile and Diagnose report it.
 func (c *Compiler) NewComponent(path string, content []byte) {
-	if c.components == nil {
-		c.components = map[string]*Component{}
-	}
 	if c.ComponentsDir == "" {
 		c.ComponentsDir = "components"
 	}
 
 	stem, ok := strings.CutSuffix(path, ".html")
-	// from here on path is namespaced: a page and a component may share a file
-	// name, so errors and editor queries identify files by their dir
 	path = strings.TrimSuffix(c.ComponentsDir, "/") + "/" + path
 	if !ok || stem == "" || strings.HasSuffix(stem, "/") {
 		c.errs = append(c.errs, fmt.Errorf("%s: invalid filename: want name.html", path))
@@ -75,32 +78,44 @@ func (c *Compiler) NewComponent(path string, content []byte) {
 			return
 		}
 	}
-	if existing, ok := c.components[name]; ok {
-		c.errs = append(c.errs, fmt.Errorf("%s: duplicate component <%s>, first defined in %s", path, name, existing.Path))
+	i, found := slices.BinarySearchFunc(c.components, name, byName)
+	if found {
+		c.errs = append(c.errs, fmt.Errorf("%s: duplicate component <%s>, first defined in %s", path, name, c.components[i].Path))
 		return
 	}
 
-	c.components[name] = &Component{
-		compiler: c,
-		content:  content,
-		lineMap:  newLineMap(content),
+	c.components = slices.Insert(c.components, i, &component{
+		Compiler: c,
 		Type:     CompTypeComp,
 		Path:     path,
 		Name:     name,
 		GoName:   goIdent(name),
 
+		Content: content,
+		LineMap: newLineMap(content),
+
 		ChildCounters:       map[string]*Counter{},
 		Children:            map[*html.Node]*Child{},
 		EventHandlers:       map[*html.Node][]*EventHandler{},
 		EventHandlerCounter: &Counter{},
-	}
+	})
 }
 
-// NewPage registers a page read from path (slash-separated, relative to the
-// pages dir) with the given file bytes. The route is derived from the path
-// (index.html -> "/", foo/bar.html -> "/foo/bar") and the file is identified
-// as <PagesDir>/<path> in diagnostics and editor queries. A duplicate route is
-// recorded and surfaced by Compile.
+// NewPage registers a page. path is the .html file's path relative to the
+// pages dir, forward-slash separated on every platform (a caller walking a
+// real filesystem converts with filepath.ToSlash first); content is the
+// file's bytes.
+//
+// The path becomes the page's ServeMux pattern, taken literally, so pattern
+// syntax passes through:
+//
+//	index.html       -> "/{$}"     (matches exactly "/")
+//	about.html       -> "/about"
+//	docs/index.html  -> "/docs/{$}"
+//	blog/{slug}.html -> "/blog/{slug}"
+//
+// Diagnostics and editor queries identify the file as <PagesDir>/<path>. A
+// duplicate route is recorded; Compile and Diagnose report it.
 func (c *Compiler) NewPage(path string, content []byte) {
 	if c.PagesDir == "" {
 		c.PagesDir = "pages"
@@ -109,19 +124,22 @@ func (c *Compiler) NewPage(path string, content []byte) {
 	base := path[strings.LastIndex(path, "/")+1:]
 	dir, _ := strings.CutSuffix(path, base)
 	stem, ok := strings.CutSuffix(base, ".html")
-	path = strings.TrimSuffix(c.PagesDir, "/") + "/" + path // namespaced; see NewComponent
+	path = strings.TrimSuffix(c.PagesDir, "/") + "/" + path
 	if !ok || stem == "" {
 		c.errs = append(c.errs, fmt.Errorf("%s: invalid filename: want name.html", path))
 		return
 	}
-
 	route := "/" + dir
 	if stem != "index" {
 		route += stem
 	}
-	// macOS filenames arrive NFD-decomposed (e + combining accent) but
-	// browsers request NFC (precomposed); ServeMux compares bytes, so
-	// normalize the route to the form browsers send
+	// "é" has two byte spellings that render identically: NFC "\xc3\xa9"
+	// (precomposed, what keyboards and browsers send) and NFD "e\xcc\x81"
+	// (letter + combining accent, what macOS writes into filenames).
+	// ServeMux compares bytes, so an NFD route 404s every accented
+	// Mac-authored page. Normalize only the route: path must stay
+	// byte-identical to the disk name (tmpls keys files by it), and stay
+	// above the duplicate check so both spellings collide as one route.
 	route = norm.NFC.String(route)
 	// a ServeMux pattern ending in "/" matches the whole subtree, so a bare
 	// index route would swallow every unmatched URL under it; {$} pins it to
@@ -137,15 +155,16 @@ func (c *Compiler) NewPage(path string, content []byte) {
 		}
 	}
 
-	c.pages = append(c.pages, &Component{
-		compiler: c,
-		content:  content,
-		lineMap:  newLineMap(content),
+	c.pages = append(c.pages, &component{
+		Compiler: c,
+		Content:  content,
+		LineMap:  newLineMap(content),
 		Type:     CompTypePage,
 		Path:     path,
 		Name:     route,
-		// route starts with "/" (-> _SL_), so this is always tx_SL_... -
-		// inside the reserved tx_ namespace, the encoding owning the underscore
+		// goIdent turns the leading "/" into "_SL_", so a page's GoName always
+		// starts "tx_SL_": inside the reserved tx_ namespace, and disjoint from
+		// component GoNames, which continue "tx_HY_" (goIdent of "tx-")
 		GoName: "tx" + goIdent(route),
 
 		ChildCounters:       map[string]*Counter{},
@@ -155,11 +174,10 @@ func (c *Compiler) NewPage(path string, content []byte) {
 	})
 }
 
-// analyze runs the front of the pipeline - naming, parse, type-check (probe) -
-// and returns the sorted components plus any diagnostics, without codegen, so
-// Diagnose and the editor queries reuse it. It mutates the registered
-// Components, so call it once per Compiler.
-func (c *Compiler) analyze() ([]*Component, error) {
+// analyze runs the front of the pipeline (parse, script rules, type-check) and
+// returns the diagnostics, without codegen, so Diagnose and the editor queries
+// reuse it. It mutates the registered components, so call it once per Compiler.
+func (c *Compiler) analyze() error {
 	if c.Importer == nil {
 		c.Importer = &lockedImporter{imp: importer.Default()}
 	}
@@ -170,51 +188,69 @@ func (c *Compiler) analyze() ([]*Component, error) {
 		c.HandlerPrefix = "/tx/"
 	}
 	if err := sortedJoin(errors.Join(c.errs...)); err != nil {
-		return nil, err
+		return err
 	}
 
-	// parse the components in parallel; each goroutine owns one error slot, so
-	// there is no shared mutable state to lock
 	var wg sync.WaitGroup
-	components := slices.SortedFunc(maps.Values(c.components), func(a, b *Component) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-	compErrs := make([]error, len(components))
-	for i, comp := range components {
+	compErrs := make([]error, len(c.components))
+	for i, comp := range c.components {
 		wg.Go(func() {
 			var errs []error
 			defer func() { compErrs[i] = errors.Join(errs...) }()
 
-			nodes, err := html.ParseFragment(bytes.NewReader(comp.content), &html.Node{
+			nodes, err := html.ParseFragment(bytes.NewReader(comp.Content), &html.Node{
 				Data:     "body",
 				DataAtom: atom.Body,
 				Type:     html.ElementNode,
 			})
 			if err != nil {
-				errs = append(errs, comp.errf("invalid HTML: %w", err))
+				errs = append(errs, comp.errf("reading the source: %w", err))
 				return
 			}
 
+			for _, span := range comp.extraScriptSpans() {
+				errs = append(errs, comp.errAt(span, "multiple <script type=\"text/tmplx\"> elements (only one allowed)"))
+			}
+			for _, span := range comp.extraStyleSpans() {
+				errs = append(errs, comp.errAt(span, "multiple <style> elements (only one allowed)"))
+			}
+			errs = append(errs, comp.checkTags())
+
 			comp.TemplateNode = newTemplateNode()
 			for _, node := range nodes {
+				comp.TemplateNode.AppendChild(node)
+			}
+			// positions before the split, so the sweep consumes the script and
+			// style bytes; otherwise a Go string containing "<p " would steal
+			// the next real <p>'s position
+			comp.annotatePositions()
+			var next *html.Node
+			for node := comp.TemplateNode.FirstChild; node != nil; node = next {
+				next = node.NextSibling
 				if isTmplxScriptNode(node) {
-					if comp.TmplxScriptNode != nil {
-						errs = append(errs, comp.errf("multiple <script type=\"text/tmplx\"> elements (only one allowed)"))
-						return
+					comp.TemplateNode.RemoveChild(node)
+					if comp.TmplxScriptNode == nil {
+						comp.TmplxScriptNode = node
 					}
-					comp.TmplxScriptNode = node
 				} else if node.DataAtom == atom.Style {
-					if comp.StyleNode != nil {
-						errs = append(errs, comp.errf("multiple <style> elements (only one allowed)"))
-						return
+					comp.TemplateNode.RemoveChild(node)
+					if comp.StyleNode == nil {
+						comp.StyleNode = node
 					}
-					comp.StyleNode = node
-				} else {
-					comp.TemplateNode.AppendChild(node)
+				}
+			}
+			// a nested script is never parsed: it would ship its Go source to
+			// the browser
+			for child := comp.TemplateNode.FirstChild; child != nil; child = child.NextSibling {
+				for node := range child.Descendants() {
+					if isTmplxScriptNode(node) {
+						errs = append(errs, comp.errAt(comp.nodeSpan(node), "<script type=\"text/tmplx\"> must be a top-level element in a component, not inside <%s>", node.Parent.Data))
+					} else if node.DataAtom == atom.Style && node.Namespace == "" {
+						errs = append(errs, comp.errAt(comp.nodeSpan(node), "<style> must be a top-level element in a component, not inside <%s>", node.Parent.Data))
+					}
 				}
 			}
 
-			comp.annotatePositions()
 			errs = append(errs, comp.parseScript())
 			if err := comp.checkImports(); err != nil {
 				errs = append(errs, err)
@@ -232,9 +268,9 @@ func (c *Compiler) analyze() ([]*Component, error) {
 			var errs []error
 			defer func() { pageErrs[i] = errors.Join(errs...) }()
 
-			parsed, err := html.Parse(bytes.NewReader(page.content))
+			parsed, err := html.Parse(bytes.NewReader(page.Content))
 			if err != nil {
-				errs = append(errs, page.errf("invalid HTML: %w", err))
+				errs = append(errs, page.errf("reading the source: %w", err))
 				return
 			}
 			page.TemplateNode = parsed
@@ -272,13 +308,9 @@ func (c *Compiler) analyze() ([]*Component, error) {
 					break
 				}
 			}
-			if !foundHead {
-				errs = append(errs, page.errf("page must have a <head> element (required for state and runtime script injection)"))
-				return
-			}
-
 			cleanUpTmplxScript(page.TemplateNode)
 
+			errs = append(errs, page.checkTags())
 			errs = append(errs, page.parseScript())
 			if err := page.checkImports(); err != nil {
 				errs = append(errs, err)
@@ -290,7 +322,7 @@ func (c *Compiler) analyze() ([]*Component, error) {
 	}
 	wg.Wait()
 	if err := sortedJoin(errors.Join(append(compErrs, pageErrs...)...)); err != nil {
-		return nil, err
+		return err
 	}
 
 	// type-check (go/types) and collect child/fill metadata in one walk.
@@ -299,20 +331,98 @@ func (c *Compiler) analyze() ([]*Component, error) {
 	// probes race. (Parallelizing again needs a build/apply barrier inside
 	// probe.)
 	var probeErrs []error
-	for _, comp := range slices.Concat(components, c.pages) {
+	for _, comp := range slices.Concat(c.components, c.pages) {
 		probeErrs = append(probeErrs, comp.probe())
 	}
 	if err := sortedJoin(errors.Join(probeErrs...)); err != nil {
-		return nil, err
+		return err
 	}
-	return components, nil
+
+	// a component that mounts itself through a chain of unconditional children
+	// recurses forever at runtime (compute mounts every unguarded child on
+	// every request), so reject the cycle; a tx-if / tx-for anywhere on the
+	// chain breaks it (and silences the error). Order matters here: the DFS
+	// root decides which file reports the cycle and the message's rotation,
+	// and sorting the errors afterward can't fix their content; c.components'
+	// name order keeps it deterministic.
+	var cycleErrs []error
+	state := map[*component]int{} // 0 unvisited, 1 on stack, 2 done
+	var stack []*component
+	var visit func(comp *component)
+	visit = func(comp *component) {
+		state[comp] = 1
+		stack = append(stack, comp)
+		for _, edge := range comp.unconditionalChildEdges() {
+			switch state[edge.comp] {
+			case 1:
+				names := make([]string, 0, len(stack)+1)
+				for _, s := range stack[slices.Index(stack, edge.comp):] {
+					names = append(names, "<"+s.Name+">")
+				}
+				names = append(names, "<"+edge.comp.Name+">")
+				cycleErrs = append(cycleErrs, comp.errAt(comp.nodeSpan(edge.node), "component cycle %s would render forever; guard one step with tx-if or tx-for", strings.Join(names, " -> ")))
+			case 0:
+				visit(edge.comp)
+			}
+		}
+		stack = stack[:len(stack)-1]
+		state[comp] = 2
+	}
+	for _, comp := range c.components {
+		if state[comp] == 0 {
+			visit(comp)
+		}
+	}
+	return sortedJoin(errors.Join(cycleErrs...))
+}
+
+type childEdge struct {
+	comp *component
+	node *html.Node
+}
+
+// unconditionalChildEdges returns the components comp always mounts: children
+// with no tx-if / tx-else-if / tx-else / tx-for on their element or any
+// ancestor in comp's main template. Slot-fill children are skipped (their
+// nodes live under a synthetic root, and the guard sits at the usage site).
+func (comp *component) unconditionalChildEdges() []childEdge {
+	var edges []childEdge
+	seen := map[*component]struct{}{}
+	for node, child := range comp.Children {
+		guarded := false
+		root := node
+		for n := node; n != nil; n = n.Parent {
+			root = n
+			for _, key := range []string{"tx-if", "tx-else-if", "tx-else", "tx-for"} {
+				if _, ok := hasAttr(n, key); ok {
+					guarded = true
+				}
+			}
+		}
+		if !guarded && root == comp.TemplateNode {
+			if _, dup := seen[child.Comp]; !dup {
+				seen[child.Comp] = struct{}{}
+				edges = append(edges, childEdge{comp: child.Comp, node: node})
+			}
+		}
+	}
+	slices.SortFunc(edges, func(a, b childEdge) int {
+		return strings.Compare(a.comp.Name, b.comp.Name)
+	})
+	return edges
 }
 
 // Diagnose runs analyze and returns the diagnostics (parse + type errors)
-// without generating code.
+// without generating code, sorted in source order. Leaves that are *Diagnostic
+// keep their span; any others become file-less messages.
 func (c *Compiler) Diagnose() []Diagnostic {
-	_, err := c.analyze()
-	return diagnostics(err)
+	leaves := flattenErrs(c.analyze())
+	ds := make([]Diagnostic, 0, len(leaves))
+	for _, e := range leaves {
+		ds = append(ds, asDiagnostic(e))
+	}
+	slices.SortStableFunc(ds, compareDiag)
+	return ds
 }
 
 // Compile type-checks the registered components and pages and returns the
@@ -320,16 +430,14 @@ func (c *Compiler) Diagnose() []Diagnostic {
 // NewComponent / NewPage and writes the result. On a gofmt failure it returns
 // the unformatted bytes plus the error; on tmplx errors, nil plus a joined error.
 func (c *Compiler) Compile() ([]byte, error) {
-	components, err := c.analyze()
-	if err != nil {
+	if err := c.analyze(); err != nil {
 		return nil, err
 	}
-
 	// the body is emitted first, the package/import header after: the import
 	// block depends on what the body used (code.needsFmt / needsHTML)
 	var code CodeBuilder
 
-	for _, comp := range components {
+	for _, comp := range c.components {
 		code.write("type %s struct {\n", comp.GoName)
 		code.write("tx_target string `json:\"-\"`\n")
 		code.write("tx_prev url.Values `json:\"-\"`\n")
@@ -668,7 +776,7 @@ func (c *Compiler) Compile() ([]byte, error) {
 	code.write("if i := strings.LastIndexByte(name, '-'); i >= 0 {\nname = name[:i]\n}\n")
 	code.write("var buf bytes.Buffer\n")
 	code.write("switch name {\n")
-	for _, comp := range components {
+	for _, comp := range c.components {
 		if comp.sealable() {
 			code.write("case \"%s\":\n", comp.Name)
 			code.write("tx_comp := tx_new_%s(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target", comp.GoName)
@@ -736,7 +844,7 @@ func (c *Compiler) Compile() ([]byte, error) {
 			code.write("},\n")
 		}
 	}
-	for _, comp := range components {
+	for _, comp := range c.components {
 		compUrl := url.PathEscape(comp.Name)
 		for _, eh := range comp.sortedEventHandlers() {
 			code.write("{\n")
@@ -757,7 +865,7 @@ func (c *Compiler) Compile() ([]byte, error) {
 	file.write("import (\n")
 	seen := map[string]bool{}  // import specs already written (dedup across files)
 	bound := map[string]bool{} // paths whose package name the user's imports already bind
-	for _, comp := range slices.Concat(c.pages, components) {
+	for _, comp := range slices.Concat(c.pages, c.components) {
 		for _, im := range comp.Imports {
 			src := astToSource(im)
 			if seen[src] {
@@ -772,7 +880,7 @@ func (c *Compiler) Compile() ([]byte, error) {
 		}
 	}
 	generated := []string{"bytes", "encoding/json", "net/http", "strings"}
-	if len(c.pages)+len(components) > 0 {
+	if len(c.pages)+len(c.components) > 0 {
 		generated = append(generated, "net/url")
 	}
 	if code.needsFmt {
@@ -792,7 +900,25 @@ func (c *Compiler) Compile() ([]byte, error) {
 	data := []byte(file.String())
 	formatted, err := format.Source(data)
 	if err != nil {
-		return data, fmt.Errorf("format generated code: %w", err)
+		// the generated Go didn't parse (a codegen bug, or a pathological
+		// input like a quote in a page filename): turn the scanner errors into
+		// positioned Diagnostics carrying a window of the generated source, so
+		// the caller prints them like any other compiler error
+		var errs scanner.ErrorList
+		if !errors.As(err, &errs) || len(errs) == 0 {
+			return data, err
+		}
+		errs.RemoveMultiples()
+		diags := make([]error, len(errs))
+		for i, e := range errs {
+			diags[i] = &Diagnostic{
+				Path:    "<generated>",
+				Span:    Span{Start: Pos{Line: e.Pos.Line, Col: e.Pos.Column}, End: Pos{Line: e.Pos.Line, Col: e.Pos.Column}},
+				Message: e.Msg,
+				Snippet: excerpt(data, e.Pos.Line, 5),
+			}
+		}
+		return data, errors.Join(diags...)
 	}
 	return formatted, nil
 }
@@ -804,24 +930,26 @@ const (
 	CompTypePage
 )
 
-type Component struct {
-	// set at construction
-	compiler *Compiler
-	content  []byte
-	lineMap  *LineMap // byte offset -> line/col in content (for diagnostics)
-	Type     CompType
-	Path     string
-	Name     string
-	GoName   string
+type component struct {
+	Compiler *Compiler
+
+	Type   CompType
+	Path   string
+	Name   string
+	GoName string
+
+	Content []byte
+	LineMap *LineMap // byte offset -> line/col in content (for diagnostics)
 
 	// the parsed HTML, set in analyze
 	TmplxScriptNode *html.Node
 	TemplateNode    *html.Node
 	StyleNode       *html.Node
-	nodePos         map[*html.Node]int // node -> byte offset in content (annotatePositions)
+	NodePos         map[*html.Node]int // node -> byte offset in content (annotatePositions)
 
 	// the script block's declarations, set by parseScript and parseSlots
-	scriptStart int // byte offset of the <script> text in content
+	ScriptStart int            // byte offset of the <script> text in content
+	ScriptFset  *token.FileSet // converts decl positions to spans (spanOf); nil without a script
 	Imports     []*ast.ImportSpec
 	Vars        []*Var
 	InitFunc    *Func
@@ -835,24 +963,233 @@ type Component struct {
 	EventHandlerCounter *Counter
 }
 
-// checkImports verifies every import resolves through comp.compiler.Importer.
+// extraScriptSpans returns the span of every <script type="text/tmplx">
+// element after the first, open tag through closing tag (the fix is deleting
+// the whole block), by re-tokenizing Content: this check runs before
+// annotatePositions, so there is no NodePos to look up yet.
+func (comp *component) extraScriptSpans() []Span {
+	var spans []Span
+	found := 0
+	start := -1 // open-tag offset of a duplicate whose </script> is pending
+	z := html.NewTokenizer(bytes.NewReader(comp.Content))
+	for offset := 0; ; {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			if start >= 0 {
+				spans = append(spans, Span{Start: comp.LineMap.Pos(start), End: comp.LineMap.Pos(len(comp.Content))})
+			}
+			return spans
+		}
+		rawLen := len(z.Raw())
+		switch tt {
+		case html.StartTagToken:
+			name, hasAttr := z.TagName()
+			tmplx := false
+			for string(name) == "script" && hasAttr {
+				var k, v []byte
+				k, v, hasAttr = z.TagAttr()
+				if string(k) == "type" && string(v) == "text/tmplx" {
+					tmplx = true
+				}
+			}
+			if tmplx {
+				found++
+				if found > 1 {
+					start = offset
+				}
+			}
+		case html.EndTagToken:
+			if name, _ := z.TagName(); string(name) == "script" && start >= 0 {
+				spans = append(spans, Span{Start: comp.LineMap.Pos(start), End: comp.LineMap.Pos(offset + rawLen)})
+				start = -1
+			}
+		}
+		offset += rawLen
+	}
+}
+
+// extraStyleSpans is extraScriptSpans for <style> tags.
+func (comp *component) extraStyleSpans() []Span {
+	var spans []Span
+	found := 0
+	start := -1
+	z := html.NewTokenizer(bytes.NewReader(comp.Content))
+	for offset := 0; ; {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			if start >= 0 {
+				spans = append(spans, Span{Start: comp.LineMap.Pos(start), End: comp.LineMap.Pos(len(comp.Content))})
+			}
+			return spans
+		}
+		rawLen := len(z.Raw())
+		switch tt {
+		case html.StartTagToken:
+			if name, _ := z.TagName(); string(name) == "style" {
+				found++
+				if found > 1 {
+					start = offset
+				}
+			}
+		case html.EndTagToken:
+			if name, _ := z.TagName(); string(name) == "style" && start >= 0 {
+				spans = append(spans, Span{Start: comp.LineMap.Pos(start), End: comp.LineMap.Pos(offset + rawLen)})
+				start = -1
+			}
+		}
+		offset += rawLen
+	}
+}
+
+// checkTags enforces the tx- reserved namespace on the token stream: a tx-*
+// element must name a defined component, must not self-close, must be closed,
+// and its end tag must match an open tag; a tx-* attribute with a value must
+// quote it. html.Parse repairs all five mistakes silently (a self-closed or
+// unclosed tag swallows everything after it into itself, which fill semantics
+// may then drop entirely; an unquoted value truncates at the first space or
+// '>', leaving smaller-but-valid Go), so the parse tree cannot carry these
+// checks; the tokenizer still shows the tags as written.
+func (comp *component) checkTags() error {
+	type openTag struct {
+		name string
+		span Span
+	}
+	var errs []error
+	var open []openTag
+	z := html.NewTokenizer(bytes.NewReader(comp.Content))
+	for offset := 0; ; {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			for _, tag := range open {
+				errs = append(errs, comp.errAt(tag.span, "<%s> is never closed, so it swallows everything after it; add </%s>", tag.name, tag.name))
+			}
+			return errors.Join(errs...)
+		}
+		rawLen := len(z.Raw())
+		switch tt {
+		case html.StartTagToken, html.SelfClosingTagToken, html.EndTagToken:
+			if tt != html.EndTagToken {
+				for _, a := range unquotedTxAttrs(z.Raw()) {
+					span := Span{Start: comp.LineMap.Pos(offset + a.start), End: comp.LineMap.Pos(offset + a.end)}
+					errs = append(errs, comp.errAt(span, "%s value must be quoted: an unquoted value ends at the first space or '>'", a.key))
+				}
+			}
+			nameBytes, _ := z.TagName()
+			name := string(nameBytes)
+			if !strings.HasPrefix(name, "tx-") {
+				break
+			}
+			span := Span{Start: comp.LineMap.Pos(offset), End: comp.LineMap.Pos(offset + rawLen)}
+			if tt != html.EndTagToken && comp.Compiler.componentByName(name) == nil {
+				errs = append(errs, comp.errAt(span, "unknown component <%s> (no component file defines it)", name))
+			}
+			switch tt {
+			case html.SelfClosingTagToken:
+				errs = append(errs, comp.errAt(span, "<%s /> is self-closing: HTML has no self-closing custom elements, so the tag would swallow everything after it; write <%s></%s>", name, name, name))
+			case html.StartTagToken:
+				open = append(open, openTag{name: name, span: span})
+			case html.EndTagToken:
+				i := len(open) - 1
+				for i >= 0 && open[i].name != name {
+					i--
+				}
+				if i < 0 {
+					errs = append(errs, comp.errAt(span, "</%s> has no matching <%s>", name, name))
+					break
+				}
+				for _, tag := range open[i+1:] {
+					errs = append(errs, comp.errAt(tag.span, "<%s> is never closed, so it swallows everything after it; add </%s>", tag.name, tag.name))
+				}
+				open = open[:i]
+			}
+		}
+		offset += rawLen
+	}
+}
+
+// checkImports verifies every import resolves through comp.Compiler.Importer.
 // An import that does not resolve is reported here as a plain "cannot import X"
 // so it fails clearly instead of cascading into a cryptic probe error; the
 // caller skips type-checking the component when this returns non-nil.
-func (comp *Component) checkImports() error {
+func (comp *component) checkImports() error {
 	var errs []error
 	for _, im := range comp.Imports {
 		path, _ := strconv.Unquote(im.Path.Value)
-		if _, err := comp.compiler.Importer.Import(path); err != nil {
-			errs = append(errs, comp.errf("cannot import %s: %w", path, err))
+		if _, err := comp.Compiler.Importer.Import(path); err != nil {
+			errs = append(errs, comp.errAt(comp.spanOf(comp.ScriptFset, im.Pos(), im.End()), "cannot import %s: %w", path, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
+type rawAttr struct {
+	key        string
+	start, end int // byte range of key=value within the tag's raw bytes
+}
+
+// unquotedTxAttrs walks an open tag's raw bytes and returns the tx-*
+// attributes whose value is unquoted. The raw bytes are the only place
+// quoting still exists: the tree and Tokenizer.TagAttr both return decoded
+// values with the quotes gone. Bare attributes (tx-else) carry no value and
+// pass; plain HTML attributes (class=big) are not ours to police.
+func unquotedTxAttrs(raw []byte) []rawAttr {
+	isSpace := func(b byte) bool {
+		return b == ' ' || b == '\t' || b == '\n' || b == '\r' || b == '\f'
+	}
+	var out []rawAttr
+	i := 1 // past '<'
+	for i < len(raw) && !isSpace(raw[i]) && raw[i] != '>' {
+		i++ // tag name
+	}
+	for i < len(raw) {
+		for i < len(raw) && (isSpace(raw[i]) || raw[i] == '/') {
+			i++
+		}
+		if i >= len(raw) || raw[i] == '>' {
+			return out
+		}
+		keyStart := i
+		for i < len(raw) && raw[i] != '=' && raw[i] != '>' && raw[i] != '/' && !isSpace(raw[i]) {
+			i++
+		}
+		key := string(raw[keyStart:i])
+		for i < len(raw) && isSpace(raw[i]) {
+			i++
+		}
+		if i >= len(raw) || raw[i] != '=' {
+			continue // bare attribute, no value
+		}
+		i++
+		for i < len(raw) && isSpace(raw[i]) {
+			i++
+		}
+		if i < len(raw) && (raw[i] == '"' || raw[i] == '\'') {
+			q := raw[i]
+			i++
+			for i < len(raw) && raw[i] != q {
+				i++
+			}
+			i++ // past the closing quote
+			continue
+		}
+		for i < len(raw) && !isSpace(raw[i]) && raw[i] != '>' {
+			i++ // unquoted value
+		}
+		if strings.HasPrefix(key, "tx-") {
+			out = append(out, rawAttr{key: key, start: keyStart, end: i})
+		}
+	}
+	return out
+}
+
 const scriptWrapPrefix = "package p\n"
 
-func (comp *Component) parseScript() error {
+// parseScript parses the <script type="text/tmplx"> block into the component's
+// declarations: imports, vars (state unless a //tx:prop or //tx:path comment
+// reclassifies them), and funcs (init kept separate). Each decl is checked
+// against the script rules (one name per var, no methods, no type decls, no
+// tx_ prefix, ...), each violation with its own positioned error.
+func (comp *component) parseScript() error {
 	var errs []error
 
 	if comp.TmplxScriptNode == nil || comp.TmplxScriptNode.FirstChild == nil {
@@ -860,17 +1197,18 @@ func (comp *Component) parseScript() error {
 	}
 
 	scriptData := comp.TmplxScriptNode.FirstChild.Data
-	comp.scriptStart = bytes.Index(comp.content, []byte(scriptData))
+	comp.ScriptStart = bytes.Index(comp.Content, []byte(scriptData))
 	fset := token.NewFileSet()
+	comp.ScriptFset = fset
 	scriptAst, err := parser.ParseFile(fset, "", scriptWrapPrefix+scriptData, parser.ParseComments)
 	if err != nil {
 		span := Span{}
 		msg := err.Error()
 		if list, ok := err.(scanner.ErrorList); ok && len(list) > 0 {
 			msg = list[0].Msg
-			if comp.lineMap != nil {
-				off := comp.scriptStart - len(scriptWrapPrefix) + list[0].Pos.Offset
-				span = Span{Start: comp.lineMap.Pos(off), End: comp.lineMap.Pos(off)}
+			if comp.LineMap != nil {
+				off := comp.ScriptStart - len(scriptWrapPrefix) + list[0].Pos.Offset
+				span = Span{Start: comp.LineMap.Pos(off), End: comp.LineMap.Pos(off)}
 			}
 		}
 		errs = append(errs, comp.errAt(span, "syntax error in <script type=\"text/tmplx\">: %s", msg))
@@ -1022,9 +1360,21 @@ func (comp *Component) parseScript() error {
 				errs = append(errs, comp.errAt(comp.spanOf(fset, d.Pos(), d.End()), "%s: function declarations must have a body; use `var %s func(...) ...` for a function-typed prop", d.Name.Name, d.Name.Name))
 				continue
 			}
+			// funcs become methods on the component struct, and methods
+			// cannot have type parameters
+			if d.Type.TypeParams != nil {
+				errs = append(errs, comp.errAt(comp.spanOf(fset, d.Pos(), d.End()), "%s: generic functions are not supported in the script block", d.Name.Name))
+				continue
+			}
 
 			f := &Func{Decl: d, Span: comp.spanOf(fset, d.Pos(), d.End())}
 			if d.Name.Name == "init" {
+				// init's body is inlined into the constructor, so a signature
+				// would leave its parameters undefined there
+				if d.Type.Params.NumFields() > 0 || d.Type.Results.NumFields() > 0 {
+					errs = append(errs, comp.errAt(comp.spanOf(fset, d.Pos(), d.End()), "init cannot have parameters or results (it runs once, at first mount)"))
+					continue
+				}
 				comp.InitFunc = f
 			} else {
 				comp.Funcs = append(comp.Funcs, f)
@@ -1035,7 +1385,11 @@ func (comp *Component) parseScript() error {
 	return errors.Join(errs...)
 }
 
-func (comp *Component) inferVarTypes() error {
+// inferVarTypes fills in Type for vars declared without one (var count = 0):
+// it type-checks a synthetic package holding just the declarations and reads
+// the inferred types back out. Runs before probe so probe can spell every
+// var's type when it writes the probe file.
+func (comp *component) inferVarTypes() error {
 	var errs []error
 
 	var b strings.Builder
@@ -1063,7 +1417,7 @@ func (comp *Component) inferVarTypes() error {
 		return errors.Join(errs...)
 	}
 
-	conf := types.Config{Importer: comp.compiler.Importer, Error: func(error) {}}
+	conf := types.Config{Importer: comp.Compiler.Importer, Error: func(error) {}}
 	info := &types.Info{Defs: map[*ast.Ident]types.Object{}}
 	conf.Check("tx_infer", fset, []*ast.File{file}, info)
 
@@ -1083,19 +1437,19 @@ func (comp *Component) inferVarTypes() error {
 			if t, ok := typeByName[v.Name]; ok {
 				v.Type = t
 			} else {
-				errs = append(errs, comp.errf("%s: cannot resolve type", v.Name))
+				errs = append(errs, comp.errAt(v.Span, "%s: cannot resolve type", v.Name))
 			}
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func (comp *Component) parseSlots(node *html.Node, inSlot bool) error {
+func (comp *component) parseSlots(node *html.Node, inSlot bool) error {
 	var errs []error
 
 	isSlot := node.Type == html.ElementNode && node.DataAtom == atom.Slot
 	if isSlot && inSlot {
-		errs = append(errs, comp.errf("<slot> cannot be nested inside another <slot>"))
+		errs = append(errs, comp.errAt(comp.nodeSpan(node), "<slot> cannot be nested inside another <slot>"))
 		return errors.Join(errs...)
 	}
 
@@ -1107,9 +1461,9 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) error {
 
 		if slices.Contains(comp.Slots, slotName) {
 			if slotName == "" {
-				errs = append(errs, comp.errf("duplicate default <slot> (only one allowed)"))
+				errs = append(errs, comp.errAt(comp.nodeSpan(node), "duplicate default <slot> (only one allowed)"))
 			} else {
-				errs = append(errs, comp.errf("duplicate <slot name=\"%s\"> (only one allowed)", slotName))
+				errs = append(errs, comp.errAt(comp.nodeSpan(node), "duplicate <slot name=\"%s\"> (only one allowed)", slotName))
 			}
 		} else {
 			comp.Slots = append(comp.Slots, slotName)
@@ -1121,7 +1475,10 @@ func (comp *Component) parseSlots(node *html.Node, inSlot bool) error {
 	return errors.Join(errs...)
 }
 
-func (comp *Component) inferEffects() {
+// inferEffects computes each func's transitive Effect: does calling it mutate
+// state (Self) or call a func prop. Its only consumer is the condition-purity
+// check on tx-if / tx-for (inlineEffect, called from probeTmpl).
+func (comp *component) inferEffects() {
 	selfOf := map[*Func]bool{}
 	propsOf := map[*Func][]*Var{}
 	callsOf := map[*Func][]*Func{}
@@ -1156,10 +1513,17 @@ func (comp *Component) inferEffects() {
 	}
 }
 
-func (comp *Component) probe() error {
+// probe is the type-check pass: it writes the script declarations plus every
+// template expression into one synthetic Go file, runs go/types over it, and
+// maps errors back to .html spans via the probeState anchors. On the way it
+// also reclassifies state vars whose init reads another var as derived,
+// reorders Vars by init dependency, checks state JSON round-trip safety,
+// collects Children/Fills/EventHandlers from the template, and rewrites user
+// code into its generated form (count -> tx_comp.V_count).
+func (comp *component) probe() error {
 	var errs []error
 
-	p := newProbeState()
+	p := &probeState{line: 1}
 	p.write("package tx_probe\n")
 	for _, im := range comp.Imports {
 		p.writef("import %s\n", astToSource(im))
@@ -1196,7 +1560,7 @@ func (comp *Component) probe() error {
 
 	var typeErrs []types.Error
 	conf := types.Config{
-		Importer: comp.compiler.Importer,
+		Importer: comp.Compiler.Importer,
 		Error: func(e error) {
 			if terr, ok := e.(types.Error); ok {
 				typeErrs = append(typeErrs, terr)
@@ -1236,13 +1600,28 @@ func (comp *Component) probe() error {
 		return true
 	})
 
+	stateType := map[string]types.Type{}
+	for _, decl := range probeFile.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			for _, name := range spec.(*ast.ValueSpec).Names {
+				if obj := info.Defs[name]; obj != nil {
+					stateType[name.Name] = obj.Type()
+				}
+			}
+		}
+	}
+
 	usedVars := map[string]struct{}{}
 	for ident := range info.Uses {
 		usedVars[ident.Name] = struct{}{}
 	}
 	for _, v := range comp.Vars {
 		if _, ok := usedVars[v.Name]; !ok {
-			errs = append(errs, comp.errf("%s declared but not used", v.Name))
+			errs = append(errs, comp.errAt(v.Span, "%s declared but not used", v.Name))
 		}
 	}
 
@@ -1261,7 +1640,7 @@ func (comp *Component) probe() error {
 							return true
 						}
 						if vv := comp.varByName(id.Name); vv != nil && (vv.Kind == VarKindState || vv.Kind == VarKindDerived) {
-							errs = append(errs, comp.errf("prop %s default cannot reference state variable %s: props are resolved before state exists", v.Name, id.Name))
+							errs = append(errs, comp.errAt(v.Span, "prop %s default cannot reference state variable %s: props are resolved before state exists", v.Name, id.Name))
 						}
 						return true
 					}, nil)
@@ -1311,21 +1690,36 @@ func (comp *Component) probe() error {
 	}
 	comp.Vars = reordered
 
+	// state (and only state) must survive Marshal into #tx-saved and Unmarshal
+	// back on every event; runs after the derived reclassification above so a
+	// derived func value (json:"-") isn't flagged
+	check := comp.newJSONCheck()
+	for _, v := range comp.Vars {
+		if v.Kind != VarKindState {
+			continue
+		}
+		if t, ok := stateType[v.Name]; ok {
+			if h := check.hazard(t, map[types.Type]bool{}); h != "" {
+				errs = append(errs, comp.errAt(v.Span, "%s: state must round-trip through JSON: %s", v.Name, h))
+			}
+		}
+	}
+
 	for _, f := range allFuncs {
 		d := f.Decl
 		for _, field := range d.Type.Params.List {
 			for _, name := range field.Names {
 				if d.Body != nil && comp.varByName(name.Name) != nil {
-					errs = append(errs, comp.errf("%s: parameter %s shadows a state variable", d.Name, name.Name))
+					errs = append(errs, comp.errAt(f.Span, "%s: parameter %s shadows a state variable", d.Name, name.Name))
 				}
 			}
 		}
 		if d.Body != nil {
 			for _, name := range comp.readOnlyMutations(d.Body) {
-				errs = append(errs, comp.errf("%s: cannot assign to %s — only state vars are writable", d.Name, name))
+				errs = append(errs, comp.errAt(f.Span, "%s: cannot assign to %s: only state vars are writable", d.Name, name))
 			}
 			for _, name := range comp.shadowingLocals(d.Body) {
-				errs = append(errs, comp.errf("%s: local variable %s shadows a state/prop/derived/path variable (rename the local)", d.Name, name))
+				errs = append(errs, comp.errAt(f.Span, "%s: local variable %s shadows a state/prop/derived/path variable (rename the local)", d.Name, name))
 			}
 			dirty := comp.dirtyDerivedNames(d.Body)
 			var b strings.Builder
@@ -1373,6 +1767,21 @@ func (comp *Component) probe() error {
 					return true
 				}, nil)
 				eh.Args = append(eh.Args, EventHandlerArg{Name: "tx_ev_target_value", Type: "string"})
+				// the probe types `event`, but only the full event.target.value
+				// chain is rewritten for the generated code - any other use of
+				// event would be an undefined identifier in routes.go
+				if comp.varByName("event") == nil {
+					leftover := false
+					ast.Inspect(decl.Body, func(n ast.Node) bool {
+						if id, ok := n.(*ast.Ident); ok && id.Name == "event" {
+							leftover = true
+						}
+						return !leftover
+					})
+					if leftover {
+						errs = append(errs, comp.errAt(comp.nodeSpan(node), "%s on <%s>: only event.target.value is available from the event", eh.Key, node.Data))
+					}
+				}
 			}
 			dirty := comp.dirtyDerivedNames(decl.Body)
 			var b strings.Builder
@@ -1404,7 +1813,12 @@ func (comp *Component) probe() error {
 	return errors.Join(errs...)
 }
 
-func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
+// probeTmpl walks the template, feeding every templated construct ({ expr },
+// prop values, handlers, conditions) into the probe file and collecting
+// Children, Fills and EventHandlers. Its conditional-chain bookkeeping must
+// mirror emitChildren's: probe, compute and render have to agree on which
+// children exist under which conditions.
+func (comp *component) probeTmpl(node *html.Node, p *probeState) {
 	switch node.Type {
 	case html.TextNode:
 		_, hasTxIgnore := hasAttr(node.Parent, "tx-ignore")
@@ -1413,12 +1827,12 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 		}
 
 		elemName := node.Parent.Data
-		nodeBase, hasBase := comp.nodePos[node] // byte offset of this text node in comp.content
-		comp.scanTmplStr(node.Data, false, func(rune) {}, func(expr string, off int) error {
+		nodeBase, hasBase := comp.NodePos[node] // byte offset of this text node in comp.Content
+		if err := scanTmplStr(node.Data, false, func(rune) {}, func(expr string, off int) error {
 			desc := fmt.Sprintf("text in <%s>: { %s }", elemName, expr)
 			p.span = Span{}
-			if hasBase && comp.lineMap != nil {
-				p.span = Span{Start: comp.lineMap.Pos(nodeBase + off), End: comp.lineMap.Pos(nodeBase + off + len(expr))}
+			if hasBase && comp.LineMap != nil {
+				p.span = Span{Start: comp.LineMap.Pos(nodeBase + off), End: comp.LineMap.Pos(nodeBase + off + len(expr))}
 			}
 			if _, err := parser.ParseExpr(expr); err != nil {
 				p.parseErr(desc, err)
@@ -1427,12 +1841,18 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 			p.anchor(Span{}, desc)
 			p.writef("_ = %s\n", expr)
 			return nil
-		})
+		}); err != nil {
+			p.span = Span{}
+			if hasBase && comp.LineMap != nil {
+				p.span = Span{Start: comp.LineMap.Pos(nodeBase), End: comp.LineMap.Pos(nodeBase + len(node.Data))}
+			}
+			p.perr("text in <%s>: %v", elemName, err)
+		}
 		return
 
 	case html.ElementNode:
 		p.span = comp.nodeSpan(node)
-		if usedComp, ok := comp.compiler.components[node.Data]; ok {
+		if usedComp := comp.Compiler.componentByName(node.Data); usedComp != nil {
 			if _, ok := comp.ChildCounters[usedComp.Name]; !ok {
 				comp.ChildCounters[usedComp.Name] = &Counter{}
 			}
@@ -1527,14 +1947,16 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 						// reject a handler value that escapes the func wrapper (e.g. "}func g(){"):
 						// it parses as two decls, so require exactly one func decl with a body
 						if len(fileAst.Decls) != 1 {
+							p.perr("%s: handler must be a sequence of statements", desc)
 							continue
 						}
 						decl, ok := fileAst.Decls[0].(*ast.FuncDecl)
 						if !ok || decl.Body == nil {
+							p.perr("%s: handler must be a sequence of statements", desc)
 							continue
 						}
 						for _, name := range comp.readOnlyMutations(decl.Body) {
-							p.perr("%s: cannot assign to %s — only state vars are writable", desc, name)
+							p.perr("%s: cannot assign to %s: only state vars are writable", desc, name)
 						}
 						eventName := strings.TrimPrefix(attr.Key, "tx-on")
 						p.anchor(Span{}, desc)
@@ -1571,10 +1993,23 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 						}
 						eh.Val = fmt.Sprintf("%s(%s)", attr.Val, strings.Join(names, ", "))
 						comp.EventHandlers[node] = append(comp.EventHandlers[node], eh)
+					} else if attr.Key == "tx-debounce" {
+						if ms, err := strconv.Atoi(attr.Val); err != nil || ms <= 0 {
+							p.perr("tx-debounce on <%s>: want milliseconds as a positive integer, got \"%s\"", node.Data, attr.Val)
+						}
+						hasOn := false
+						for _, a := range node.Attr {
+							if strings.HasPrefix(a.Key, "tx-on") {
+								hasOn = true
+							}
+						}
+						if !hasOn {
+							p.perr("tx-debounce on <%s>: no tx-on handler on this element to debounce", node.Data)
+						}
 					} else {
 						elemName := node.Data
 						attrKey := attr.Key
-						comp.scanTmplStr(attr.Val, false, func(rune) {}, func(expr string, _ int) error {
+						if err := scanTmplStr(attr.Val, false, func(rune) {}, func(expr string, _ int) error {
 							desc := fmt.Sprintf("<%s %s>: { %s }", elemName, attrKey, expr)
 							if _, err := parser.ParseExpr(expr); err != nil {
 								p.parseErr(desc, err)
@@ -1583,7 +2018,9 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 							p.anchor(Span{}, desc)
 							p.writef("_ = %s\n", expr)
 							return nil
-						})
+						}); err != nil {
+							p.perr("<%s %s>: %v", elemName, attrKey, err)
+						}
 					}
 				}
 			}
@@ -1687,6 +2124,11 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 					p.parseErr(fmt.Sprintf("tx-key on <%s>", c.Data), err)
 				}
 			}
+		} else if c.Type == html.TextNode && strings.TrimSpace(c.Data) != "" && prevCondState != CondStateDefault {
+			// mirrors emitChildren: non-whitespace text ends an open
+			// conditional chain
+			p.write("}\n")
+			prevCondState = CondStateDefault
 		}
 
 		if !branchFailed {
@@ -1703,7 +2145,116 @@ func (comp *Component) probeTmpl(node *html.Node, p *probeState) {
 	}
 }
 
-func (comp *Component) emitCompute(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool) {
+// jsonCheck verifies a state type can round-trip through the #tx-saved blob:
+// json.Marshal on every response, json.Unmarshal on every event. A type
+// implementing the encoding/json or encoding text marshaler pairs round-trips
+// by contract (time.Time) and is not descended into.
+type jsonCheck struct {
+	marshaler, unmarshaler, textMarshaler, textUnmarshaler *types.Interface
+}
+
+func (comp *component) newJSONCheck() *jsonCheck {
+	iface := func(pkgPath, name string) *types.Interface {
+		pkg, err := comp.Compiler.Importer.Import(pkgPath)
+		if err != nil {
+			return nil
+		}
+		obj := pkg.Scope().Lookup(name)
+		if obj == nil {
+			return nil
+		}
+		i, _ := obj.Type().Underlying().(*types.Interface)
+		return i
+	}
+	return &jsonCheck{
+		marshaler:       iface("encoding/json", "Marshaler"),
+		unmarshaler:     iface("encoding/json", "Unmarshaler"),
+		textMarshaler:   iface("encoding", "TextMarshaler"),
+		textUnmarshaler: iface("encoding", "TextUnmarshaler"),
+	}
+}
+
+// hazard returns why t cannot round-trip, or "" if it can.
+func (c *jsonCheck) hazard(t types.Type, seen map[types.Type]bool) string {
+	if seen[t] {
+		return ""
+	}
+	seen[t] = true
+	if c.roundTrips(t, c.marshaler, c.unmarshaler) || c.roundTrips(t, c.textMarshaler, c.textUnmarshaler) {
+		return ""
+	}
+	switch u := t.Underlying().(type) {
+	case *types.Basic:
+		switch u.Kind() {
+		case types.Complex64, types.Complex128:
+			return t.String() + " is not supported by encoding/json"
+		case types.UnsafePointer:
+			return "unsafe.Pointer is not supported by encoding/json"
+		}
+		return ""
+	case *types.Signature:
+		return t.String() + " is not serializable (use //tx:prop for callbacks)"
+	case *types.Chan:
+		return t.String() + " is not serializable"
+	case *types.Interface:
+		if u.NumMethods() > 0 {
+			return "unmarshal cannot restore the concrete type behind interface " + t.String()
+		}
+		return "" // any: unmarshals lossily but never fails
+	case *types.Pointer:
+		return c.hazard(u.Elem(), seen)
+	case *types.Slice:
+		return c.hazard(u.Elem(), seen)
+	case *types.Array:
+		return c.hazard(u.Elem(), seen)
+	case *types.Map:
+		k, basic := u.Key().Underlying().(*types.Basic)
+		if (!basic || k.Info()&(types.IsInteger|types.IsString) == 0) && !c.roundTrips(u.Key(), c.textMarshaler, c.textUnmarshaler) {
+			return "map key " + u.Key().String() + " is not supported by encoding/json"
+		}
+		return c.hazard(u.Elem(), seen)
+	case *types.Struct:
+		for i := 0; i < u.NumFields(); i++ {
+			f := u.Field(i)
+			if name, _, _ := strings.Cut(reflect.StructTag(u.Tag(i)).Get("json"), ","); name == "-" {
+				continue // the type's author opted this field out
+			}
+			if !f.Exported() {
+				// an embedded unexported struct still promotes its exported
+				// fields into the JSON, so look inside it instead
+				if _, isStruct := f.Type().Underlying().(*types.Struct); f.Anonymous() && isStruct {
+					if h := c.hazard(f.Type(), seen); h != "" {
+						return h
+					}
+					continue
+				}
+				return "unexported field " + f.Name() + " of " + t.String() + " is silently dropped by encoding/json"
+			}
+			if h := c.hazard(f.Type(), seen); h != "" {
+				return h
+			}
+		}
+		return ""
+	}
+	return ""
+}
+
+// roundTrips reports whether t satisfies both halves of a marshaler pair, on
+// the value or the pointer (Unmarshal always receives a pointer).
+func (c *jsonCheck) roundTrips(t types.Type, marshal, unmarshal *types.Interface) bool {
+	ptr := types.NewPointer(t)
+	has := func(i *types.Interface) bool {
+		return i != nil && (types.Implements(t, i) || types.Implements(ptr, i))
+	}
+	return has(marshal) && has(unmarshal)
+}
+
+// emitCompute emits the compute pass over node's subtree: no HTML, it mounts
+// every child reachable under the current conditions (tx_new_* + tx_compute,
+// stored into tx_next by id). emitRender later looks children up by the same
+// ids, so both passes must evaluate identical conditions; that is why tx-if /
+// tx-for must be pure.
+func (comp *component) emitCompute(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool) {
 	switch node.Type {
 	case html.DocumentNode:
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -1753,7 +2304,10 @@ func (comp *Component) emitCompute(code *Code, node *html.Node, localVars []Loca
 
 			}
 			txTarget := comp.rootExpr()
-			if len(child.Args) == 0 && child.Comp.sealable() {
+			// a swap root must rebuild from state alone, severing every parent
+			// channel: value/func props (Args) and slot fills (a fill renders
+			// the parent's state above this target)
+			if len(child.Args) == 0 && len(child.Fills) == 0 && child.Comp.sealable() {
 				txTarget = "tx_id"
 			}
 			code.emitGo(fmt.Sprintf("tx_child := tx_new_%s(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, %s%s)\n", child.Comp.GoName, txTarget, argStr))
@@ -1781,7 +2335,10 @@ func (comp *Component) emitCompute(code *Code, node *html.Node, localVars []Loca
 	}
 }
 
-func (comp *Component) emitRender(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool) {
+// emitRender emits the render pass: the HTML itself, { expr } interpolations
+// html-escaped, children looked up from tx_next (mounted by emitCompute), and
+// slot fills rendered via closures passed into the child's tx_render.
+func (comp *component) emitRender(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool) {
 	switch node.Type {
 	case html.DocumentNode:
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -1801,7 +2358,7 @@ func (comp *Component) emitRender(code *Code, node *html.Node, localVars []Local
 			code.emitStrLit(html.EscapeString(node.Data))
 		} else {
 			collapseWs := !isWhitespacePreserving(node.Parent.DataAtom)
-			comp.scanTmplStr(node.Data, collapseWs, func(r rune) {
+			scanTmplStr(node.Data, collapseWs, func(r rune) {
 				code.emitStrLit(html.EscapeString(string(r)))
 			}, func(expr string, _ int) error {
 				code.emitHtmlEscapeExpr(comp.rewriteExpr(expr, localVars))
@@ -1859,18 +2416,23 @@ func (comp *Component) emitRender(code *Code, node *html.Node, localVars []Local
 		}
 
 		if node.DataAtom != atom.Template {
+			_, ignored := hasAttr(node, "tx-ignore")
 			code.emitStrLit("<" + node.Data)
 			for _, attr := range node.Attr {
-				if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" || attr.Key == "tx-key" || attr.Key == "slot" || attr.Key == "tx-action" || attr.Key == "tx-ignore" || strings.HasPrefix(attr.Key, "tx-on") {
+				if attr.Key == "tx-if" || attr.Key == "tx-else-if" || attr.Key == "tx-else" || attr.Key == "tx-for" || attr.Key == "tx-key" || attr.Key == "slot" || attr.Key == "tx-action" || attr.Key == "tx-ignore" || attr.Key == "tx-debounce" || strings.HasPrefix(attr.Key, "tx-on") {
 					continue
 				}
 				code.emitStrLit(fmt.Sprintf(" %s=\"", attr.Key))
-				comp.scanTmplStr(attr.Val, false, func(r rune) {
-					code.emitStrLit(string(r))
-				}, func(expr string, _ int) error {
-					code.emitHtmlEscapeExpr(comp.rewriteExpr(expr, localVars))
-					return nil
-				})
+				if ignored {
+					code.emitStrLit(html.EscapeString(attr.Val))
+				} else {
+					scanTmplStr(attr.Val, false, func(r rune) {
+						code.emitStrLit(html.EscapeString(string(r)))
+					}, func(expr string, _ int) error {
+						code.emitHtmlEscapeExpr(comp.rewriteExpr(expr, localVars))
+						return nil
+					})
+				}
 				code.emitStrLit("\"")
 			}
 			if comp.Type == CompTypePage && node.DataAtom == atom.Script {
@@ -1889,6 +2451,9 @@ func (comp *Component) emitRender(code *Code, node *html.Node, localVars []Local
 				code.emitStrLit(" data-tx-target=\"")
 				code.emitExpr(comp.rootExpr())
 				code.emitStrLit("\"")
+				if ms, ok := hasAttr(node, "tx-debounce"); ok {
+					code.emitStrLit(fmt.Sprintf(" data-tx-debounce=\"%s\"", ms))
+				}
 				for _, eh := range ehs {
 					if eh.Key == "tx-action" {
 						code.emitStrLit(fmt.Sprintf(" data-tx-action=\"%s/eh%d\"", url.PathEscape(comp.Name), eh.ID))
@@ -1924,7 +2489,14 @@ func (comp *Component) emitRender(code *Code, node *html.Node, localVars []Local
 	}
 }
 
-func (comp *Component) emitChildKey(code *Code, child *Child, forKeys []string, inSlot bool) {
+// emitChildKey emits `tx_id := ...`, the child instance's identity. The
+// grammar chains parent to child: parent_id (";" key)* (":" | "@") name "-" n,
+// where ":" marks a regular child, "@" a slot-fill child (separate counters
+// that would alias otherwise) and ";" prefixes each tx-for key; a page's
+// direct child starts the chain bare ("tx-counter-1"). runtime.js and the
+// generated tx_dispatch both parse this grammar back out of an id; change all
+// three together.
+func (comp *component) emitChildKey(code *Code, child *Child, forKeys []string, inSlot bool) {
 	if len(forKeys) > 0 {
 		code.NeedsFmt = true // the key segments below call fmt.Sprint
 	}
@@ -1961,7 +2533,7 @@ func (comp *Component) emitChildKey(code *Code, child *Child, forKeys []string, 
 	code.emitGo("\n")
 }
 
-func (comp *Component) emitChildren(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool, emit func(*Code, *html.Node, []LocalVar, []string, bool)) {
+func (comp *component) emitChildren(code *Code, node *html.Node, localVars []LocalVar, forKeys []string, inSlot bool, emit func(*Code, *html.Node, []LocalVar, []string, bool)) {
 	var prevCondState CondState
 	for c := node.FirstChild; c != nil; c = c.NextSibling {
 		hasFor := false
@@ -2009,6 +2581,13 @@ func (comp *Component) emitChildren(code *Code, node *html.Node, localVars []Loc
 				}
 				childLocalVars = append(slices.Clone(localVars), forLoc...)
 			}
+		} else if c.Type == html.TextNode && strings.TrimSpace(c.Data) != "" && prevCondState != CondStateDefault {
+			// non-whitespace text ends an open conditional chain: it must
+			// render unconditionally, never inside the preceding branch.
+			// Whitespace and comments stay inside, so a chain survives the
+			// line breaks between its branches.
+			code.emitGo("\n}\n")
+			prevCondState = CondStateDefault
 		}
 
 		childForKeys := forKeys
@@ -2028,25 +2607,25 @@ func (comp *Component) emitChildren(code *Code, node *html.Node, localVars []Loc
 	}
 }
 
-func (comp *Component) errf(msg string, a ...any) *Diagnostic {
+func (comp *component) errf(msg string, a ...any) *Diagnostic {
 	return comp.errAt(Span{}, msg, a...)
 }
 
-// errAt is errf with a source span in comp.content.
-func (comp *Component) errAt(span Span, msg string, a ...any) *Diagnostic {
+// errAt is errf with a source span in comp.Content.
+func (comp *component) errAt(span Span, msg string, a ...any) *Diagnostic {
 	return &Diagnostic{Path: comp.Path, Span: span, Message: fmt.Errorf(msg, a...).Error()}
 }
 
 // spanOf maps a [start,end) token range in the parsed script (scriptWrapPrefix +
-// the <script> text) back to a Span in comp.content. Zero Span if unavailable.
-func (comp *Component) spanOf(fset *token.FileSet, start, end token.Pos) Span {
-	if comp.lineMap == nil {
+// the <script> text) back to a Span in comp.Content. Zero Span if unavailable.
+func (comp *component) spanOf(fset *token.FileSet, start, end token.Pos) Span {
+	if comp.LineMap == nil {
 		return Span{}
 	}
-	base := comp.scriptStart - len(scriptWrapPrefix)
+	base := comp.ScriptStart - len(scriptWrapPrefix)
 	return Span{
-		Start: comp.lineMap.Pos(base + fset.Position(start).Offset),
-		End:   comp.lineMap.Pos(base + fset.Position(end).Offset),
+		Start: comp.LineMap.Pos(base + fset.Position(start).Offset),
+		End:   comp.LineMap.Pos(base + fset.Position(end).Offset),
 	}
 }
 
@@ -2054,25 +2633,38 @@ func (comp *Component) spanOf(fset *token.FileSet, start, end token.Pos) Span {
 // the byte offsets recorded by annotatePositions. Returns the zero Span when the
 // node has no recorded offset (so a diagnostic falls back to file level rather
 // than pointing at the wrong place).
-func (comp *Component) nodeSpan(node *html.Node) Span {
-	start, ok := comp.nodePos[node]
-	if !ok || comp.lineMap == nil {
+func (comp *component) nodeSpan(node *html.Node) Span {
+	start, ok := comp.NodePos[node]
+	if !ok || comp.LineMap == nil {
 		return Span{}
 	}
 	end := start
-	if gt := bytes.IndexByte(comp.content[start:], '>'); gt >= 0 {
-		end = start + gt + 1
+	if e := comp.openTagEnd(start); e >= 0 {
+		end = e
 	}
-	return Span{Start: comp.lineMap.Pos(start), End: comp.lineMap.Pos(end)}
+	return Span{Start: comp.LineMap.Pos(start), End: comp.LineMap.Pos(end)}
+}
+
+// openTagEnd returns the offset just past the open tag starting at start (its
+// '<'), by tokenizing that single tag: the real tokenizer state machine
+// decides where the tag ends, so quoted values (tx-if="a > b") and the
+// malformed edge states resolve exactly as html.Parse resolved them. Returns
+// -1 when start isn't a well-formed open tag.
+func (comp *component) openTagEnd(start int) int {
+	z := html.NewTokenizer(bytes.NewReader(comp.Content[start:]))
+	if tt := z.Next(); tt == html.StartTagToken || tt == html.SelfClosingTagToken {
+		return start + len(z.Raw())
+	}
+	return -1
 }
 
 // annotatePositions records the byte offset of every element and text node in
-// the parsed template by sweeping comp.content with a forward cursor in document
+// the parsed template by sweeping comp.Content with a forward cursor in document
 // order (golang.org/x/net/html drops source positions). It must run on the
 // pristine parse tree, before any synthetic nodes are injected. A node whose
 // text can't be located keeps no entry, so callers fall back to file level.
-func (comp *Component) annotatePositions() {
-	comp.nodePos = map[*html.Node]int{}
+func (comp *component) annotatePositions() {
+	comp.NodePos = map[*html.Node]int{}
 	if comp.TemplateNode == nil {
 		return
 	}
@@ -2081,16 +2673,28 @@ func (comp *Component) annotatePositions() {
 	walk = func(n *html.Node) {
 		switch n.Type {
 		case html.ElementNode:
-			if idx := bytes.Index(comp.content[cursor:], []byte("<"+n.Data)); idx >= 0 {
-				comp.nodePos[n] = cursor + idx
+			if idx := bytes.Index(comp.Content[cursor:], []byte("<"+n.Data)); idx >= 0 {
+				comp.NodePos[n] = cursor + idx
 				cursor += idx + 1 + len(n.Data)
+				// consume the attributes too, so a text node duplicating an
+				// attribute value can't anchor at the attribute's copy
+				if end := comp.openTagEnd(comp.NodePos[n]); end >= 0 {
+					cursor = end
+				}
 			}
 		case html.TextNode:
 			if n.Data != "" {
-				if idx := bytes.Index(comp.content[cursor:], []byte(n.Data)); idx >= 0 {
-					comp.nodePos[n] = cursor + idx
+				if idx := bytes.Index(comp.Content[cursor:], []byte(n.Data)); idx >= 0 {
+					comp.NodePos[n] = cursor + idx
 					cursor += idx + len(n.Data)
 				}
+			}
+		case html.CommentNode:
+			// consumed but not recorded: no diagnostic anchors in a comment,
+			// but one that mentions a tag ("<p") would shadow the next real
+			// search if the cursor stayed put
+			if idx := bytes.Index(comp.Content[cursor:], []byte("<!--"+n.Data)); idx >= 0 {
+				cursor += idx + len("<!--") + len(n.Data)
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -2100,7 +2704,11 @@ func (comp *Component) annotatePositions() {
 	walk(comp.TemplateNode)
 }
 
-func (comp *Component) sealable() bool {
+// sealable reports whether an instance can be rebuilt from state alone: the
+// standalone dispatch passes nil for every prop, so each prop must carry a
+// default. Gates both the dispatch case and the swap-root choice in
+// emitCompute.
+func (comp *component) sealable() bool {
 	for _, v := range comp.Vars {
 		if v.Kind == VarKindProp && v.InitExpr == nil {
 			return false
@@ -2109,14 +2717,14 @@ func (comp *Component) sealable() bool {
 	return true
 }
 
-func (comp *Component) rootExpr() string {
+func (comp *component) rootExpr() string {
 	if comp.Type == CompTypePage {
 		return "\"page\""
 	}
 	return "tx_comp.tx_target"
 }
 
-func (comp *Component) hasCompute() bool {
+func (comp *component) hasCompute() bool {
 	for _, ehs := range comp.EventHandlers {
 		if len(ehs) > 0 {
 			return true
@@ -2129,7 +2737,7 @@ func (comp *Component) hasCompute() bool {
 // tx_comp selectors (count -> tx_comp.V_count), dereferencing value props. It
 // mutates node in place, so raw-AST analyses (dirtyDerivedNames) must run
 // before it - afterward they see the selectors and miss the bare idents.
-func (comp *Component) rewriteVarRefs(node ast.Node, localVars []LocalVar) ast.Node {
+func (comp *component) rewriteVarRefs(node ast.Node, localVars []LocalVar) ast.Node {
 	return astutil.Apply(node, func(c *astutil.Cursor) bool {
 		ident, ok := c.Node().(*ast.Ident)
 		if !ok {
@@ -2166,7 +2774,7 @@ func (comp *Component) rewriteVarRefs(node ast.Node, localVars []LocalVar) ast.N
 	}, nil)
 }
 
-func (comp *Component) forLocals(s string) []LocalVar {
+func (comp *component) forLocals(s string) []LocalVar {
 	f, err := parser.ParseFile(token.NewFileSet(), "", "package p\nfunc _() { for "+s+" {} }", 0)
 	if err != nil {
 		return nil
@@ -2194,7 +2802,7 @@ func (comp *Component) forLocals(s string) []LocalVar {
 	return locals
 }
 
-func (comp *Component) ifLocals(s string) []LocalVar {
+func (comp *component) ifLocals(s string) []LocalVar {
 	f, err := parser.ParseFile(token.NewFileSet(), "", "package p\nfunc _() { if "+s+" {} }", 0)
 	if err != nil {
 		return nil
@@ -2217,7 +2825,11 @@ func (comp *Component) ifLocals(s string) []LocalVar {
 	return locals
 }
 
-func (comp *Component) capturedLocals(body *ast.BlockStmt, node *html.Node) []LocalVar {
+// capturedLocals returns the tx-for / tx-if locals in scope at node that body
+// references. They no longer exist server-side when the event later arrives,
+// so render serializes their values into data-tx-eh*-arg-* attributes and the
+// handler receives them back as parameters.
+func (comp *component) capturedLocals(body *ast.BlockStmt, node *html.Node) []LocalVar {
 	var locals []LocalVar
 	for n := node; n != nil; n = n.Parent {
 		if stmt, ok := hasAttr(n, "tx-for"); ok {
@@ -2248,7 +2860,7 @@ func (comp *Component) capturedLocals(body *ast.BlockStmt, node *html.Node) []Lo
 	return out
 }
 
-func (comp *Component) rewriteForStmt(s string, localVars []LocalVar) string {
+func (comp *component) rewriteForStmt(s string, localVars []LocalVar) string {
 	src := "package p\nfunc _() { for " + s + " {} }"
 	f, err := parser.ParseFile(token.NewFileSet(), "", src, 0)
 	if err != nil {
@@ -2296,7 +2908,7 @@ func (comp *Component) rewriteForStmt(s string, localVars []LocalVar) string {
 	return s
 }
 
-func (comp *Component) rewriteIfCond(s string, localVars []LocalVar) string {
+func (comp *component) rewriteIfCond(s string, localVars []LocalVar) string {
 	src := "package p\nfunc _() { if " + s + " {} }"
 	f, err := parser.ParseFile(token.NewFileSet(), "", src, 0)
 	if err != nil {
@@ -2317,7 +2929,7 @@ func (comp *Component) rewriteIfCond(s string, localVars []LocalVar) string {
 	return b.String()
 }
 
-func (comp *Component) rewriteExpr(exprStr string, localVars []LocalVar) string {
+func (comp *component) rewriteExpr(exprStr string, localVars []LocalVar) string {
 	expr, err := parser.ParseExpr(exprStr)
 	if err != nil {
 		return exprStr
@@ -2325,7 +2937,7 @@ func (comp *Component) rewriteExpr(exprStr string, localVars []LocalVar) string 
 	return astToSource(comp.rewriteVarRefs(expr, localVars))
 }
 
-func (comp *Component) varByName(name string) *Var {
+func (comp *component) varByName(name string) *Var {
 	for _, v := range comp.Vars {
 		if v.Name == name {
 			return v
@@ -2334,7 +2946,7 @@ func (comp *Component) varByName(name string) *Var {
 	return nil
 }
 
-func (comp *Component) funcByName(name string) *Func {
+func (comp *component) funcByName(name string) *Func {
 	for _, f := range comp.Funcs {
 		if f.Decl.Name.Name == name {
 			return f
@@ -2343,7 +2955,7 @@ func (comp *Component) funcByName(name string) *Func {
 	return nil
 }
 
-func (comp *Component) directFuncFacts(body *ast.BlockStmt) (self bool, props []*Var, calls []*Func) {
+func (comp *component) directFuncFacts(body *ast.BlockStmt) (self bool, props []*Var, calls []*Func) {
 	if body == nil {
 		return
 	}
@@ -2373,7 +2985,7 @@ func (comp *Component) directFuncFacts(body *ast.BlockStmt) (self bool, props []
 	return
 }
 
-func (comp *Component) assignsState(expr ast.Expr) bool {
+func (comp *component) assignsState(expr ast.Expr) bool {
 	var ident *ast.Ident
 	ast.Inspect(expr, func(n ast.Node) bool {
 		if ident != nil {
@@ -2392,7 +3004,10 @@ func (comp *Component) assignsState(expr ast.Expr) bool {
 	return v != nil && v.Kind == VarKindState
 }
 
-func (comp *Component) inlineEffect(src string) Effect {
+// inlineEffect computes the Effect of an inline snippet (a tx-if condition or
+// tx-for header, wrapped in func(){...} by the caller), folding in the
+// precomputed transitive Effects of any script funcs it calls.
+func (comp *component) inlineEffect(src string) Effect {
 	eff := Effect{}
 	expr, err := parser.ParseExpr(src)
 	if err != nil {
@@ -2425,7 +3040,7 @@ func (comp *Component) inlineEffect(src string) Effect {
 	return eff
 }
 
-func (comp *Component) readOnlyMutations(node ast.Node) []string {
+func (comp *component) readOnlyMutations(node ast.Node) []string {
 	seen := map[string]struct{}{}
 	var result []string
 	lhsExprs := []ast.Expr{}
@@ -2466,7 +3081,11 @@ func (comp *Component) readOnlyMutations(node ast.Node) []string {
 	return result
 }
 
-func (comp *Component) dirtyDerivedNames(body *ast.BlockStmt) []string {
+// dirtyDerivedNames returns, in declaration order, the derived vars whose
+// dependencies body assigns (cascading through derived-reading-derived); the
+// emitters append their InitCode after the body so later reads see fresh
+// values.
+func (comp *component) dirtyDerivedNames(body *ast.BlockStmt) []string {
 	dirty := map[string]struct{}{}
 	lhsExprs := []ast.Expr{}
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -2527,7 +3146,7 @@ func (comp *Component) dirtyDerivedNames(body *ast.BlockStmt) []string {
 	return result
 }
 
-func (comp *Component) shadowingLocals(body ast.Node) []string {
+func (comp *component) shadowingLocals(body ast.Node) []string {
 	candidates := []*ast.Ident{}
 	ast.Inspect(body, func(n ast.Node) bool {
 		switch stmt := n.(type) {
@@ -2579,7 +3198,7 @@ func (comp *Component) shadowingLocals(body ast.Node) []string {
 // top-level { expr } trimmed, with its byte offset in str (the sourcemaps
 // depend on it). Braces inside Go string and rune literals don't open or close
 // expressions. Errors on an unclosed quote or brace.
-func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r rune), onExpr func(expr string, off int) error) error {
+func scanTmplStr(str string, collapseWs bool, onRaw func(r rune), onExpr func(expr string, off int) error) error {
 	if str == "" {
 		return nil
 	}
@@ -2595,7 +3214,7 @@ func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r run
 	exprStart := 0
 	for i, r := range str {
 		if skipNext {
-			expr = append(expr, []byte(string(r))...)
+			expr = utf8.AppendRune(expr, r)
 			skipNext = false
 			continue
 		}
@@ -2672,15 +3291,15 @@ func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r run
 				expr = append(expr, byte(r))
 			}
 		default:
-			expr = append(expr, byte(r))
+			expr = utf8.AppendRune(expr, r)
 		}
 	}
 
 	if isInDoubleQuote || isInBackQuote || isInSingleQuote {
-		return comp.errf("unclosed quote in: %s", str)
+		return fmt.Errorf("unclosed quote in: %s", str)
 	}
 	if braceStack != 0 {
-		return comp.errf("unclosed { in: %s", str)
+		return fmt.Errorf("unclosed { in: %s", str)
 	}
 
 	return nil
@@ -2689,9 +3308,10 @@ func (comp *Component) scanTmplStr(str string, collapseWs bool, onRaw func(r run
 // Everything below is the glossary: vocabulary shared across phases, grouped
 // by topic - IR data types, diagnostics, probe infra, the codegen buffer, and
 // pure leaf helpers. Placement rule for the whole file: breadth decides the
-// layer. Single-caller code lives right after its caller, in pipeline order;
-// anything used across phases sinks down here. First appearance only breaks
-// ties within a section.
+// layer. Code called once per compilation from one site is inlined into its
+// caller, not named; single-caller per-item helpers live right after their
+// caller, in pipeline order; anything used across phases sinks down here.
+// First appearance only breaks ties within a section.
 
 type VarKind int
 
@@ -2758,7 +3378,7 @@ const (
 
 type Child struct {
 	Pos  string
-	Comp *Component
+	Comp *component
 
 	Args  []Arg
 	Fills map[string]*Fill
@@ -2801,7 +3421,7 @@ type EventHandler struct {
 	Captures []EventHandlerArg
 }
 
-func (comp *Component) sortedEventHandlers() []*EventHandler {
+func (comp *component) sortedEventHandlers() []*EventHandler {
 	var all []*EventHandler
 	for _, ehs := range comp.EventHandlers {
 		all = append(all, ehs...)
@@ -2843,6 +3463,7 @@ type Diagnostic struct {
 	Path     string
 	Span     Span
 	Message  string
+	Snippet  string // a rendered source-context window, folded into Error(); "" if none
 	Severity Severity
 	Related  []RelatedInfo
 }
@@ -2856,35 +3477,53 @@ type RelatedInfo struct {
 }
 
 func (d *Diagnostic) Error() string {
+	var msg string
 	if d.Span == (Span{}) {
-		return d.Path + ": " + d.Message
+		msg = d.Path + ": " + d.Message
+	} else {
+		msg = fmt.Sprintf("%s:%d:%d: %s", d.Path, d.Span.Start.Line, d.Span.Start.Col, d.Message)
 	}
-	return fmt.Sprintf("%s:%d:%d: %s", d.Path, d.Span.Start.Line, d.Span.Start.Col, d.Message)
+	if d.Snippet != "" {
+		msg += "\n" + d.Snippet
+	}
+	return msg
 }
 
-// diagnostics flattens a pipeline error tree into sorted Diagnostics: leaves
-// that are *Diagnostic keep their span; any others become file-less messages.
-func diagnostics(err error) []Diagnostic {
-	leaves := flattenErrs(err)
-	ds := make([]Diagnostic, 0, len(leaves))
-	for _, e := range leaves {
-		var d *Diagnostic
-		if errors.As(e, &d) {
-			ds = append(ds, *d)
-		} else {
-			ds = append(ds, Diagnostic{Message: e.Error()})
+// excerpt renders a context window of src around the 1-based line: radius lines
+// on each side, each labeled with its 1-based line number. The bounds are
+// clamped so a line near the start or end of the file can't index out of range.
+func excerpt(src []byte, line, radius int) string {
+	lines := strings.Split(string(src), "\n")
+	start := max(line-1-radius, 0)
+	end := min(line+radius, len(lines))
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		if i > start {
+			b.WriteByte('\n')
 		}
+		fmt.Fprintf(&b, "%d: %s", i+1, lines[i])
 	}
-	slices.SortStableFunc(ds, func(a, b Diagnostic) int {
-		if a.Path != b.Path {
-			return strings.Compare(a.Path, b.Path)
-		}
-		if a.Span.Start.Line != b.Span.Start.Line {
-			return a.Span.Start.Line - b.Span.Start.Line
-		}
-		return a.Span.Start.Col - b.Span.Start.Col
-	})
-	return ds
+	return b.String()
+}
+
+func asDiagnostic(err error) Diagnostic {
+	var d *Diagnostic
+	if errors.As(err, &d) {
+		return *d
+	}
+	return Diagnostic{Message: err.Error()}
+}
+
+// compareDiag orders by path, then line, then column, so every consumer (CLI
+// output, Diagnose, Messages) presents diagnostics in the same source order.
+func compareDiag(a, b Diagnostic) int {
+	if a.Path != b.Path {
+		return strings.Compare(a.Path, b.Path)
+	}
+	if a.Span.Start.Line != b.Span.Start.Line {
+		return a.Span.Start.Line - b.Span.Start.Line
+	}
+	return a.Span.Start.Col - b.Span.Start.Col
 }
 
 // LineMap converts byte offsets in a source file into 1-based line/byte-column.
@@ -2940,14 +3579,12 @@ func flattenErrs(err error) []error {
 	return []error{err}
 }
 
-// sortedJoin flattens err and rejoins its leaves ordered by the text before the
-// first ':', so diagnostics group by file. Returns nil when there are none.
+// sortedJoin flattens err and rejoins its leaves in diagnostic order (path,
+// line, column). Returns nil when there are none.
 func sortedJoin(err error) error {
 	errs := flattenErrs(err)
 	slices.SortStableFunc(errs, func(a, b error) int {
-		pa, _, _ := strings.Cut(a.Error(), ":")
-		pb, _, _ := strings.Cut(b.Error(), ":")
-		return strings.Compare(pa, pb)
+		return compareDiag(asDiagnostic(a), asDiagnostic(b))
 	})
 	return errors.Join(errs...)
 }
@@ -2964,20 +3601,86 @@ func Messages(err error) []string {
 }
 
 type pkgImporter struct {
-	loaded map[string]*types.Package
+	dir string // module root (go.mod); "" resolves the standard library only
+
+	mu           sync.Mutex // analyze imports from parallel goroutines
+	moduleLoaded bool       // the one-time whole-module batch load ran
+	loaded       map[string]*types.Package
+	failed       map[string]error // paths go list could not provide (typo, missing require)
 }
 
 func (p *pkgImporter) Import(path string) (*types.Package, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if pkg, ok := p.loaded[path]; ok {
 		return pkg, nil
 	}
-	return importer.Default().Import(path)
+	// First miss: load the whole module closure plus path in ONE Load call.
+	// go/types compares named types by object identity, so every package a
+	// script can see must come from one universe - and the batch must run
+	// before the stdlib fallback, or a script's "time" would be a stranger to
+	// the time.Time the module's own packages expose. Best-effort: a real
+	// resolution problem resurfaces precisely below.
+	if p.dir != "" && !p.moduleLoaded {
+		p.moduleLoaded = true
+		p.load(path, "./...")
+		if pkg, ok := p.loaded[path]; ok {
+			return pkg, nil
+		}
+	}
+	pkg, err := importer.Default().Import(path) // stdlib the module never imports
+	if err == nil {
+		p.loaded[path] = pkg
+		return pkg, nil
+	}
+	if p.dir == "" {
+		return nil, err
+	}
+	if ferr, ok := p.failed[path]; ok {
+		return nil, ferr
+	}
+	// a script-only import first seen after the batch load
+	if lerr := p.load(path); lerr != nil {
+		return nil, lerr
+	}
+	if pkg, ok := p.loaded[path]; ok {
+		return pkg, nil
+	}
+	if ferr, ok := p.failed[path]; ok {
+		return nil, ferr
+	}
+	return nil, err
+}
+
+// load resolves the patterns through the module at p.dir the way go list does,
+// caching every healthy package in the returned closure and recording each
+// failed root's error (e.g. "no required module provides package ...") under
+// its path.
+func (p *pkgImporter) load(patterns ...string) error {
+	pkgs, err := packages.Load(&packages.Config{
+		Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
+		Dir:  p.dir,
+	}, patterns...)
+	if err != nil {
+		return err
+	}
+	for _, pkg := range pkgs {
+		if len(pkg.Errors) > 0 {
+			p.failed[pkg.PkgPath] = errors.New(pkg.Errors[0].Msg)
+		}
+	}
+	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
+		if pkg.Types != nil && len(pkg.Errors) == 0 {
+			if _, ok := p.loaded[pkg.PkgPath]; !ok {
+				p.loaded[pkg.PkgPath] = pkg.Types
+			}
+		}
+	})
+	return nil
 }
 
 // lockedImporter serializes Import: analyze type-checks files in parallel, and
 // importer.Default's internal package map is not safe for concurrent use.
-// (pkgImporter needs no lock: its map is read-only and its fallback builds a
-// fresh importer per call.)
 type lockedImporter struct {
 	mu  sync.Mutex
 	imp types.Importer
@@ -2989,12 +3692,14 @@ func (l *lockedImporter) Import(path string) (*types.Package, error) {
 	return l.imp.Import(path)
 }
 
-// PackageImporter builds a types.Importer that resolves the given packages
-// (keyed by import path) and falls back to the standard library. Load the
-// user's module packages with golang.org/x/tools/go/packages; for stdlib-only
-// resolution leave Compiler.Importer nil.
-func PackageImporter(loaded map[string]*types.Package) types.Importer {
-	return &pkgImporter{loaded: loaded}
+// PackageImporter builds a types.Importer that resolves import paths the way
+// the module rooted at dir (its go.mod) would: on first use it loads the
+// module's package closure in one batch, then falls back to the standard
+// library, then resolves script-only imports no .go file mentions yet on
+// demand, caching everything. An empty dir resolves the standard library
+// only, like leaving Compiler.Importer nil.
+func PackageImporter(dir string) types.Importer {
+	return &pkgImporter{dir: dir, loaded: map[string]*types.Package{}, failed: map[string]error{}}
 }
 
 type probeAnchor struct {
@@ -3003,16 +3708,16 @@ type probeAnchor struct {
 	desc string
 }
 
+// probeState accumulates the synthetic probe file plus anchors mapping its
+// lines back to .html spans, so a go/types error at probe line N is reported
+// at the construct that wrote that line (descAt picks the last anchor at or
+// before N).
 type probeState struct {
 	buf       strings.Builder
 	line      int
 	span      Span // .html span of the construct currently being emitted
 	anchors   []probeAnchor
 	parseErrs []*Diagnostic
-}
-
-func newProbeState() *probeState {
-	return &probeState{line: 1}
 }
 
 func (p *probeState) write(s string) {
@@ -3082,6 +3787,10 @@ type Segment struct {
 
 func (s Segment) empty() bool { return len(s.Content) == 0 }
 
+// Code accumulates generated output as typed segments: raw Go statements,
+// HTML string literals, and interpolated exprs. Adjacent same-type content
+// merges in PendingSegment, so a run of emitStrLit calls flushes as a single
+// WriteString; writeTo turns the segments into Go source on a CodeBuilder.
 type Code struct {
 	NeedsFmt       bool // a Go segment calls fmt directly (emitChildKey's Sprint)
 	PendingSegment Segment
@@ -3121,6 +3830,8 @@ func (code *Code) emitHtmlEscapeExpr(content string) {
 	code.emit(SegmentTypeHtmlEscapeExpr, content)
 }
 
+// emitSplit switches all further output to the tx_w2 buffer. It fires at the
+// #tx-saved script tag, so a page renders as buf1 + state JSON + buf2.
 func (code *Code) emitSplit() {
 	code.flush()
 	code.PendingSegment = Segment{
@@ -3253,6 +3964,20 @@ func isTmplxScriptNode(node *html.Node) bool {
 	return false
 }
 
+// componentByName returns the component defining <name>, or nil. c.components
+// stays sorted by Name (NewComponent inserts in order), so lookup is a binary
+// search.
+func (c *Compiler) componentByName(name string) *component {
+	if i, found := slices.BinarySearchFunc(c.components, name, byName); found {
+		return c.components[i]
+	}
+	return nil
+}
+
+func byName(comp *component, name string) int {
+	return strings.Compare(comp.Name, name)
+}
+
 func hasAttr(n *html.Node, str string) (string, bool) {
 	for _, attr := range n.Attr {
 		if attr.Key == str {
@@ -3295,6 +4020,8 @@ func atVarRefPos(c *astutil.Cursor) bool {
 	return true
 }
 
+// parseComments extracts the tx: directives from one comment's text:
+// "tx:prop" and "tx:path <urlParam>".
 func parseComments(text string) []Comment {
 	comments := []Comment{}
 

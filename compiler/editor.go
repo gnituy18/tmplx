@@ -14,7 +14,7 @@ import (
 )
 
 // Def is a go-to-definition target. Either it names a tmplx file in the project
-// (Path + Span — a state/prop/func decl, or a component's file), or it is an
+// (Path + Span: a state/prop/func decl, or a component's file), or it is an
 // external Go symbol (Pkg + Name) the caller resolves in that package's source.
 type Def struct {
 	Path string // file identity (components/<rel> or pages/<rel>); "" if external
@@ -34,7 +34,7 @@ func (c *Compiler) Definition(path string, line, col int) (Def, bool) {
 	if comp == nil {
 		return Def{}, false
 	}
-	off := comp.lineMap.Offset(line, col)
+	off := comp.LineMap.Offset(line, col)
 	if d, ok := comp.componentRefAt(off); ok {
 		return d, true
 	}
@@ -57,8 +57,8 @@ func (c *Compiler) Definition(path string, line, col int) (Def, bool) {
 		return Def{}, false
 	}
 	return Def{Path: comp.Path, Span: Span{
-		Start: comp.lineMap.Pos(h),
-		End:   comp.lineMap.Pos(h + len(obj.Name())),
+		Start: comp.LineMap.Pos(h),
+		End:   comp.LineMap.Pos(h + len(obj.Name())),
 	}}, true
 }
 
@@ -74,14 +74,14 @@ func (c *Compiler) Hover(path string, line, col int) (string, Span, bool) {
 	if sem == nil {
 		return "", Span{}, false
 	}
-	id := sem.identAt(comp.lineMap.Offset(line, col))
+	id := sem.identAt(comp.LineMap.Offset(line, col))
 	obj := sem.objOf(id)
 	if obj == nil {
 		return "", Span{}, false
 	}
 	span := Span{}
 	if h, ok := sem.goToHTML(sem.fset.Position(id.Pos()).Offset); ok {
-		span = Span{Start: comp.lineMap.Pos(h), End: comp.lineMap.Pos(h + len(id.Name))}
+		span = Span{Start: comp.LineMap.Pos(h), End: comp.LineMap.Pos(h + len(id.Name))}
 	}
 	qual := func(p *types.Package) string {
 		if p.Path() == "tx_probe" {
@@ -148,7 +148,7 @@ func (c *Compiler) References(path string, line, col int) []Span {
 	if sem == nil {
 		return nil
 	}
-	target := sem.objOf(sem.identAt(comp.lineMap.Offset(line, col)))
+	target := sem.objOf(sem.identAt(comp.LineMap.Offset(line, col)))
 	if target == nil {
 		return nil
 	}
@@ -158,7 +158,7 @@ func (c *Compiler) References(path string, line, col int) []Span {
 			return
 		}
 		if h, ok := sem.goToHTML(sem.fset.Position(id.Pos()).Offset); ok {
-			spans = append(spans, Span{Start: comp.lineMap.Pos(h), End: comp.lineMap.Pos(h + len(id.Name))})
+			spans = append(spans, Span{Start: comp.LineMap.Pos(h), End: comp.LineMap.Pos(h + len(id.Name))})
 		}
 	}
 	for id, obj := range sem.info.Uses {
@@ -170,7 +170,7 @@ func (c *Compiler) References(path string, line, col int) []Span {
 	return spans
 }
 
-func (c *Compiler) byPath(path string) *Component {
+func (c *Compiler) byPath(path string) *component {
 	for _, comp := range c.components {
 		if comp.Path == path {
 			return comp
@@ -199,7 +199,7 @@ type semantic struct {
 // source. The text is copied verbatim, so offsets convert by addition.
 type semMap struct{ goStart, length, htmlStart int }
 
-func (comp *Component) semantic() *semantic {
+func (comp *component) semantic() *semantic {
 	if comp.TmplxScriptNode == nil || comp.TmplxScriptNode.FirstChild == nil {
 		return nil
 	}
@@ -207,7 +207,7 @@ func (comp *Component) semantic() *semantic {
 	var maps []semMap
 	b.WriteString("package tx_probe\n")
 	script := comp.TmplxScriptNode.FirstChild.Data
-	maps = append(maps, semMap{goStart: b.Len(), length: len(script), htmlStart: comp.scriptStart})
+	maps = append(maps, semMap{goStart: b.Len(), length: len(script), htmlStart: comp.ScriptStart})
 	b.WriteString(script)
 	b.WriteString("\nfunc tx_tmpl() {\n")
 	comp.collectExprs(comp.TemplateNode, &b, &maps)
@@ -222,17 +222,17 @@ func (comp *Component) semantic() *semantic {
 		Defs: map[*ast.Ident]types.Object{},
 		Uses: map[*ast.Ident]types.Object{},
 	}
-	(&types.Config{Importer: comp.compiler.Importer, Error: func(error) {}}).Check("tx_probe", fset, []*ast.File{file}, info)
+	(&types.Config{Importer: comp.Compiler.Importer, Error: func(error) {}}).Check("tx_probe", fset, []*ast.File{file}, info)
 	return &semantic{fset: fset, file: file, info: info, maps: maps}
 }
 
-// collectExprs emits every Go fragment in the template — text interpolations,
+// collectExprs emits every Go fragment in the template (text interpolations,
 // attribute interpolations, tx-if/tx-for/tx-key/tx-action, tx-on handlers, and
-// component prop values — into the probe function, recording each fragment's
+// component prop values) into the probe function, recording each fragment's
 // .html source span so a click anywhere in template Go resolves through go/types.
 // Emission is flat (no scope nesting), so a tx-for loop variable used in a child
 // element won't resolve; everything else does.
-func (comp *Component) collectExprs(node *html.Node, b *strings.Builder, maps *[]semMap) {
+func (comp *component) collectExprs(node *html.Node, b *strings.Builder, maps *[]semMap) {
 	emit := func(prefix, raw, suffix string, htmlOff int) {
 		b.WriteString(prefix)
 		*maps = append(*maps, semMap{goStart: b.Len(), length: len(raw), htmlStart: htmlOff})
@@ -240,7 +240,7 @@ func (comp *Component) collectExprs(node *html.Node, b *strings.Builder, maps *[
 		b.WriteString(suffix)
 	}
 	interp := func(s string, base int) {
-		comp.scanTmplStr(s, false, func(rune) {}, func(expr string, off int) error {
+		scanTmplStr(s, false, func(rune) {}, func(expr string, off int) error {
 			if _, err := parser.ParseExpr(expr); err == nil {
 				emit("_ = (", expr, ")\n", base+off)
 			}
@@ -251,13 +251,13 @@ func (comp *Component) collectExprs(node *html.Node, b *strings.Builder, maps *[
 	case html.TextNode:
 		if node.Parent != nil {
 			if _, ign := hasAttr(node.Parent, "tx-ignore"); !ign && !isVerbatimSerialize(node.Parent.DataAtom) {
-				if base, ok := comp.nodePos[node]; ok {
+				if base, ok := comp.NodePos[node]; ok {
 					interp(node.Data, base)
 				}
 			}
 		}
 	case html.ElementNode:
-		isComp := comp.compiler.components[node.Data] != nil
+		isComp := comp.Compiler.componentByName(node.Data) != nil
 		for _, attr := range node.Attr {
 			off, ok := comp.attrValueOffset(node, attr.Key)
 			if ok && attr.Val != "" {
@@ -340,17 +340,17 @@ func (s *semantic) objOf(id *ast.Ident) types.Object {
 
 // componentRefAt resolves a click on a <tx-foo> usage: on the tag name -> the
 // component's file; on a prop attribute's key -> the child component's prop decl.
-func (comp *Component) componentRefAt(off int) (Def, bool) {
-	for node, start := range comp.nodePos {
+func (comp *component) componentRefAt(off int) (Def, bool) {
+	for node, start := range comp.NodePos {
 		if node.Type != html.ElementNode {
 			continue
 		}
-		used, isComp := comp.compiler.components[node.Data]
-		if !isComp {
+		used := comp.Compiler.componentByName(node.Data)
+		if used == nil {
 			continue
 		}
-		gt := bytes.IndexByte(comp.content[start:], '>')
-		if gt < 0 || off < start || off > start+gt {
+		end := comp.openTagEnd(start)
+		if end < 0 || off < start || off >= end {
 			continue
 		}
 		if off <= start+1+len(node.Data) { // on "<tx-foo"
@@ -369,16 +369,16 @@ func (comp *Component) componentRefAt(off int) (Def, bool) {
 }
 
 // attrKeyRange returns the byte range of an attribute's key within node's open tag.
-func (comp *Component) attrKeyRange(node *html.Node, key string) (int, int, bool) {
-	start, ok := comp.nodePos[node]
+func (comp *component) attrKeyRange(node *html.Node, key string) (int, int, bool) {
+	start, ok := comp.NodePos[node]
 	if !ok {
 		return 0, 0, false
 	}
-	gt := bytes.IndexByte(comp.content[start:], '>')
-	if gt < 0 {
+	end := comp.openTagEnd(start)
+	if end < 0 {
 		return 0, 0, false
 	}
-	tag := comp.content[start : start+gt]
+	tag := comp.Content[start : end-1]
 	for i := 1; i+len(key) <= len(tag); i++ {
 		if (tag[i-1] == ' ' || tag[i-1] == '\t' || tag[i-1] == '\n') && string(tag[i:i+len(key)]) == key {
 			after := i + len(key)
@@ -392,8 +392,8 @@ func (comp *Component) attrKeyRange(node *html.Node, key string) (int, int, bool
 
 // attrValueOffset returns the byte offset of an attribute's value (the first
 // character inside the quotes) within node's open tag.
-func (comp *Component) attrValueOffset(node *html.Node, key string) (int, bool) {
-	start, ok := comp.nodePos[node]
+func (comp *component) attrValueOffset(node *html.Node, key string) (int, bool) {
+	start, ok := comp.NodePos[node]
 	if !ok {
 		return 0, false
 	}
@@ -401,7 +401,11 @@ func (comp *Component) attrValueOffset(node *html.Node, key string) (int, bool) 
 	if !found {
 		return 0, false
 	}
-	tag := comp.content[start : start+bytes.IndexByte(comp.content[start:], '>')]
+	end := comp.openTagEnd(start)
+	if end < 0 {
+		return 0, false
+	}
+	tag := comp.Content[start : end-1]
 	j := ke - start
 	for j < len(tag) && (tag[j] == ' ' || tag[j] == '\t' || tag[j] == '\n') {
 		j++

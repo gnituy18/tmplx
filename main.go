@@ -1,147 +1,98 @@
 package main
 
 import (
-	"errors"
 	"flag"
-	"go/scanner"
+	"fmt"
 	"go/token"
-	"go/types"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gnituy18/tmplx/compiler"
-	"golang.org/x/tools/go/packages"
 )
 
 func main() {
 	log.SetFlags(0)
+	log.SetPrefix("tmplx: ")
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatalf("error: %v\n", err)
+		log.Fatal(err)
 	}
-	dir := cwd
+	root := cwd
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
 			break
 		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			log.Fatalln("error: no go.mod found in current or parent directories")
+		parent := filepath.Dir(root)
+		if parent == root {
+			log.Fatalln("no go.mod found in current or parent directories (run inside a Go module, or create one with 'go mod init')")
 		}
-		dir = parent
+		root = parent
 	}
 
-	componentsDir := flag.String("components-dir", filepath.Join(dir, "components"), "directory containing reusable components")
-	pagesDir := flag.String("pages-dir", filepath.Join(dir, "pages"), "directory containing pages")
-	outputFile := flag.String("output-file", filepath.Join(dir, "routes.go"), "path to the generated Go file")
+	componentsDir := flag.String("components-dir", filepath.Join(root, "components"), "directory containing reusable components")
+	pagesDir := flag.String("pages-dir", filepath.Join(root, "pages"), "directory containing pages")
+	outputFile := flag.String("output-file", filepath.Join(root, "routes.go"), "path to the generated Go file")
 	packageName := flag.String("package-name", "main", "package name for the generated Go code")
 	handlerPrefix := flag.String("handler-prefix", "/tx/", "path prefix for event handler URLs")
 	flag.Parse()
-	if !token.IsIdentifier(*packageName) || token.IsKeyword(*packageName) {
-		log.Fatalf("\"%s\" is not a valid Go package name\n", *packageName)
+	if !token.IsIdentifier(*packageName) || *packageName == "_" {
+		log.Fatalf("%q is not a valid Go package name", *packageName)
 	}
 
-	pkgs, err := packages.Load(&packages.Config{
-		Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
-		Dir:  dir,
-	}, "./...")
-	if err != nil {
-		log.Fatalf("error: load packages: %v\n", err)
+	compDir := filepath.Clean(*componentsDir)
+	pageDir := filepath.Clean(*pagesDir)
+	compDisplay := filepath.ToSlash(compDir)
+	if rel, err := filepath.Rel(cwd, compDir); err == nil {
+		compDisplay = filepath.ToSlash(rel)
 	}
-	loaded := map[string]*types.Package{}
-	packages.Visit(pkgs, nil, func(pkg *packages.Package) {
-		if pkg.Types != nil {
-			loaded[pkg.PkgPath] = pkg.Types
-		}
-	})
-
-	cDir := filepath.Clean(*componentsDir)
-	pDir := filepath.Clean(*pagesDir)
+	pageDisplay := filepath.ToSlash(pageDir)
+	if rel, err := filepath.Rel(cwd, pageDir); err == nil {
+		pageDisplay = filepath.ToSlash(rel)
+	}
 	c := &compiler.Compiler{
 		PackageName:   *packageName,
-		Importer:      compiler.PackageImporter(loaded),
+		Importer:      compiler.PackageImporter(root),
 		HandlerPrefix: *handlerPrefix,
-		ComponentsDir: displayPath(cwd, cDir),
-		PagesDir:      displayPath(cwd, pDir),
+		ComponentsDir: compDisplay,
+		PagesDir:      pageDisplay,
 	}
 
-	if info, err := os.Stat(cDir); err != nil {
+	if info, err := os.Stat(compDir); err != nil {
 		if !os.IsNotExist(err) {
-			log.Fatalf("error: %s: %v\n", cDir, err)
+			log.Fatalf("%s: %v", compDir, err)
 		}
-		log.Printf("no components directory at %s, skipping\n", cDir)
 	} else if !info.IsDir() {
-		log.Fatalf("error: %s is not a directory\n", cDir)
-	} else if err := filepath.WalkDir(cDir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || filepath.Ext(path) != ".html" {
-			return nil
-		}
-		rel, err := filepath.Rel(cDir, path)
-		if err != nil {
-			return err
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		c.NewComponent(filepath.ToSlash(rel), body)
-		return nil
-	}); err != nil {
-		log.Fatalf("error: %s: walk failed: %v\n", cDir, err)
+		log.Fatalf("%s is not a directory", compDir)
+	} else if err := walkHTML(compDir, c.NewComponent); err != nil {
+		log.Fatalln(err)
 	}
 
 	pageCount := 0
-	if info, err := os.Stat(pDir); err != nil {
+	if info, err := os.Stat(pageDir); err != nil {
 		if os.IsNotExist(err) {
-			log.Fatalf("pages directory not found: %s\n", pDir)
+			log.Fatalf("pages directory not found: %s", pageDir)
 		}
-		log.Fatalf("error: %s: %v\n", pDir, err)
+		log.Fatalf("%s: %v", pageDir, err)
 	} else if !info.IsDir() {
-		log.Fatalf("error: %s is not a directory\n", pDir)
-	} else if err := filepath.WalkDir(pDir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || filepath.Ext(path) != ".html" {
-			return nil
-		}
-		rel, err := filepath.Rel(pDir, path)
-		if err != nil {
-			return err
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		c.NewPage(filepath.ToSlash(rel), body)
+		log.Fatalf("%s is not a directory", pageDir)
+	} else if err := walkHTML(pageDir, func(rel string, content []byte) {
+		c.NewPage(rel, content)
 		pageCount++
-		return nil
 	}); err != nil {
-		log.Fatalf("error: %s: walk failed: %v\n", pDir, err)
+		log.Fatalln(err)
 	}
 	if pageCount == 0 {
-		log.Printf("warning: no pages found in %s\n", pDir)
+		log.Printf("warning: no pages found in %s", pageDir)
 	}
 
 	code, err := c.Compile()
 	if err != nil {
-		var errs scanner.ErrorList
-		if errors.As(err, &errs) && len(errs) > 0 {
-			lines := strings.Split(string(code), "\n")
-			start := max(errs[0].Pos.Line-6, 0)
-			end := min(errs[0].Pos.Line+5, len(lines))
-			for i := start; i < end; i++ {
-				log.Printf("%d: %s\n", i+1, lines[i])
-			}
-		}
-		log.Fatalln(err)
+		// bare, not log.Fatalln: parsers expect diagnostics to lead with file:line:col
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
 	out := filepath.Clean(*outputFile)
@@ -151,15 +102,25 @@ func main() {
 	if err := os.WriteFile(out, code, 0644); err != nil {
 		log.Fatalln(err)
 	}
-	log.Printf("%s generated successfully\n", out)
 }
 
-// displayPath is how diagnostics name a source dir: relative to where the
-// user ran the command when possible, so reported file paths are openable as
-// printed.
-func displayPath(cwd, dir string) string {
-	if rel, err := filepath.Rel(cwd, dir); err == nil {
-		return filepath.ToSlash(rel)
-	}
-	return filepath.ToSlash(dir)
+func walkHTML(dir string, add func(rel string, body []byte)) error {
+	return filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".html" {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		add(filepath.ToSlash(rel), content)
+		return nil
+	})
 }

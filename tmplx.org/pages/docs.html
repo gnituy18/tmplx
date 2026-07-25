@@ -38,6 +38,7 @@
         <li>
           <a href="#event-handler">Event Handlers</a>
           <ul>
+            <li><a href="#quotes-in-attribute-code">Quotes in Attribute Code</a></li>
             <li><a href="#event-properties">Event Properties</a></li>
           </ul>
         </li>
@@ -401,6 +402,19 @@
         can be used as <a href="#state">state</a>. The
         <a href="/playground">playground</a> resolves the standard library only.
       </p>
+      <p>
+        All pages and components compile into <strong>one</strong> Go file, so
+        import names share a single namespace across the whole project. Two
+        files may import the same package under different names, but binding
+        the same name to <strong>different</strong> packages
+        (<code>t "time"</code> in one page, <code>t "text/template"</code> in
+        another) makes the generated file fail to build with a
+        <code>redeclared</code> error. The generated code itself imports
+        <code>bytes</code>, <code>encoding/json</code>, <code>fmt</code>,
+        <code>html</code>, <code>net/http</code>, <code>net/url</code>, and
+        <code>strings</code> under their default names; don't rebind those
+        names to other packages.
+      </p>
 
       <h3 id="reserved-names">Reserved Names</h3>
       <p>
@@ -467,6 +481,12 @@
         expression interpolation in that element's attributes and its direct
         text children. Descendant elements are still processed normally.
       </p>
+      <p>
+        To render a literal <code tx-ignore>{</code>, either put
+        <code>tx-ignore</code> on the element or emit the brace from a string
+        literal: <code tx-ignore>{ "{" }</code>. A brace inside a Go string
+        literal does not open or close an expression.
+      </p>
 
       <div class="snippet">
         <div class="snippet-bar"><span class="snippet-name">html</span>
@@ -518,11 +538,13 @@
         </li>
       </ol>
       <p>
-        The 1st rule is enforced by the compiler. General JSON-compatibility is
-        not checked at compile time (for now)&mdash;an interface or channel type
-        compiles and then fails at runtime. The one exception is a
-        <strong>function-typed</strong> state, which is rejected at compile time;
-        use a <a href="#callback-props">callback prop</a> for a function input.
+        Both rules are enforced by the compiler. A type that cannot survive the
+        round-trip (a function, channel, complex number, a non-empty interface,
+        an unsupported map key, or a struct with unexported fields) is rejected
+        at compile time with the offending part named. A type that implements
+        <code>json.Marshaler</code> and <code>json.Unmarshaler</code> (like
+        <code>time.Time</code>) round-trips by contract and is accepted. For a
+        function input, use a <a href="#callback-props">callback prop</a>.
       </p>
 
       <h3>Some invalid state declarations:</h3>
@@ -644,6 +666,50 @@
         <div class="snippet-code" data-snippet="double"></div>
       </div>
 
+      <h3 id="quotes-in-attribute-code">Quotes in Attribute Code</h3>
+      <p>
+        This applies to every attribute that holds Go code:
+        <code>tx-on*</code>, <code>tx-if</code>, <code>tx-for</code>,
+        <code>tx-key</code>, and prop values. An attribute value is HTML
+        before it is Go: the only character that cannot appear raw inside it
+        is the attribute's own quote, and HTML has no backslash escaping.
+        So pick the attribute quote your Go code does not use:
+      </p>
+      <ul>
+        <li>
+          Go string literals use <code>"</code>, so single-quote the
+          attribute: <code tx-ignore>tx-if='s == "hi"'</code>. This covers
+          escaped quotes inside the string too:
+          <code tx-ignore>tx-if='s == "say \"hi\""'</code>.
+        </li>
+        <li>
+          Go rune literals use <code>'</code>, so double-quote the attribute:
+          <code tx-ignore>tx-if="r == 'x'"</code>.
+        </li>
+        <li>
+          Both kinds in one expression: write the string as a raw string
+          literal, since backticks clash with neither quote:
+          <code tx-ignore>tx-if="r == 'x' && s == `hi`"</code>.
+        </li>
+      </ul>
+      <p>
+        The escape hatch for anything beyond that (a rune literal next to a
+        string that needs escape sequences) is a character reference for the
+        delimiter: <code>&amp;quot;</code> or <code>&amp;#39;</code>. But a
+        handler that gnarly is better off as a
+        <a href="#functions">function</a>: the script block is raw text where
+        no HTML rules apply, and the attribute shrinks to a call.
+      </p>
+      <p>
+        One spelling the compiler rejects outright: unquoted values. HTML
+        ends an unquoted value at the first space or <code>&gt;</code>, so
+        <code tx-ignore>tx-if=a>b</code> would silently mean
+        <code tx-ignore>tx-if="a"</code> with <code>b&gt;</code> left over as
+        text, and no error would ever surface. Every tx- attribute value must
+        be quoted; plain HTML attributes like <code>class=big</code> are
+        unaffected.
+      </p>
+
       <h3 id="event-properties">Event Properties</h3>
       <p>
         For events fired on a form control, you can read values directly from
@@ -678,6 +744,45 @@
           <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
         </div>
         <div class="snippet-code" data-snippet="inputlive"></div>
+      </div>
+
+      <h3 id="debounce">Debouncing</h3>
+      <p>
+        Every event sends a request, and requests run strictly in order — so a
+        burst of events (typing) queues one round-trip per keystroke. Add
+        <code>tx-debounce</code> with a number of milliseconds to an element to
+        send only the <strong>last</strong> event of a burst, after that quiet
+        period:
+      </p>
+      <ul>
+        <li tx-ignore>
+          <code>&lt;input tx-oninput="q = event.target.value" tx-debounce="200"&gt;</code>
+        </li>
+      </ul>
+      <p>
+        Debouncing <strong>drops</strong> the intermediate events. Use it only
+        when the handler's last run wins, like assigning
+        <code>event.target.value</code> — never for cumulative handlers like
+        <code>count++</code>, where a dropped event is a lost increment. That
+        is why debouncing is opt-in, per element.
+      </p>
+      <p>
+        Ordering is preserved: any other event (a click, a form submit) flushes
+        pending debounced requests before its own, so a handler never runs
+        ahead of an earlier input it depends on.
+      </p>
+      <p>
+        Try it — the counter shows how many requests the server actually
+        handled, however fast you type:
+      </p>
+      <tx-example-wrapper>
+        <tx-debouncelive></tx-debouncelive>
+      </tx-example-wrapper>
+      <div class="snippet">
+        <div class="snippet-bar"><span class="snippet-name">debouncelive.html</span>
+          <div class="snippet-actions"><button class="copy-btn" type="button">copy</button></div>
+        </div>
+        <div class="snippet-code" data-snippet="debouncelive"></div>
       </div>
 
       <h2 id="functions">Functions</h2>
@@ -1084,6 +1189,14 @@
         <code>_</code>. Uppercase letters are rejected.
       </p>
 
+      <p>
+        A component file holds one
+        <code tx-ignore>&lt;script type="text/tmplx"&gt;</code> at the top
+        level of the file, next to the template elements, never nested inside
+        one of them (the compiler rejects a nested script; the same goes for
+        <code>&lt;style&gt;</code>).
+      </p>
+
       <p>Examples:</p>
 
       <ul>
@@ -1100,6 +1213,17 @@
         </li>
       </ul>
 
+      <p>
+        Always write a component with an explicit close tag:
+        <code tx-ignore>&lt;tx-button&gt;&lt;/tx-button&gt;</code>. HTML has no
+        self-closing custom elements, so
+        <code tx-ignore>&lt;tx-button /&gt;</code> would swallow everything
+        after it; tmplx rejects a self-closed <code>tx-</code> tag at compile
+        time. Third-party custom elements get no such check: the HTML parser
+        silently repairs a self-closed
+        <code tx-ignore>&lt;my-widget /&gt;</code> by treating the rest of the
+        parent as its children.
+      </p>
       <p>
         Components can contain their own
         <code>&lt;script type="text/tmplx"&gt;</code> for local state and logic,

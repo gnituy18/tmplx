@@ -1,0 +1,9 @@
+<script type="text/tmplx">
+  var open = false
+</script>
+
+<section>
+  <button data-test="sp-toggle" tx-onclick="open = !open">toggle</button>
+  <p data-test="sp-open" tx-if="open">OPEN</p>
+  <slot></slot>
+</section>
