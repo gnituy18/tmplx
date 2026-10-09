@@ -389,6 +389,69 @@ func (tx_comp *tx_HY_current_HY_time) tx_render(tx_w *bytes.Buffer, tx_id string
 	}
 }
 
+type tx_HY_debouncelive struct {
+	tx_target          string         `json:"-"`
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+
+	V_query    string `json:"query"`
+	V_requests int    `json:"requests"`
+}
+
+func tx_new_tx_HY_debouncelive(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_debouncelive {
+	tx_comp := &tx_HY_debouncelive{}
+	tx_comp.tx_target = tx_target
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get(tx_id)
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_HY_debouncelive) tx_eh1(tx_ev_target_value string) {
+	tx_comp.V_query = tx_ev_target_value
+	tx_comp.V_requests++
+}
+
+func (tx_comp *tx_HY_debouncelive) tx_compute(tx_id string) {
+	if tx_id == tx_comp.tx_trigger {
+		switch tx_comp.tx_trigger_handler {
+		case "eh1":
+			var tx_ev_target_value string
+			json.Unmarshal([]byte(tx_comp.tx_prev.Get("tx_ev_target_value")), &tx_ev_target_value)
+			tx_comp.tx_eh1(tx_ev_target_value)
+		}
+	}
+}
+
+func (tx_comp *tx_HY_debouncelive) tx_render(tx_w *bytes.Buffer, tx_id string) {
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <input type=\"text\" placeholder=\"type fast, then pause\" data-tx-trigger=\"")
+	fmt.Fprint(tx_w, tx_id)
+	tx_w.WriteString("\" data-tx-target=\"")
+	fmt.Fprint(tx_w, tx_comp.tx_target)
+	tx_w.WriteString("\" data-tx-debounce=\"300\" data-tx-eh1-on=\"input\"/> <p>server saw: &#34;")
+	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_query)))
+	tx_w.WriteString("&#34; — requests handled: ")
+	tx_w.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_requests)))
+	tx_w.WriteString("</p> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
+}
+
 type tx_HY_derived struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
@@ -1477,7 +1540,7 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-1"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-todo-1"
@@ -1488,7 +1551,7 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-2"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-types-1"
@@ -1499,7 +1562,7 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-3"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-derived-1"
@@ -1510,7 +1573,7 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-4"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-counter-1"
@@ -1521,7 +1584,7 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-5"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-double-1"
@@ -1532,7 +1595,7 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-6"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-inputlive-1"
@@ -1543,7 +1606,18 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-7"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
+		tx_comp.tx_next[tx_id] = tx_child
+		{
+			tx_id := tx_id + "@tx-debouncelive-1"
+			tx_child := tx_new_tx_HY_debouncelive(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+			tx_child.tx_compute(tx_id)
+			tx_comp.tx_next[tx_id] = tx_child
+		}
+	}
+	{
+		tx_id := "tx-example-wrapper-8"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-addn-1"
@@ -1553,8 +1627,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-8"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-9"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-current-time-1"
@@ -1563,8 +1637,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-9"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-10"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-cond-1"
@@ -1574,8 +1648,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-10"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-11"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-triangle-1"
@@ -1585,8 +1659,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-11"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-12"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-condrows-1"
@@ -1595,8 +1669,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-12"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-13"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-greeting-1"
@@ -1606,8 +1680,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-13"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-14"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-props-1"
@@ -1617,8 +1691,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-14"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-15"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-callback-1"
@@ -1628,8 +1702,8 @@ func (tx_comp *tx_SL_docs) tx_compute() {
 		}
 	}
 	{
-		tx_id := "tx-example-wrapper-15"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_id := "tx-example-wrapper-16"
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-slotdemo-1"
@@ -1658,7 +1732,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_1_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-01\"></div> </div> <p> You start by creating an HTML file. It can be a page or a reusable component, depending on where you place it. </p> <p> You use the <code>&lt;script type=&#34;text/tmplx&#34;&gt;</code> tag to embed Go code and make the page or component dynamic. tmplx uses a subset of Go syntax to provide reactive features like <a href=\"#state\">state</a>, <a href=\"#derived\">derived</a>, and <a href=\"#event-handler\">event handler</a>. At the same time, because the script is valid Go, you can <strong>implement backend logic</strong>—such as database queries—directly in the template. </p> <p> tmplx compiles the HTML templates and embedded Go code into Go functions that render the HTML on the server and generate HTTP handlers for interactive events. On each interaction, the current state is sent to the server, which computes updates and returns both new HTML and the updated state. The result is server-rendered pages with lightweight client-side swapping (similar to <a href=\"https://htmx.org/\">htmx</a>). The interactivity plumbing is handled automatically by the tmplx compiler and runtime—you just implement the features. </p> <p> Most modern web applications separate the frontend and backend into different languages and teams. tmplx eliminates this split by letting you build the entire interactive application in a single language—Go. With this approach, the mental effort needed to track how data flows from the source to the UI is reduced to a minimum. The fewer transformations you perform on your data, the fewer bugs you introduce. </p> <h2 id=\"installing\">Installing</h2> <p>tmplx requires Go 1.25 or later.</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-02\"></div> </div> <p> This adds tmplx to your Go bin directory (usually $GOPATH/bin or $HOME/go/bin). Make sure that directory is in your PATH. </p> <p>After installation, verify it works:</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-03\"></div> </div> <h2 id=\"quick-start\">Quick Start</h2> <p>Get a tmplx app running in minutes.</p> <ol> <li> <p><strong>Create a project</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-04\"></div> </div> </li> <li> <p><strong>Add your first page (pages/index.html)</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-05\"></div> </div> </li> <li> <p><strong>Generate the Go code</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-06\"></div> </div> </li> <li> <p><strong>Create main.go to serve the app</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">go</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-07\"></div> </div> </li> <li> <p><strong>Run the server</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-08\"></div> </div> </li> </ol> <p> That&#39;s it! Open <a href=\"http://localhost:8080\">http://localhost:8080</a> and you now have a working interactive counter. </p> <h2 id=\"pages-and-routing\">Pages and Routing</h2> <p> A <strong>page</strong> is a standalone HTML file that has its own URL in your web app. </p> <p> All pages are placed in the <strong>pages</strong> directory. Default pages location is <code>./pages</code>. Change it with the <code>-pages-dir</code> flag: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-09\"></div> </div> <p> tmplx uses <strong>filesystem-based routing</strong>. The route for a page is the relative path of the HTML file inside the <strong>pages</strong> directory, without the <code>.html</code> extension. For example: </p> <ul> <li><code>pages/index.html</code> → <code>/</code></li> <li><code>pages/about.html</code> → <code>/about</code></li> <li> <code>pages/admin/dashboard.html</code> → <code>/admin/dashboard</code> </li> </ul> <p> When the file is named <code>index.html</code>, it serves its directory&#39;s URL, which ends with a trailing slash. The page matches that URL <strong>exactly</strong> — it does not catch other paths under the directory — and a request without the trailing slash is redirected to it. </p> <ul> <li><code>pages/docs/index.html</code> → <code>/docs/</code></li> <li><code>pages/index/index.html</code> → <code>/index/</code></li> </ul> <p> A name and a directory are <strong>different URLs</strong>: <code>login.html</code> serves <code>/login</code> while <code>login/index.html</code> serves <code>/login/</code>, and both can exist in the same project. Two files that derive the same route cause compilation failure. </p> <p> The exact match is what <code>{$}</code> does: in Go&#39;s <code>net/http.ServeMux</code>, a pattern ending in <code>/</code> matches the <em>whole subtree</em>, so a bare <code>/docs/</code> pattern would serve the index page for every unmatched URL under it. tmplx therefore registers every <code>index.html</code> with <code>{$}</code> appended: <code>pages/docs/index.html</code> becomes the pattern <code>GET /docs/{$}</code>, which matches only <code>/docs/</code> itself. That string is the page&#39;s <strong>identity</strong>, so you will meet it wherever the page is referred to — in the <code>Routes()</code> patterns when you attach middleware, and in the event POST URLs in the network tab: </p> <ul> <li> <code>pages/docs/index.html</code> → pattern <code>GET /docs/{$}</code> </li> <li> <code>pages/index.html</code> → pattern <code>GET /{$}</code> </li> <li> <code>pages/docs.html</code> → pattern <code>GET /docs</code> (no <code>{$}</code>; a non-index route never ends in <code>/</code>) </li> </ul> <p> To add URL parameters (path wildcards), use curly braces  in directory or file names inside the pages directory. The name inside  must be a valid Go identifier. </p> <ul> <li> <code>pages/user/{user_id}.html</code> → <code>/user/{user_id}</code> </li> <li> <code>pages/blog/{year}/{slug}.html</code> → <code>/blog/{year}/{slug}</code> </li> </ul> <p> These patterns are compatible with Go&#39;s <code>net/http.ServeMux</code> (Go 1.22+). The parameter values are available in page initialisation through <code><a href=\"#path-parameter\">tx:path</a></code> comments. </p> <p> A <code>{name...}</code> wildcard matches the rest of the URL, slashes included — a <strong>catch-all</strong>. It serves every path under its directory that no more specific page matches: an exact page wins first, then the directory&#39;s <code>index.html</code>, then the catch-all. </p> <ul> <li> <code>pages/docs/{rest...}.html</code> → <code>/docs/{rest...}</code> </li> </ul> <p> tmplx compiles all pages into a single Go file you can import into your Go project. The pages directory can be outside your project, but keeping it inside is recommended. </p> <h2 id=\"tmplx-script\">tmplx Script</h2> <p> <code>&lt;script type=&#34;text/tmplx&#34;&gt;</code> is a special tag that you can add to your page or component to declare <a href=\"#state\">state</a>, <a href=\"#derived\">derived</a>, <a href=\"#event-handler\">event handlers</a>, <a href=\"#functions\">functions</a>, and the special <a href=\"#init\">init()</a> function to control your UI or add backend logic. </p> <p> Each page or component file can have exactly <strong>one</strong> tmplx script. Multiple scripts cause a compilation error. </p> <p> In pages, place it anywhere inside <code>&lt;head&gt;</code> or <code>&lt;body&gt;</code>. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-10\"></div> </div> <p>In components, place it at the root level.</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-11\"></div> </div> <h3 id=\"imports\">Imports</h3> <p> The script is plain Go, so you pull in packages with normal Go <code>import</code> declarations—single or grouped—at the top of the block. </p> <p> Imports resolve against your project&#39;s <code>go.mod</code>. tmplx walks up from the working directory to the nearest <code>go.mod</code> (see <a href=\"#cli\">CLI</a>) and type-checks the script against that module, so you can import: </p> <ul> <li>the <strong>standard library</strong>;</li> <li> any <strong>third-party module</strong> already in your <code>go.mod</code> (run <code>go get</code> first); </li> <li>your <strong>own packages</strong> within the module.</li> </ul> <p> An import that does not resolve fails compilation with <code>cannot import &lt;path&gt;</code>. Imported struct or named types can be used as <a href=\"#state\">state</a>. The <a href=\"/playground\">playground</a> resolves the standard library only. </p> <h3 id=\"reserved-names\">Reserved Names</h3> <p> The compiler reserves two naming patterns for its own use: </p> <ul> <li> Identifiers (variables, function names, parameter names) declared in the tmplx script cannot start with <code>tx_</code>. </li> <li> HTML attributes starting with <code>tx-</code> are reserved for tmplx directives (<code>tx-if</code>, <code>tx-for</code>, <code>tx-on*</code>, <code>tx-action</code>, ...). Do not introduce your own <code>tx-</code> attributes. </li> </ul> <h2 id=\"expression-interpolation\">Expression Interpolation</h2> <p> Use curly braces <code>{}</code> to insert <a href=\"https://go.dev/ref/spec#Expressions\">Go expressions</a> into HTML. Expressions are allowed only in: </p> <ul> <li><strong>text nodes</strong></li> <li><strong>attribute values</strong></li> </ul> <p>Placing expressions anywhere else causes a parsing error.</p> <p>\n        tmplx converts expression results to strings using\n        <code><a href=\"https://pkg.go.dev/fmt#Sprint\">fmt.Sprint</a></code>. The output is <strong>HTML-escaped</strong> in both\n        <strong>text nodes</strong> and <strong>attribute values</strong> to\n        prevent cross-site scripting (XSS)—an interpolated value cannot\n        inject markup or break out of its attribute.\n      </p> <p> Expressions run on the server every time the page loads or a component re-renders after an event. Avoid side effects in expressions, such as database queries or heavy computations, because they execute on every render. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-12\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-13\"></div> </div> <p>\n        Add the <code>tx-ignore</code> attribute to an element to disable\n        expression interpolation in that element&#39;s attributes and its direct\n        text children. Descendant elements are still processed normally.\n      </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-14\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-15\"></div> </div> <h2 id=\"state\">State</h2> <p> <strong>State</strong> is the mutable data that describes a component&#39;s current condition. </p> <p> Declaring state works like declaring variables in Go&#39;s package scope. If you provide no initial value, the state starts with the zero value for its type. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-16\"></div> </div> <p>To set an initial value, use the <code>=</code> operator.</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-17\"></div> </div> <p>Although the syntax follows valid Go code, these rules apply:</p> <ol> <li><strong>Only one identifier per declaration.</strong></li> <li> <strong> The type must be JSON-compatible. </strong> </li> </ol> <p> The 1st rule is enforced by the compiler. General JSON-compatibility is not checked at compile time (for now)—an interface or channel type compiles and then fails at runtime. The one exception is a <strong>function-typed</strong> state, which is rejected at compile time; use a <a href=\"#callback-props\">callback prop</a> for a function input. </p> <h3>Some invalid state declarations:</h3> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-18\"></div> </div> <h3>Some valid state declarations:</h3> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-19\"></div> </div> <p>State can hold any JSON-compatible Go type. A few of them, live:</p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-01\"></div> </div> <p> You start by creating an HTML file. It can be a page or a reusable component, depending on where you place it. </p> <p> You use the <code>&lt;script type=&#34;text/tmplx&#34;&gt;</code> tag to embed Go code and make the page or component dynamic. tmplx uses a subset of Go syntax to provide reactive features like <a href=\"#state\">state</a>, <a href=\"#derived\">derived</a>, and <a href=\"#event-handler\">event handler</a>. At the same time, because the script is valid Go, you can <strong>implement backend logic</strong>—such as database queries—directly in the template. </p> <p> tmplx compiles the HTML templates and embedded Go code into Go functions that render the HTML on the server and generate HTTP handlers for interactive events. On each interaction, the current state is sent to the server, which computes updates and returns both new HTML and the updated state. The result is server-rendered pages with lightweight client-side swapping (similar to <a href=\"https://htmx.org/\">htmx</a>). The interactivity plumbing is handled automatically by the tmplx compiler and runtime—you just implement the features. </p> <p> Most modern web applications separate the frontend and backend into different languages and teams. tmplx eliminates this split by letting you build the entire interactive application in a single language—Go. With this approach, the mental effort needed to track how data flows from the source to the UI is reduced to a minimum. The fewer transformations you perform on your data, the fewer bugs you introduce. </p> <h2 id=\"installing\">Installing</h2> <p>tmplx requires Go 1.25 or later.</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-02\"></div> </div> <p> This adds tmplx to your Go bin directory (usually $GOPATH/bin or $HOME/go/bin). Make sure that directory is in your PATH. </p> <p>After installation, verify it works:</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-03\"></div> </div> <h2 id=\"quick-start\">Quick Start</h2> <p>Get a tmplx app running in minutes.</p> <ol> <li> <p><strong>Create a project</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-04\"></div> </div> </li> <li> <p><strong>Add your first page (pages/index.html)</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-05\"></div> </div> </li> <li> <p><strong>Generate the Go code</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-06\"></div> </div> </li> <li> <p><strong>Create main.go to serve the app</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">go</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-07\"></div> </div> </li> <li> <p><strong>Run the server</strong></p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-08\"></div> </div> </li> </ol> <p> That&#39;s it! Open <a href=\"http://localhost:8080\">http://localhost:8080</a> and you now have a working interactive counter. </p> <h2 id=\"pages-and-routing\">Pages and Routing</h2> <p> A <strong>page</strong> is a standalone HTML file that has its own URL in your web app. </p> <p> All pages are placed in the <strong>pages</strong> directory. Default pages location is <code>./pages</code>. Change it with the <code>-pages-dir</code> flag: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">shell</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-09\"></div> </div> <p> tmplx uses <strong>filesystem-based routing</strong>. The route for a page is the relative path of the HTML file inside the <strong>pages</strong> directory, without the <code>.html</code> extension. For example: </p> <ul> <li><code>pages/index.html</code> → <code>/</code></li> <li><code>pages/about.html</code> → <code>/about</code></li> <li> <code>pages/admin/dashboard.html</code> → <code>/admin/dashboard</code> </li> </ul> <p> When the file is named <code>index.html</code>, it serves its directory&#39;s URL, which ends with a trailing slash. The page matches that URL <strong>exactly</strong> — it does not catch other paths under the directory — and a request without the trailing slash is redirected to it. </p> <ul> <li><code>pages/docs/index.html</code> → <code>/docs/</code></li> <li><code>pages/index/index.html</code> → <code>/index/</code></li> </ul> <p> A name and a directory are <strong>different URLs</strong>: <code>login.html</code> serves <code>/login</code> while <code>login/index.html</code> serves <code>/login/</code>, and both can exist in the same project. Two files that derive the same route cause compilation failure. </p> <p> The exact match is what <code>{$}</code> does: in Go&#39;s <code>net/http.ServeMux</code>, a pattern ending in <code>/</code> matches the <em>whole subtree</em>, so a bare <code>/docs/</code> pattern would serve the index page for every unmatched URL under it. tmplx therefore registers every <code>index.html</code> with <code>{$}</code> appended: <code>pages/docs/index.html</code> becomes the pattern <code>GET /docs/{$}</code>, which matches only <code>/docs/</code> itself. That string is the page&#39;s <strong>identity</strong>, so you will meet it wherever the page is referred to — in the <code>Routes()</code> patterns when you attach middleware, and in the event POST URLs in the network tab: </p> <ul> <li> <code>pages/docs/index.html</code> → pattern <code>GET /docs/{$}</code> </li> <li> <code>pages/index.html</code> → pattern <code>GET /{$}</code> </li> <li> <code>pages/docs.html</code> → pattern <code>GET /docs</code> (no <code>{$}</code>; a non-index route never ends in <code>/</code>) </li> </ul> <p> To add URL parameters (path wildcards), use curly braces  in directory or file names inside the pages directory. The name inside  must be a valid Go identifier. </p> <ul> <li> <code>pages/user/{user_id}.html</code> → <code>/user/{user_id}</code> </li> <li> <code>pages/blog/{year}/{slug}.html</code> → <code>/blog/{year}/{slug}</code> </li> </ul> <p> These patterns are compatible with Go&#39;s <code>net/http.ServeMux</code> (Go 1.22+). The parameter values are available in page initialisation through <code><a href=\"#path-parameter\">tx:path</a></code> comments. </p> <p> A <code>{name...}</code> wildcard matches the rest of the URL, slashes included — a <strong>catch-all</strong>. It serves every path under its directory that no more specific page matches: an exact page wins first, then the directory&#39;s <code>index.html</code>, then the catch-all. </p> <ul> <li> <code>pages/docs/{rest...}.html</code> → <code>/docs/{rest...}</code> </li> </ul> <p> tmplx compiles all pages into a single Go file you can import into your Go project. The pages directory can be outside your project, but keeping it inside is recommended. </p> <h2 id=\"tmplx-script\">tmplx Script</h2> <p> <code>&lt;script type=&#34;text/tmplx&#34;&gt;</code> is a special tag that you can add to your page or component to declare <a href=\"#state\">state</a>, <a href=\"#derived\">derived</a>, <a href=\"#event-handler\">event handlers</a>, <a href=\"#functions\">functions</a>, and the special <a href=\"#init\">init()</a> function to control your UI or add backend logic. </p> <p> Each page or component file can have exactly <strong>one</strong> tmplx script. Multiple scripts cause a compilation error. </p> <p> In pages, place it anywhere inside <code>&lt;head&gt;</code> or <code>&lt;body&gt;</code>. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-10\"></div> </div> <p>In components, place it at the root level.</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-11\"></div> </div> <h3 id=\"imports\">Imports</h3> <p> The script is plain Go, so you pull in packages with normal Go <code>import</code> declarations—single or grouped—at the top of the block. </p> <p> Imports resolve against your project&#39;s <code>go.mod</code>. tmplx walks up from the working directory to the nearest <code>go.mod</code> (see <a href=\"#cli\">CLI</a>) and type-checks the script against that module, so you can import: </p> <ul> <li>the <strong>standard library</strong>;</li> <li> any <strong>third-party module</strong> already in your <code>go.mod</code> (run <code>go get</code> first); </li> <li>your <strong>own packages</strong> within the module.</li> </ul> <p> An import that does not resolve fails compilation with <code>cannot import &lt;path&gt;</code>. Imported struct or named types can be used as <a href=\"#state\">state</a>. The <a href=\"/playground\">playground</a> resolves the standard library only. </p> <p> All pages and components compile into <strong>one</strong> Go file, so import names share a single namespace across the whole project. Two files may import the same package under different names, but binding the same name to <strong>different</strong> packages (<code>t &#34;time&#34;</code> in one page, <code>t &#34;text/template&#34;</code> in another) makes the generated file fail to build with a <code>redeclared</code> error. The generated code itself imports <code>bytes</code>, <code>encoding/json</code>, <code>fmt</code>, <code>html</code>, <code>net/http</code>, <code>net/url</code>, and <code>strings</code> under their default names; don&#39;t rebind those names to other packages. </p> <h3 id=\"reserved-names\">Reserved Names</h3> <p> The compiler reserves two naming patterns for its own use: </p> <ul> <li> Identifiers (variables, function names, parameter names) declared in the tmplx script cannot start with <code>tx_</code>. </li> <li> HTML attributes starting with <code>tx-</code> are reserved for tmplx directives (<code>tx-if</code>, <code>tx-for</code>, <code>tx-on*</code>, <code>tx-action</code>, ...). Do not introduce your own <code>tx-</code> attributes. </li> </ul> <h2 id=\"expression-interpolation\">Expression Interpolation</h2> <p> Use curly braces <code>{}</code> to insert <a href=\"https://go.dev/ref/spec#Expressions\">Go expressions</a> into HTML. Expressions are allowed only in: </p> <ul> <li><strong>text nodes</strong></li> <li><strong>attribute values</strong></li> </ul> <p>Placing expressions anywhere else causes a parsing error.</p> <p>\n        tmplx converts expression results to strings using\n        <code><a href=\"https://pkg.go.dev/fmt#Sprint\">fmt.Sprint</a></code>. The output is <strong>HTML-escaped</strong> in both\n        <strong>text nodes</strong> and <strong>attribute values</strong> to\n        prevent cross-site scripting (XSS)—an interpolated value cannot\n        inject markup or break out of its attribute.\n      </p> <p> Expressions run on the server every time the page loads or a component re-renders after an event. Avoid side effects in expressions, such as database queries or heavy computations, because they execute on every render. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-12\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-13\"></div> </div> <p>\n        Add the <code>tx-ignore</code> attribute to an element to disable\n        expression interpolation in that element&#39;s attributes and its direct\n        text children. Descendant elements are still processed normally.\n      </p> <p> To render a literal <code>{</code>, either put <code>tx-ignore</code> on the element or emit the brace from a string literal: <code>{ &#34;{&#34; }</code>. A brace inside a Go string literal does not open or close an expression. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-14\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-15\"></div> </div> <h2 id=\"state\">State</h2> <p> <strong>State</strong> is the mutable data that describes a component&#39;s current condition. </p> <p> Declaring state works like declaring variables in Go&#39;s package scope. If you provide no initial value, the state starts with the zero value for its type. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-16\"></div> </div> <p>To set an initial value, use the <code>=</code> operator.</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-17\"></div> </div> <p>Although the syntax follows valid Go code, these rules apply:</p> <ol> <li><strong>Only one identifier per declaration.</strong></li> <li> <strong> The type must be JSON-compatible. </strong> </li> </ol> <p> Both rules are enforced by the compiler. A type that cannot survive the round-trip (a function, channel, complex number, a non-empty interface, an unsupported map key, or a struct with unexported fields) is rejected at compile time with the offending part named. A type that implements <code>json.Marshaler</code> and <code>json.Unmarshaler</code> (like <code>time.Time</code>) round-trips by contract and is accepted. For a function input, use a <a href=\"#callback-props\">callback prop</a>. </p> <h3>Some invalid state declarations:</h3> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-18\"></div> </div> <h3>Some valid state declarations:</h3> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-19\"></div> </div> <p>State can hold any JSON-compatible Go type. A few of them, live:</p> ")
 	{
 		tx_id := "tx-example-wrapper-2"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1698,7 +1772,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_6_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">inputlive.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"inputlive\"></div> </div> <h2 id=\"functions\">Functions</h2> <p> A <strong>function</strong> is a standalone, reusable Go function declared in the tmplx script as <code>func name(...) { ... }</code>. It is a <strong>separate idea</strong> from an event handler: a handler is a <code>tx-on*</code> binding, while a function is plain logic you can call from many places—an event handler, a <a href=\"#forms\">form</a>, <a href=\"#init\">init()</a>, another function, or an expression. </p> <p> Functions are not one-to-one with events. One function can back many bindings, and a binding may call no function at all (inline statements, as above) or several. Only <code>tx-on*</code> and <code>tx-action</code> bindings compile to HTTP endpoints—a function on its own does not. </p> <p> Functions take parameters and may return values. Below, a single <code>addNum</code> backs ten buttons; each click passes a different argument: </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">inputlive.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"inputlive\"></div> </div> <h3 id=\"debounce\">Debouncing</h3> <p> Every event sends a request, and requests run strictly in order — so a burst of events (typing) queues one round-trip per keystroke. Add <code>tx-debounce</code> with a number of milliseconds to an element to send only the <strong>last</strong> event of a burst, after that quiet period: </p> <ul> <li>\n          <code>&lt;input tx-oninput=&#34;q = event.target.value&#34; tx-debounce=&#34;200&#34;&gt;</code>\n        </li> </ul> <p> Debouncing <strong>drops</strong> the intermediate events. Use it only when the handler&#39;s last run wins, like assigning <code>event.target.value</code> — never for cumulative handlers like <code>count++</code>, where a dropped event is a lost increment. That is why debouncing is opt-in, per element. </p> <p> Ordering is preserved: any other event (a click, a form submit) flushes pending debounced requests before its own, so a handler never runs ahead of an earlier input it depends on. </p> <p> Try it — the counter shows how many requests the server actually handled, however fast you type: </p> ")
 	{
 		tx_id := "tx-example-wrapper-7"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1706,7 +1780,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_7_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">addn.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"addn\"></div> </div> <p> A state-mutating function runs on the server through the handler or form that calls it. A function used inside an <a href=\"#expression-interpolation\">expression</a> or <a href=\"#derived\">derived</a> value runs on <strong>every render</strong>, so keep functions in that position pure—no state mutation or write-side effects. </p> <h3 id=\"captured-locals\">Captured Locals</h3> <p> Any local variable bound by an enclosing <code>tx-for</code> init clause, <code>tx-for</code> range form, or <code>tx-if</code>/ <code>tx-else-if</code> init form is <strong>automatically captured</strong> by handlers in the subtree. Just reference the local by name; the framework figures out which values cross the wire and decodes them with their inferred Go type. </p> <ul> <li> The captured local can appear anywhere in the handler body—a function argument, an array index, an expression operand. Whatever is valid Go. </li> <li> Types are recovered from the binding’s context (the surrounding state declarations and imports), so you don’t need to annotate. </li> <li> State, derived, and prop variables are <strong>not</strong> captured this way—the handler already reads them from the component’s saved state. </li> </ul> <p> In the <code>addn</code> example above, <code>i</code> is captured from the <code>tx-for</code> init clause and decoded as <code>int</code> on the server. Captures from <code>tx-if</code>/<code>tx-else-if</code> init forms work the same way: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-24\"></div> </div> <p> Both <code>f</code> (from <code>tx-for</code>) and <code>n</code> (from the <code>tx-if</code> init) are captured automatically. </p> <h2 id=\"init\">init()</h2> <p> <code>init()</code> is a special function that runs automatically the first time a page or component is rendered. For pages, it runs on every GET request. For components, it runs when the component has no saved state yet (for example, the first time it appears on the page, or the first time a new <code>tx-for</code> iteration produces it). After that, subsequent renders reuse the saved state and skip <code>init()</code>. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">debouncelive.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"debouncelive\"></div> </div> <h2 id=\"functions\">Functions</h2> <p> A <strong>function</strong> is a standalone, reusable Go function declared in the tmplx script as <code>func name(...) { ... }</code>. It is a <strong>separate idea</strong> from an event handler: a handler is a <code>tx-on*</code> binding, while a function is plain logic you can call from many places—an event handler, a <a href=\"#forms\">form</a>, <a href=\"#init\">init()</a>, another function, or an expression. </p> <p> Functions are not one-to-one with events. One function can back many bindings, and a binding may call no function at all (inline statements, as above) or several. Only <code>tx-on*</code> and <code>tx-action</code> bindings compile to HTTP endpoints—a function on its own does not. </p> <p> Functions take parameters and may return values. Below, a single <code>addNum</code> backs ten buttons; each click passes a different argument: </p> ")
 	{
 		tx_id := "tx-example-wrapper-8"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1714,7 +1788,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_8_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">current-time.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"current-time\"></div> </div> <p> Another common use case is to initialize one state from another state without turning the second variable into a derived state. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-28\"></div> </div> <h2 id=\"path-parameter\">Path Parameters</h2> <p> When a page route contains a wildcard (see <a href=\"#pages-and-routing\">Pages and Routing</a>), you can pull the captured value into a state variable by annotating the declaration with a <code>//tx:path</code> comment. </p> <p>Rules:</p> <ul> <li> The comment must sit directly above the <code>var</code> line (Go doc-comment position). </li> <li> The value after <code>tx:path</code> is the wildcard name from the route pattern. </li> <li> The variable must be declared as <code>string</code>. No initial value is allowed—the captured string is the initial value. </li> <li> Only <a href=\"#pages-and-routing\">pages</a> support <code>tx:path</code>; components cannot declare path-bound state. </li> </ul> <p> The captured value is assigned <strong>before</strong> <a href=\"#init\"><code>init()</code></a> runs, so <code>init()</code> can use it to populate other state (for example, by loading a record from the database). </p> <p> <strong>Single parameter.</strong> For a route <code>pages/blog/post/{post_id}.html</code>: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-29\"></div> </div> <p> <strong>Multiple parameters.</strong> Each wildcard gets its own declaration. For a route <code>pages/blog/{year}/{slug}.html</code>: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-30\"></div> </div> <p> After initialization, the variable behaves like any other state: it&#39;s serialized, sent to the server on events, and can be reassigned from handlers (though reassigning it does not change the URL). </p> <p> Try it live: <a href=\"/hello/world\">/hello/world</a> · <a href=\"/hello/tmplx\">/hello/tmplx</a>. This page binds the <code>{name}</code> URL segment with <code>//tx:path name</code>: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">pages/hello/{name}.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"pathparam\"></div> </div> <h2 id=\"control-flow\">Control Flow</h2> <p> tmplx avoids new custom syntax for conditionals and loops. It embeds control flow directly into HTML attributes, similar to Vue.js and <a href=\"https://alpinejs.dev/\">Alpine.js</a>. </p> <h3 id=\"conditionals\">Conditionals</h3> <p> To conditionally render elements, use the <code>tx-if</code>, <code>tx-else-if</code>, and <code>tx-else</code> attributes on the desired tags. The values for <code>tx-if</code> and <code>tx-else-if</code> can be any valid Go expression that would fit in an <code>if</code> or <code>else if</code> statement. The <code>tx-else</code> attribute needs no value. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">addn.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"addn\"></div> </div> <p> A state-mutating function runs on the server through the handler or form that calls it. A function used inside an <a href=\"#expression-interpolation\">expression</a> or <a href=\"#derived\">derived</a> value runs on <strong>every render</strong>, so keep functions in that position pure—no state mutation or write-side effects. </p> <h3 id=\"captured-locals\">Captured Locals</h3> <p> Any local variable bound by an enclosing <code>tx-for</code> init clause, <code>tx-for</code> range form, or <code>tx-if</code>/ <code>tx-else-if</code> init form is <strong>automatically captured</strong> by handlers in the subtree. Just reference the local by name; the framework figures out which values cross the wire and decodes them with their inferred Go type. </p> <ul> <li> The captured local can appear anywhere in the handler body—a function argument, an array index, an expression operand. Whatever is valid Go. </li> <li> Types are recovered from the binding’s context (the surrounding state declarations and imports), so you don’t need to annotate. </li> <li> State, derived, and prop variables are <strong>not</strong> captured this way—the handler already reads them from the component’s saved state. </li> </ul> <p> In the <code>addn</code> example above, <code>i</code> is captured from the <code>tx-for</code> init clause and decoded as <code>int</code> on the server. Captures from <code>tx-if</code>/<code>tx-else-if</code> init forms work the same way: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-24\"></div> </div> <p> Both <code>f</code> (from <code>tx-for</code>) and <code>n</code> (from the <code>tx-if</code> init) are captured automatically. </p> <h2 id=\"init\">init()</h2> <p> <code>init()</code> is a special function that runs automatically the first time a page or component is rendered. For pages, it runs on every GET request. For components, it runs when the component has no saved state yet (for example, the first time it appears on the page, or the first time a new <code>tx-for</code> iteration produces it). After that, subsequent renders reuse the saved state and skip <code>init()</code>. </p> ")
 	{
 		tx_id := "tx-example-wrapper-9"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1722,7 +1796,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_9_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">cond.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"cond\"></div> </div> <p> You can declare <strong>local variables</strong> and handle errors exactly as you would in regular Go code. Local variables declared in conditionals are available to the element and its descendants, just like in Go. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-32\"></div> </div> <p> A conditional group consists of <strong>consecutive sibling nodes</strong> that share the same parent. Disconnected nodes are not treated as part of the same group. A standalone <code>tx-else-if</code> or <code>tx-else</code> without a preceding <code>tx-if</code> will cause a compilation error. </p> <h3 id=\"loops\">Loops</h3> <p> To repeat elements, use the <code>tx-for</code> attribute. Its value can be any valid Go <code>for</code> statement, including <strong>classic for</strong> or <strong>range for</strong>. </p> <p> Local variables declared in the loop are available to the element and all of its descendants, just like in Go. </p> <p> Always add a <code>tx-key</code> attribute with a unique value for each item. This gives the compiler a unique identifier for the node during updates. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">current-time.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"current-time\"></div> </div> <p> Another common use case is to initialize one state from another state without turning the second variable into a derived state. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-28\"></div> </div> <h2 id=\"path-parameter\">Path Parameters</h2> <p> When a page route contains a wildcard (see <a href=\"#pages-and-routing\">Pages and Routing</a>), you can pull the captured value into a state variable by annotating the declaration with a <code>//tx:path</code> comment. </p> <p>Rules:</p> <ul> <li> The comment must sit directly above the <code>var</code> line (Go doc-comment position). </li> <li> The value after <code>tx:path</code> is the wildcard name from the route pattern. </li> <li> The variable must be declared as <code>string</code>. No initial value is allowed—the captured string is the initial value. </li> <li> Only <a href=\"#pages-and-routing\">pages</a> support <code>tx:path</code>; components cannot declare path-bound state. </li> </ul> <p> The captured value is assigned <strong>before</strong> <a href=\"#init\"><code>init()</code></a> runs, so <code>init()</code> can use it to populate other state (for example, by loading a record from the database). </p> <p> <strong>Single parameter.</strong> For a route <code>pages/blog/post/{post_id}.html</code>: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-29\"></div> </div> <p> <strong>Multiple parameters.</strong> Each wildcard gets its own declaration. For a route <code>pages/blog/{year}/{slug}.html</code>: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-30\"></div> </div> <p> After initialization, the variable behaves like any other state: it&#39;s serialized, sent to the server on events, and can be reassigned from handlers (though reassigning it does not change the URL). </p> <p> Try it live: <a href=\"/hello/world\">/hello/world</a> · <a href=\"/hello/tmplx\">/hello/tmplx</a>. This page binds the <code>{name}</code> URL segment with <code>//tx:path name</code>: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">pages/hello/{name}.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"pathparam\"></div> </div> <h2 id=\"control-flow\">Control Flow</h2> <p> tmplx avoids new custom syntax for conditionals and loops. It embeds control flow directly into HTML attributes, similar to Vue.js and <a href=\"https://alpinejs.dev/\">Alpine.js</a>. </p> <h3 id=\"conditionals\">Conditionals</h3> <p> To conditionally render elements, use the <code>tx-if</code>, <code>tx-else-if</code>, and <code>tx-else</code> attributes on the desired tags. The values for <code>tx-if</code> and <code>tx-else-if</code> can be any valid Go expression that would fit in an <code>if</code> or <code>else if</code> statement. The <code>tx-else</code> attribute needs no value. </p> ")
 	{
 		tx_id := "tx-example-wrapper-10"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1730,7 +1804,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_10_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">triangle.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"triangle\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-34\"></div> </div> <p> To branch per item, do <strong>not</strong> put <code>tx-if</code> and <code>tx-for</code> on the same element—the condition is compiled outside the loop and cannot see the loop variable, which is a compile error. Put the conditional on an element <strong>inside</strong> the loop so it can read the bound variable: </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">cond.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"cond\"></div> </div> <p> You can declare <strong>local variables</strong> and handle errors exactly as you would in regular Go code. Local variables declared in conditionals are available to the element and its descendants, just like in Go. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-32\"></div> </div> <p> A conditional group consists of <strong>consecutive sibling nodes</strong> that share the same parent. Disconnected nodes are not treated as part of the same group. A standalone <code>tx-else-if</code> or <code>tx-else</code> without a preceding <code>tx-if</code> will cause a compilation error. </p> <h3 id=\"loops\">Loops</h3> <p> To repeat elements, use the <code>tx-for</code> attribute. Its value can be any valid Go <code>for</code> statement, including <strong>classic for</strong> or <strong>range for</strong>. </p> <p> Local variables declared in the loop are available to the element and all of its descendants, just like in Go. </p> <p> Always add a <code>tx-key</code> attribute with a unique value for each item. This gives the compiler a unique identifier for the node during updates. </p> ")
 	{
 		tx_id := "tx-example-wrapper-11"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1738,7 +1812,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_11_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">condrows.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"condrows\"></div> </div> <h2 id=\"template\">&lt;template&gt;</h2> <p> The <code>&lt;template&gt;</code> tag is a non-rendering container that lets you apply control flow attributes (<code>tx-if</code>, <code>tx-else-if</code>, <code>tx-else</code>, or <code>tx-for</code>) to a group of elements at once. </p> <p> The <code>&lt;template&gt;</code> itself is removed from the output; only its children are rendered (or not, depending on the control flow). </p> <p> You can nest <code>&lt;template&gt;</code> tags and combine them with other control flow attributes on child elements. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-35\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-36\"></div> </div> <h2 id=\"forms\">Forms</h2> <p> Attach a handler to a <code>&lt;form&gt;</code> with <code>tx-action</code>. When the form is submitted, tmplx cancels the default submission, collects every named form element, and calls the handler on the server. </p> <p> The value of <code>tx-action</code> must be the name of a function declared in the tmplx script. Each form element&#39;s <code>name</code> attribute must match a parameter name on that function; unnamed elements are ignored. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">triangle.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"triangle\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-34\"></div> </div> <p> To branch per item, do <strong>not</strong> put <code>tx-if</code> and <code>tx-for</code> on the same element—the condition is compiled outside the loop and cannot see the loop variable, which is a compile error. Put the conditional on an element <strong>inside</strong> the loop so it can read the bound variable: </p> ")
 	{
 		tx_id := "tx-example-wrapper-12"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1746,7 +1820,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_12_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">greeting.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"greeting\"></div> </div> <p> Values are JSON-decoded into each parameter&#39;s Go type, so the parameter type is what determines how the string is parsed. The runtime serializes form elements by input type: </p> <ul> <li> <code>text</code>, <code>email</code>, <code>password</code>, <code>textarea</code>, <code>select</code>, etc.—sent as a JSON string. Decode into <code>string</code>. </li> <li> <code>number</code>, <code>range</code>—sent as the raw numeric value, or <code>null</code> when empty. Decode into a numeric type or pointer. </li> <li> <code>checkbox</code>—sent as <code>true</code> or <code>false</code>. Decode into <code>bool</code>. </li> <li> <code>radio</code>—only the checked radio in a group is sent (using its shared <code>name</code>). Decode into <code>string</code>. </li> </ul> <p> Because submission goes through a full server round-trip, use native HTML validation (<code>required</code>, <code>minlength</code>, <code>pattern</code>, ...) to catch client-side errors before the request is sent. For richer live-updating inputs, combine tmplx with a client-side library like <a href=\"https://alpinejs.dev/\">Alpine.js</a>. </p> <h2 id=\"component\">Component</h2> <p> Components are reusable UI building blocks that encapsulate HTML, state, and behavior. </p> <p> Create a component by placing an <code>.html</code> file in the <code>components</code> directory (default: <code>./components</code>). tmplx automatically registers it as a custom element with the tag name <code>tx-</code> followed by the relative path (without the <code>.html</code> extension), with directory separators replaced by <code>-</code>. </p> <p> Filenames and directory names may contain only <code>a-z</code>, <code>0-9</code>, <code>-</code>, and <code>_</code>. Uppercase letters are rejected. </p> <p>Examples:</p> <ul> <li> <code>components/button.html</code> → <code>&lt;tx-button&gt;</code> </li> <li> <code>components/user/card.html</code> → <code>&lt;tx-user-card&gt;</code> </li> <li> <code>components/todo/list.html</code> → <code>&lt;tx-todo-list&gt;</code> </li> </ul> <p> Components can contain their own <code>&lt;script type=&#34;text/tmplx&#34;&gt;</code> for local state and logic, and can be used in pages or nested inside other components. </p> <h3 id=\"props\">Props</h3> <p> Props are inputs the parent passes to a child component. Inside the child, a prop is declared like a state variable, but with a <code>//tx:prop</code> doc comment. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-38\"></div> </div> <p>Rules:</p> <ul> <li> The <code>//tx:prop</code> comment must sit directly above the <code>var</code> line. </li> <li> Prop names must be <strong>lowercase</strong>. HTML lowercases attribute names, so a camelCase prop name would never match the attribute the parent writes. </li> <li> An initial value (e.g. <code>= 0</code>) becomes the <strong>default</strong> used when the parent omits the attribute. </li> <li> Props are <strong>read-only</strong> inside the child. Event handlers can read them but cannot assign to them. Derived values referencing a prop recompute automatically when the prop changes. </li> <li> Pages cannot declare props—only components can. </li> </ul> <h4>Passing props</h4> <p> Prop attribute values on the parent are parsed as <strong>Go expressions</strong>, not as plain strings. Pass a literal by writing the literal directly; pass a parent variable by its name. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-39\"></div> </div> <p> The expression is re-evaluated whenever the parent re-renders, so the child stays in sync with the parent&#39;s state automatically. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">condrows.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"condrows\"></div> </div> <h2 id=\"template\">&lt;template&gt;</h2> <p> The <code>&lt;template&gt;</code> tag is a non-rendering container that lets you apply control flow attributes (<code>tx-if</code>, <code>tx-else-if</code>, <code>tx-else</code>, or <code>tx-for</code>) to a group of elements at once. </p> <p> The <code>&lt;template&gt;</code> itself is removed from the output; only its children are rendered (or not, depending on the control flow). </p> <p> You can nest <code>&lt;template&gt;</code> tags and combine them with other control flow attributes on child elements. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-35\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-36\"></div> </div> <h2 id=\"forms\">Forms</h2> <p> Attach a handler to a <code>&lt;form&gt;</code> with <code>tx-action</code>. When the form is submitted, tmplx cancels the default submission, collects every named form element, and calls the handler on the server. </p> <p> The value of <code>tx-action</code> must be the name of a function declared in the tmplx script. Each form element&#39;s <code>name</code> attribute must match a parameter name on that function; unnamed elements are ignored. </p> ")
 	{
 		tx_id := "tx-example-wrapper-13"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1754,7 +1828,7 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_13_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">stat.html (the component)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"stat\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">props.html (using it)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"props\"></div> </div> <h4 id=\"callback-props\">Callback Props</h4> <p> A <strong>callback prop</strong> lets a child notify the parent when something happens. It is just a prop whose type is a <strong>function</strong>: declare it with <code>//tx:prop</code> and a function type. With no default the parent <strong>must</strong> supply an implementation (a required prop); give it a function-literal default to make the parent override optional. </p> <p>In the child, call it from a handler the same way you call a function:</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-40\"></div> </div> <p> In the parent, pass the <strong>bare name</strong> of a tmplx-script function as the attribute whose key matches the child&#39;s prop name: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-41\"></div> </div> <p> When the child calls <code>onselect(42)</code>, the parent&#39;s <code>pick</code> runs on the server with that argument and the parent re-renders. A callback call can be mixed freely with other statements in the same handler—for example <code>tx-onclick=&#34;count++; onselect(42)&#34;</code>. </p> <p> To make the override optional, give the prop a function-literal default. The parent may then omit the attribute and the child falls back to its own implementation: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-42\"></div> </div> <p> A runnable version: <code>&lt;tx-incbtn&gt;</code> takes a <code>label</code> and an <code>onpress</code> callback; the parent passes its own <code>add</code> function and counts the presses. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">greeting.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"greeting\"></div> </div> <p> Values are JSON-decoded into each parameter&#39;s Go type, so the parameter type is what determines how the string is parsed. The runtime serializes form elements by input type: </p> <ul> <li> <code>text</code>, <code>email</code>, <code>password</code>, <code>textarea</code>, <code>select</code>, etc.—sent as a JSON string. Decode into <code>string</code>. </li> <li> <code>number</code>, <code>range</code>—sent as the raw numeric value, or <code>null</code> when empty. Decode into a numeric type or pointer. </li> <li> <code>checkbox</code>—sent as <code>true</code> or <code>false</code>. Decode into <code>bool</code>. </li> <li> <code>radio</code>—only the checked radio in a group is sent (using its shared <code>name</code>). Decode into <code>string</code>. </li> </ul> <p> Because submission goes through a full server round-trip, use native HTML validation (<code>required</code>, <code>minlength</code>, <code>pattern</code>, ...) to catch client-side errors before the request is sent. For richer live-updating inputs, combine tmplx with a client-side library like <a href=\"https://alpinejs.dev/\">Alpine.js</a>. </p> <h2 id=\"component\">Component</h2> <p> Components are reusable UI building blocks that encapsulate HTML, state, and behavior. </p> <p> Create a component by placing an <code>.html</code> file in the <code>components</code> directory (default: <code>./components</code>). tmplx automatically registers it as a custom element with the tag name <code>tx-</code> followed by the relative path (without the <code>.html</code> extension), with directory separators replaced by <code>-</code>. </p> <p> Filenames and directory names may contain only <code>a-z</code>, <code>0-9</code>, <code>-</code>, and <code>_</code>. Uppercase letters are rejected. </p> <p>Examples:</p> <ul> <li> <code>components/button.html</code> → <code>&lt;tx-button&gt;</code> </li> <li> <code>components/user/card.html</code> → <code>&lt;tx-user-card&gt;</code> </li> <li> <code>components/todo/list.html</code> → <code>&lt;tx-todo-list&gt;</code> </li> </ul> <p> Always write a component with an explicit close tag: <code>&lt;tx-button&gt;&lt;/tx-button&gt;</code>. HTML has no self-closing custom elements, so <code>&lt;tx-button /&gt;</code> would swallow everything after it; tmplx rejects a self-closed <code>tx-</code> tag at compile time. Third-party custom elements get no such check: the HTML parser silently repairs a self-closed <code>&lt;my-widget /&gt;</code> by treating the rest of the parent as its children. </p> <p> Components can contain their own <code>&lt;script type=&#34;text/tmplx&#34;&gt;</code> for local state and logic, and can be used in pages or nested inside other components. </p> <h3 id=\"props\">Props</h3> <p> Props are inputs the parent passes to a child component. Inside the child, a prop is declared like a state variable, but with a <code>//tx:prop</code> doc comment. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-38\"></div> </div> <p>Rules:</p> <ul> <li> The <code>//tx:prop</code> comment must sit directly above the <code>var</code> line. </li> <li> Prop names must be <strong>lowercase</strong>. HTML lowercases attribute names, so a camelCase prop name would never match the attribute the parent writes. </li> <li> An initial value (e.g. <code>= 0</code>) becomes the <strong>default</strong> used when the parent omits the attribute. </li> <li> Props are <strong>read-only</strong> inside the child. Event handlers can read them but cannot assign to them. Derived values referencing a prop recompute automatically when the prop changes. </li> <li> Pages cannot declare props—only components can. </li> </ul> <h4>Passing props</h4> <p> Prop attribute values on the parent are parsed as <strong>Go expressions</strong>, not as plain strings. Pass a literal by writing the literal directly; pass a parent variable by its name. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-39\"></div> </div> <p> The expression is re-evaluated whenever the parent re-renders, so the child stays in sync with the parent&#39;s state automatically. </p> ")
 	{
 		tx_id := "tx-example-wrapper-14"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
@@ -1762,12 +1836,20 @@ func (tx_comp *tx_SL_docs) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_14_(tx_w2, tx_id)
 		})
 	}
-	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">incbtn.html (the component)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"incbtn\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">callback.html (using it)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"callback\"></div> </div> <h3 id=\"slot\">&lt;slot&gt;</h3> <p> A <code>&lt;slot&gt;</code> marks a place in a component&#39;s template where the parent can inject content. Slots are how components stay composable: the child decides the shape, the parent fills in the details. </p> <h4>Declaring slots in a component</h4> <p> Each slot is either the <strong>default slot</strong> (no <code>name</code>) or a <strong>named slot</strong>. A component may have at most one default slot, and named slots must be unique. Slots cannot be nested inside other slots. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-43\"></div> </div> <p> Content placed inside <code>&lt;slot&gt;...&lt;/slot&gt;</code> is <strong>fallback content</strong>—it renders only when the parent does not fill that slot. </p> <h4>Filling slots from the parent</h4> <p> Put fill content directly inside the component tag. Use the <code>slot</code> attribute on a child element to target a named slot; everything else becomes the default fill. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-44\"></div> </div> <p> Only the <strong>direct children</strong> of the component tag are considered when matching slots—a <code>slot</code> attribute on a deeply nested element has no effect. </p> ")
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">stat.html (the component)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"stat\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">props.html (using it)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"props\"></div> </div> <h4 id=\"callback-props\">Callback Props</h4> <p> A <strong>callback prop</strong> lets a child notify the parent when something happens. It is just a prop whose type is a <strong>function</strong>: declare it with <code>//tx:prop</code> and a function type. With no default the parent <strong>must</strong> supply an implementation (a required prop); give it a function-literal default to make the parent override optional. </p> <p>In the child, call it from a handler the same way you call a function:</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-40\"></div> </div> <p> In the parent, pass the <strong>bare name</strong> of a tmplx-script function as the attribute whose key matches the child&#39;s prop name: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-41\"></div> </div> <p> When the child calls <code>onselect(42)</code>, the parent&#39;s <code>pick</code> runs on the server with that argument and the parent re-renders. A callback call can be mixed freely with other statements in the same handler—for example <code>tx-onclick=&#34;count++; onselect(42)&#34;</code>. </p> <p> To make the override optional, give the prop a function-literal default. The parent may then omit the attribute and the child falls back to its own implementation: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-42\"></div> </div> <p> A runnable version: <code>&lt;tx-incbtn&gt;</code> takes a <code>label</code> and an <code>onpress</code> callback; the parent passes its own <code>add</code> function and counts the presses. </p> ")
 	{
 		tx_id := "tx-example-wrapper-15"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
 		tx_child.tx_render(tx_w2, tx_id, func() {
 			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_15_(tx_w2, tx_id)
+		})
+	}
+	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">incbtn.html (the component)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"incbtn\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">callback.html (using it)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"callback\"></div> </div> <h3 id=\"slot\">&lt;slot&gt;</h3> <p> A <code>&lt;slot&gt;</code> marks a place in a component&#39;s template where the parent can inject content. Slots are how components stay composable: the child decides the shape, the parent fills in the details. </p> <h4>Declaring slots in a component</h4> <p> Each slot is either the <strong>default slot</strong> (no <code>name</code>) or a <strong>named slot</strong>. A component may have at most one default slot, and named slots must be unique. Slots cannot be nested inside other slots. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-43\"></div> </div> <p> Content placed inside <code>&lt;slot&gt;...&lt;/slot&gt;</code> is <strong>fallback content</strong>—it renders only when the parent does not fill that slot. </p> <h4>Filling slots from the parent</h4> <p> Put fill content directly inside the component tag. Use the <code>slot</code> attribute on a child element to target a named slot; everything else becomes the default fill. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-44\"></div> </div> <p> Only the <strong>direct children</strong> of the component tag are considered when matching slots—a <code>slot</code> attribute on a deeply nested element has no effect. </p> ")
+	{
+		tx_id := "tx-example-wrapper-16"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_example_HY_wrapper)
+		tx_child.tx_render(tx_w2, tx_id, func() {
+			tx_comp.tx_render_fill_tx_HY_example_HY_wrapper_16_(tx_w2, tx_id)
 		})
 	}
 	tx_w2.WriteString(" <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">slotcard.html (the component)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"slotcard\"></div> </div> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">slotdemo.html (using it)</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"slotdemo\"></div> </div> <h4>Scope: fills use the parent&#39;s state</h4> <p> This is the most important rule. The content you pass into a slot is still <strong>parent code</strong>: expressions, event handlers, and directives inside a fill see the parent&#39;s state, derived, and prop variables—not the child&#39;s. </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">tmplx</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-45\"></div> </div> <p> Here <code>user</code> and <code>logout</code> are defined on the page that uses <code>&lt;tx-card&gt;</code>, not inside the card component. When the button is clicked the page&#39;s handler runs and the fill re-renders against the page&#39;s updated state. </p> <h4>Live example</h4> <p> The docs site uses a simple <code>&lt;tx-example-wrapper&gt;</code> component with a single default slot to frame every live demo on this page. The component is just: </p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">example-wrapper.html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"example-wrapper\"></div> </div> <p>And callers wrap any demo with it:</p> <div class=\"snippet\"> <div class=\"snippet-bar\"><span class=\"snippet-name\">html</span> <div class=\"snippet-actions\"><button class=\"copy-btn\" type=\"button\">copy</button></div> </div> <div class=\"snippet-code\" data-snippet=\"docs-47\"></div> </div> <h2 id=\"cli\">CLI</h2> <p> Running <code>tmplx</code> inside any directory of your Go module walks up to the nearest <code>go.mod</code> and uses that as the project root. All path flags default relative to that root. </p> <table> <thead> <tr> <th>Flag</th> <th>Default</th> <th>Description</th> </tr> </thead> <tbody> <tr> <td><code>-pages-dir</code></td> <td><code>./pages</code></td> <td>Directory containing pages.</td> </tr> <tr> <td><code>-components-dir</code></td> <td><code>./components</code></td> <td>Directory containing reusable components.</td> </tr> <tr> <td><code>-output-file</code></td> <td><code>./routes.go</code></td> <td>Path to the generated Go file.</td> </tr> <tr> <td><code>-package-name</code></td> <td><code>main</code></td> <td>Package name for the generated Go code.</td> </tr> <tr> <td><code>-handler-prefix</code></td> <td><code>/tx/</code></td> <td>URL path prefix for generated event handler routes.</td> </tr> </tbody> </table> <h2 id=\"syntax-highlight\">Syntax Highlight</h2> <a href=\"https://github.com/gnituy18/tmplx.nvim\">Neovim Plugin</a> </main> </div> <script src=\"/snippets.js\"></script> </body></html>")
@@ -1786,6 +1868,16 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_1_(tx_w *byte
 func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_10_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
+		tx_id := tx_id + "@tx-cond-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_cond)
+		tx_child.tx_render(tx_w, tx_id)
+	}
+	tx_w.WriteString(" ")
+}
+
+func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_11_(tx_w *bytes.Buffer, tx_id string) {
+	tx_w.WriteString(" ")
+	{
 		tx_id := tx_id + "@tx-triangle-1"
 		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_triangle)
 		tx_child.tx_render(tx_w, tx_id)
@@ -1793,7 +1885,7 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_10_(tx_w *byt
 	tx_w.WriteString(" ")
 }
 
-func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_11_(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_12_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
 		tx_id := tx_id + "@tx-condrows-1"
@@ -1803,7 +1895,7 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_11_(tx_w *byt
 	tx_w.WriteString(" ")
 }
 
-func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_12_(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_13_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
 		tx_id := tx_id + "@tx-greeting-1"
@@ -1813,7 +1905,7 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_12_(tx_w *byt
 	tx_w.WriteString(" ")
 }
 
-func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_13_(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_14_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
 		tx_id := tx_id + "@tx-props-1"
@@ -1823,7 +1915,7 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_13_(tx_w *byt
 	tx_w.WriteString(" ")
 }
 
-func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_14_(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_15_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
 		tx_id := tx_id + "@tx-callback-1"
@@ -1833,7 +1925,7 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_14_(tx_w *byt
 	tx_w.WriteString(" ")
 }
 
-func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_15_(tx_w *bytes.Buffer, tx_id string) {
+func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_16_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
 		tx_id := tx_id + "@tx-slotdemo-1"
@@ -1896,8 +1988,8 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_6_(tx_w *byte
 func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_7_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
-		tx_id := tx_id + "@tx-addn-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_addn)
+		tx_id := tx_id + "@tx-debouncelive-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_debouncelive)
 		tx_child.tx_render(tx_w, tx_id)
 	}
 	tx_w.WriteString(" ")
@@ -1906,8 +1998,8 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_7_(tx_w *byte
 func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_8_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
-		tx_id := tx_id + "@tx-current-time-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_current_HY_time)
+		tx_id := tx_id + "@tx-addn-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_addn)
 		tx_child.tx_render(tx_w, tx_id)
 	}
 	tx_w.WriteString(" ")
@@ -1916,8 +2008,8 @@ func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_8_(tx_w *byte
 func (tx_comp *tx_SL_docs) tx_render_fill_tx_HY_example_HY_wrapper_9_(tx_w *bytes.Buffer, tx_id string) {
 	tx_w.WriteString(" ")
 	{
-		tx_id := tx_id + "@tx-cond-1"
-		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_cond)
+		tx_id := tx_id + "@tx-current-time-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_current_HY_time)
 		tx_child.tx_render(tx_w, tx_id)
 	}
 	tx_w.WriteString(" ")
@@ -2038,7 +2130,7 @@ func (tx_comp *tx_SL__EX_) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-1"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-search-1"
@@ -2055,7 +2147,7 @@ func (tx_comp *tx_SL__EX_) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-2"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-counter-1"
@@ -2072,7 +2164,7 @@ func (tx_comp *tx_SL__EX_) tx_compute() {
 	}
 	{
 		tx_id := "tx-example-wrapper-3"
-		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_example_HY_wrapper(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-todo-1"
@@ -2319,6 +2411,11 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		tx_comp := tx_new_tx_HY_current_HY_time(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_render(&buf, tx_target)
+	case "tx-debouncelive":
+		tx_comp := tx_new_tx_HY_debouncelive(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_next[tx_target] = tx_comp
+		tx_comp.tx_compute(tx_target)
+		tx_comp.tx_render(&buf, tx_target)
 	case "tx-derived":
 		tx_comp := tx_new_tx_HY_derived(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
 		tx_next[tx_target] = tx_comp
@@ -2488,6 +2585,10 @@ var tx_routes []TxRoute = []TxRoute{
 		Handler: tx_dispatch,
 	},
 	{
+		Pattern: "POST /tx/tx-debouncelive/eh1",
+		Handler: tx_dispatch,
+	},
+	{
 		Pattern: "POST /tx/tx-derived/eh1",
 		Handler: tx_dispatch,
 	},
@@ -2550,6 +2651,12 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
   }
 
   const underTarget = (k, t) => k === t || (k.startsWith(t) && ':@;'.includes(k[t.length]))
+
+  const pending = new Set()
+
+  const flushPending = () => {
+    for (const fire of [...pending]) fire()
+  }
 
   const morph = (a, b) => {
     if (a.nodeName !== b.nodeName) {
@@ -2648,6 +2755,14 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
         const eventName = attr.value
         const fun = base + '/' + id
         const argPfx = 'data-tx-' + id + '-arg-'
+        const wait = parseInt(cn.getAttribute('data-tx-debounce')) || 0
+        let timer, task
+        const fire = () => {
+          clearTimeout(timer)
+          pending.delete(fire)
+          tasks.push(task)
+          processQueue()
+        }
         cn.addEventListener(eventName, (e) => {
           const p = new URLSearchParams()
           if (typeof e.target.value === 'string') {
@@ -2658,8 +2773,18 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
               p.append(a.name.slice(argPfx.length), a.value)
             }
           }
-          tasks.push(() => send(cn, fun, target, p))
-          processQueue()
+          task = () => send(cn, fun, target, p)
+          if (wait) {
+            // a quiet period sends only the burst's last event; any other
+            // event flushes pending debounces first, preserving order
+            clearTimeout(timer)
+            pending.add(fire)
+            timer = setTimeout(fire, wait)
+          } else {
+            flushPending()
+            tasks.push(task)
+            processQueue()
+          }
         })
       } else if (attr.name === 'data-tx-action') {
         const fun = attr.value
@@ -2676,6 +2801,7 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
               params.append(el.name, v)
             }
           }
+          flushPending()
           tasks.push(() => send(cn, fun, target, params))
           processQueue()
         })

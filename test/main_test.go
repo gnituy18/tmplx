@@ -120,7 +120,7 @@ func click(t *testing.T, ctx context.Context, selector string) {
 
 func clickAll(t *testing.T, ctx context.Context, selector string, n int) {
 	t.Helper()
-	for i := 0; i < n; i++ {
+	for range n {
 		click(t, ctx, selector)
 	}
 }

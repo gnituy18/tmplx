@@ -14,6 +14,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   const underTarget = (k, t) => k === t || (k.startsWith(t) && ':@;'.includes(k[t.length]))
 
+  const pending = new Set()
+
+  const flushPending = () => {
+    for (const fire of [...pending]) fire()
+  }
+
   const morph = (a, b) => {
     if (a.nodeName !== b.nodeName) {
       a.replaceWith(b.cloneNode(true))
@@ -111,6 +117,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const eventName = attr.value
         const fun = base + '/' + id
         const argPfx = 'data-tx-' + id + '-arg-'
+        const wait = parseInt(cn.getAttribute('data-tx-debounce')) || 0
+        let timer, task
+        const fire = () => {
+          clearTimeout(timer)
+          pending.delete(fire)
+          tasks.push(task)
+          processQueue()
+        }
         cn.addEventListener(eventName, (e) => {
           const p = new URLSearchParams()
           if (typeof e.target.value === 'string') {
@@ -121,8 +135,18 @@ document.addEventListener('DOMContentLoaded', function() {
               p.append(a.name.slice(argPfx.length), a.value)
             }
           }
-          tasks.push(() => send(cn, fun, target, p))
-          processQueue()
+          task = () => send(cn, fun, target, p)
+          if (wait) {
+            // a quiet period sends only the burst's last event; any other
+            // event flushes pending debounces first, preserving order
+            clearTimeout(timer)
+            pending.add(fire)
+            timer = setTimeout(fire, wait)
+          } else {
+            flushPending()
+            tasks.push(task)
+            processQueue()
+          }
         })
       } else if (attr.name === 'data-tx-action') {
         const fun = attr.value
@@ -139,6 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
               params.append(el.name, v)
             }
           }
+          flushPending()
           tasks.push(() => send(cn, fun, target, params))
           processQueue()
         })

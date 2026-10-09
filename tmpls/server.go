@@ -262,9 +262,9 @@ func (s *server) handle(req *request) {
 
 // ------------------------------------------------------------------ project ---
 
-// setup resolves the module root, the components/pages dirs, and the
-// user-package importer once. packages.Load shells out to `go list`, so it is
-// cached and not redone per keystroke.
+// setup resolves the module root, the components/pages dirs, and the importer
+// once. The importer batch-loads the module on its first import miss (that
+// shells out to `go list`) and caches across keystrokes.
 func (s *server) setup(root string) {
 	if root == "" || s.ready {
 		return
@@ -284,22 +284,7 @@ func (s *server) setup(root string) {
 	s.moduleDir = dir
 	s.compDir = filepath.Join(dir, "components")
 	s.pageDir = filepath.Join(dir, "pages")
-
-	pkgs, err := packages.Load(&packages.Config{
-		Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps,
-		Dir:  dir,
-	}, "./...")
-	if err == nil {
-		loaded := map[string]*types.Package{}
-		packages.Visit(pkgs, nil, func(pkg *packages.Package) {
-			if pkg.Types != nil {
-				loaded[pkg.PkgPath] = pkg.Types
-			}
-		})
-		s.imp = compiler.PackageImporter(loaded)
-	} else {
-		log.Printf("tmpls: load packages: %v", err)
-	}
+	s.imp = compiler.PackageImporter(dir)
 	s.ready = true
 }
 

@@ -758,6 +758,74 @@ func (tx_comp *tx_HY_slot_HY_card) tx_render(tx_w *bytes.Buffer, tx_id string, t
 	}
 }
 
+type tx_HY_slotpanel struct {
+	tx_target          string         `json:"-"`
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+
+	V_open bool `json:"open"`
+}
+
+func tx_new_tx_HY_slotpanel(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string, tx_id string, tx_target string) *tx_HY_slotpanel {
+	tx_comp := &tx_HY_slotpanel{}
+	tx_comp.tx_target = tx_target
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get(tx_id)
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	} else {
+		tx_comp.V_open = false
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_HY_slotpanel) tx_eh1() {
+	tx_comp.V_open = !tx_comp.V_open
+}
+
+func (tx_comp *tx_HY_slotpanel) tx_compute(tx_id string) {
+	if tx_id == tx_comp.tx_trigger {
+		switch tx_comp.tx_trigger_handler {
+		case "eh1":
+			tx_comp.tx_eh1()
+		}
+	}
+	if tx_comp.V_open {
+
+	}
+}
+
+func (tx_comp *tx_HY_slotpanel) tx_render(tx_w *bytes.Buffer, tx_id string, tx_render_fill_ func()) {
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id)
+		tx_w.WriteString("-->")
+	}
+	tx_w.WriteString(" <section> <button data-test=\"sp-toggle\" data-tx-trigger=\"")
+	fmt.Fprint(tx_w, tx_id)
+	tx_w.WriteString("\" data-tx-target=\"")
+	fmt.Fprint(tx_w, tx_comp.tx_target)
+	tx_w.WriteString("\" data-tx-eh1-on=\"click\">toggle</button> ")
+	if tx_comp.V_open {
+		tx_w.WriteString("<p data-test=\"sp-open\">OPEN</p> ")
+
+	}
+	if tx_render_fill_ != nil {
+		tx_render_fill_()
+	}
+	tx_w.WriteString(" </section> ")
+	if tx_comp.tx_target == tx_id {
+		tx_w.WriteString("<!--tx:")
+		fmt.Fprint(tx_w, tx_id+"_e")
+		tx_w.WriteString("-->")
+	}
+}
+
 type tx_HY_stat struct {
 	tx_target          string         `json:"-"`
 	tx_prev            url.Values     `json:"-"`
@@ -1046,6 +1114,90 @@ func (tx_comp *tx_SL_conditionals) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.B
 	tx_w2.WriteString("</body></html>")
 }
 
+type tx_SL_condtail struct {
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+
+	V_flag bool   `json:"flag"`
+	V_on   bool   `json:"on"`
+	V_text string `json:"text"`
+}
+
+func tx_new_tx_SL_condtail(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_condtail {
+	tx_comp := &tx_SL_condtail{}
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get("page")
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	} else {
+		tx_comp.V_on = true
+		tx_comp.V_text = "hello"
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_SL_condtail) tx_eh1() {
+	tx_comp.V_flag = !tx_comp.V_flag
+}
+
+func (tx_comp *tx_SL_condtail) tx_compute() {
+	if tx_comp.tx_trigger == "page" {
+		switch tx_comp.tx_trigger_handler {
+		case "eh1":
+			tx_comp.tx_eh1()
+		}
+	}
+	if tx_comp.V_flag {
+
+	}
+	if tx_comp.V_flag {
+
+	}
+	if tx_comp.V_flag {
+
+	}
+	if tx_comp.V_on {
+
+	}
+}
+
+func (tx_comp *tx_SL_condtail) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+	tx_w1.WriteString("<!DOCTYPE html><html><head><title>condtail</title><script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/condtail\">")
+	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
+	fmt.Fprint(tx_w2, tx_runtime_script)
+	tx_w2.WriteString("</script></head> <body>  <p id=\"a\">")
+	if tx_comp.V_flag {
+		tx_w2.WriteString("<span>x</span>")
+
+	}
+	tx_w2.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_text)))
+	tx_w2.WriteString("</p> <p id=\"b\">")
+	tx_w2.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_text)))
+	if tx_comp.V_flag {
+		tx_w2.WriteString("<span>x</span>")
+
+	}
+	tx_w2.WriteString("</p> <p id=\"c\">")
+	if tx_comp.V_flag {
+		tx_w2.WriteString("<span>x</span>")
+
+	}
+	tx_w2.WriteString("static</p> <p id=\"d\">")
+	if tx_comp.V_on {
+		tx_w2.WriteString("<span>x</span>")
+
+	}
+	tx_w2.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_text)))
+	tx_w2.WriteString("</p> <button id=\"toggle\" data-tx-trigger=\"page\" data-tx-target=\"")
+	fmt.Fprint(tx_w2, "page")
+	tx_w2.WriteString("\" data-tx-eh1-on=\"click\">toggle</button> </body></html>")
+}
+
 type tx_SL_counter_HY_comp struct {
 	tx_prev            url.Values     `json:"-"`
 	tx_next            map[string]any `json:"-"`
@@ -1232,6 +1384,75 @@ func (tx_comp *tx_SL_counter) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer
 
 	}
 	tx_w2.WriteString("</body></html>")
+}
+
+type tx_SL_debounce struct {
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+
+	V_fast int `json:"fast"`
+	V_slow int `json:"slow"`
+}
+
+func tx_new_tx_SL_debounce(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_debounce {
+	tx_comp := &tx_SL_debounce{}
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get("page")
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_SL_debounce) tx_eh1(tx_ev_target_value string) {
+	tx_comp.V_fast++
+}
+
+func (tx_comp *tx_SL_debounce) tx_eh2(tx_ev_target_value string) {
+	tx_comp.V_slow++
+}
+
+func (tx_comp *tx_SL_debounce) tx_eh3() {
+	tx_comp.V_slow = tx_comp.V_slow * 10
+}
+
+func (tx_comp *tx_SL_debounce) tx_compute() {
+	if tx_comp.tx_trigger == "page" {
+		switch tx_comp.tx_trigger_handler {
+		case "eh1":
+			var tx_ev_target_value string
+			json.Unmarshal([]byte(tx_comp.tx_prev.Get("tx_ev_target_value")), &tx_ev_target_value)
+			tx_comp.tx_eh1(tx_ev_target_value)
+		case "eh2":
+			var tx_ev_target_value string
+			json.Unmarshal([]byte(tx_comp.tx_prev.Get("tx_ev_target_value")), &tx_ev_target_value)
+			tx_comp.tx_eh2(tx_ev_target_value)
+		case "eh3":
+			tx_comp.tx_eh3()
+		}
+	}
+}
+
+func (tx_comp *tx_SL_debounce) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+	tx_w1.WriteString("<!DOCTYPE html><html><head><title>debounce</title><script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/debounce\">")
+	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
+	fmt.Fprint(tx_w2, tx_runtime_script)
+	tx_w2.WriteString("</script></head> <body>  <input id=\"fast\" data-tx-trigger=\"page\" data-tx-target=\"")
+	fmt.Fprint(tx_w2, "page")
+	tx_w2.WriteString("\" data-tx-eh1-on=\"input\"/> <input id=\"slow\" data-tx-trigger=\"page\" data-tx-target=\"")
+	fmt.Fprint(tx_w2, "page")
+	tx_w2.WriteString("\" data-tx-debounce=\"150\" data-tx-eh2-on=\"input\"/> <button id=\"x10\" data-tx-trigger=\"page\" data-tx-target=\"")
+	fmt.Fprint(tx_w2, "page")
+	tx_w2.WriteString("\" data-tx-eh3-on=\"click\">x10</button> <span id=\"fastN\">")
+	tx_w2.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_fast)))
+	tx_w2.WriteString("</span> <span id=\"slowN\">")
+	tx_w2.WriteString(html.EscapeString(fmt.Sprint(tx_comp.V_slow)))
+	tx_w2.WriteString("</span> </body></html>")
 }
 
 type tx_SL_defaulter struct {
@@ -2336,7 +2557,7 @@ func tx_new_tx_SL_slot_HY_comp_HY_swap(tx_prev url.Values, tx_next map[string]an
 func (tx_comp *tx_SL_slot_HY_comp_HY_swap) tx_compute() {
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 		{
 			tx_id := tx_id + "@tx-counter-1"
@@ -2400,7 +2621,7 @@ func (tx_comp *tx_SL_slot_HY_fallback) tx_compute() {
 	}
 	{
 		tx_id := "tx-box-2"
-		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
@@ -2428,6 +2649,54 @@ func (tx_comp *tx_SL_slot_HY_fallback) tx_render(tx_w1 *bytes.Buffer, tx_w2 *byt
 
 func (tx_comp *tx_SL_slot_HY_fallback) tx_render_fill_tx_HY_box_2_(tx_w *bytes.Buffer) {
 	tx_w.WriteString("<span data-test=\"box-fill\">custom</span>")
+}
+
+type tx_SL_slot_HY_fill_HY_swap struct {
+	tx_prev            url.Values     `json:"-"`
+	tx_next            map[string]any `json:"-"`
+	tx_trigger         string         `json:"-"`
+	tx_trigger_handler string         `json:"-"`
+}
+
+func tx_new_tx_SL_slot_HY_fill_HY_swap(tx_prev url.Values, tx_next map[string]any, tx_trigger string, tx_trigger_handler string) *tx_SL_slot_HY_fill_HY_swap {
+	tx_comp := &tx_SL_slot_HY_fill_HY_swap{}
+	tx_comp.tx_prev = tx_prev
+	tx_comp.tx_next = tx_next
+	tx_comp.tx_trigger = tx_trigger
+	tx_comp.tx_trigger_handler = tx_trigger_handler
+	tx_prev_str := tx_prev.Get("page")
+	if tx_prev_str != "" {
+		json.Unmarshal([]byte(tx_prev_str), tx_comp)
+	}
+	return tx_comp
+}
+
+func (tx_comp *tx_SL_slot_HY_fill_HY_swap) tx_compute() {
+	{
+		tx_id := "tx-slotpanel-1"
+		tx_child := tx_new_tx_HY_slotpanel(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
+		tx_child.tx_compute(tx_id)
+		tx_comp.tx_next[tx_id] = tx_child
+	}
+}
+
+func (tx_comp *tx_SL_slot_HY_fill_HY_swap) tx_render(tx_w1 *bytes.Buffer, tx_w2 *bytes.Buffer) {
+	tx_w1.WriteString("<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"/> <title>slot fill survives swap</title>  <script type=\"application/json\" id=\"tx-saved\" data-tx-page=\"/slot-fill-swap\">")
+	tx_w2.WriteString("</script><script id=\"tx-runtime\">")
+	fmt.Fprint(tx_w2, tx_runtime_script)
+	tx_w2.WriteString("</script></head> <body> <!-- an args-less component WITH a fill: it must NOT be its own swap target\n       (the fill is parent content the standalone dispatch cannot render), so\n       its handler bubbles the swap to the page and the fill survives --> ")
+	{
+		tx_id := "tx-slotpanel-1"
+		tx_child := tx_comp.tx_next[tx_id].(*tx_HY_slotpanel)
+		tx_child.tx_render(tx_w2, tx_id, func() {
+			tx_comp.tx_render_fill_tx_HY_slotpanel_1_(tx_w2)
+		})
+	}
+	tx_w2.WriteString(" </body></html>")
+}
+
+func (tx_comp *tx_SL_slot_HY_fill_HY_swap) tx_render_fill_tx_HY_slotpanel_1_(tx_w *bytes.Buffer) {
+	tx_w.WriteString("<b data-test=\"sfill\">PRECIOUS</b>")
 }
 
 type tx_SL_slot_HY_state struct {
@@ -2467,7 +2736,7 @@ func (tx_comp *tx_SL_slot_HY_state) tx_compute() {
 	}
 	{
 		tx_id := "tx-box-1"
-		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, tx_id)
+		tx_child := tx_new_tx_HY_box(tx_comp.tx_prev, tx_comp.tx_next, tx_comp.tx_trigger, tx_comp.tx_trigger_handler, tx_id, "page")
 		tx_comp.tx_next[tx_id] = tx_child
 	}
 }
@@ -2870,6 +3139,17 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		tx_w.Write(tx_json)
 		tx_w.Write(tx_buf2.Bytes())
 		return
+	case "/condtail":
+		var tx_buf1, tx_buf2 bytes.Buffer
+		tx_comp := tx_new_tx_SL_condtail(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_next["page"] = tx_comp
+		tx_comp.tx_compute()
+		tx_comp.tx_render(&tx_buf1, &tx_buf2)
+		tx_json, _ := json.Marshal(tx_next)
+		tx_w.Write(tx_buf1.Bytes())
+		tx_w.Write(tx_json)
+		tx_w.Write(tx_buf2.Bytes())
+		return
 	case "/counter-comp":
 		var tx_buf1, tx_buf2 bytes.Buffer
 		tx_comp := tx_new_tx_SL_counter_HY_comp(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
@@ -2884,6 +3164,17 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 	case "/counter":
 		var tx_buf1, tx_buf2 bytes.Buffer
 		tx_comp := tx_new_tx_SL_counter(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_next["page"] = tx_comp
+		tx_comp.tx_compute()
+		tx_comp.tx_render(&tx_buf1, &tx_buf2)
+		tx_json, _ := json.Marshal(tx_next)
+		tx_w.Write(tx_buf1.Bytes())
+		tx_w.Write(tx_json)
+		tx_w.Write(tx_buf2.Bytes())
+		return
+	case "/debounce":
+		var tx_buf1, tx_buf2 bytes.Buffer
+		tx_comp := tx_new_tx_SL_debounce(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
 		tx_next["page"] = tx_comp
 		tx_comp.tx_compute()
 		tx_comp.tx_render(&tx_buf1, &tx_buf2)
@@ -3148,6 +3439,17 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		tx_w.Write(tx_json)
 		tx_w.Write(tx_buf2.Bytes())
 		return
+	case "/slot-fill-swap":
+		var tx_buf1, tx_buf2 bytes.Buffer
+		tx_comp := tx_new_tx_SL_slot_HY_fill_HY_swap(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
+		tx_next["page"] = tx_comp
+		tx_comp.tx_compute()
+		tx_comp.tx_render(&tx_buf1, &tx_buf2)
+		tx_json, _ := json.Marshal(tx_next)
+		tx_w.Write(tx_buf1.Bytes())
+		tx_w.Write(tx_json)
+		tx_w.Write(tx_buf2.Bytes())
+		return
 	case "/slot-state":
 		var tx_buf1, tx_buf2 bytes.Buffer
 		tx_comp := tx_new_tx_SL_slot_HY_state(tx_prev, tx_next, tx_trigger, tx_trigger_handler)
@@ -3258,6 +3560,11 @@ func tx_dispatch(tx_w http.ResponseWriter, tx_r *http.Request) {
 		tx_next[tx_target] = tx_comp
 		tx_comp.tx_compute(tx_target)
 		tx_comp.tx_render(&buf, tx_target)
+	case "tx-slotpanel":
+		tx_comp := tx_new_tx_HY_slotpanel(tx_prev, tx_next, tx_trigger, tx_trigger_handler, tx_target, tx_target)
+		tx_next[tx_target] = tx_comp
+		tx_comp.tx_compute(tx_target)
+		tx_comp.tx_render(&buf, tx_target, nil)
 	default:
 		return
 	}
@@ -3342,6 +3649,24 @@ var tx_routes []TxRoute = []TxRoute{
 		Handler: tx_dispatch,
 	},
 	{
+		Pattern: "GET /condtail",
+		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
+			tx_next := map[string]any{}
+			tx_comp := tx_new_tx_SL_condtail(nil, tx_next, "", "")
+			tx_next["page"] = tx_comp
+			var tx_buf1, tx_buf2 bytes.Buffer
+			tx_comp.tx_render(&tx_buf1, &tx_buf2)
+			tx_json, _ := json.Marshal(tx_next)
+			tx_w.Write(tx_buf1.Bytes())
+			tx_w.Write(tx_json)
+			tx_w.Write(tx_buf2.Bytes())
+		},
+	},
+	{
+		Pattern: "POST /tx/%2Fcondtail/eh1",
+		Handler: tx_dispatch,
+	},
+	{
 		Pattern: "GET /counter-comp",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
@@ -3377,6 +3702,32 @@ var tx_routes []TxRoute = []TxRoute{
 	},
 	{
 		Pattern: "POST /tx/%2Fcounter/eh2",
+		Handler: tx_dispatch,
+	},
+	{
+		Pattern: "GET /debounce",
+		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
+			tx_next := map[string]any{}
+			tx_comp := tx_new_tx_SL_debounce(nil, tx_next, "", "")
+			tx_next["page"] = tx_comp
+			var tx_buf1, tx_buf2 bytes.Buffer
+			tx_comp.tx_render(&tx_buf1, &tx_buf2)
+			tx_json, _ := json.Marshal(tx_next)
+			tx_w.Write(tx_buf1.Bytes())
+			tx_w.Write(tx_json)
+			tx_w.Write(tx_buf2.Bytes())
+		},
+	},
+	{
+		Pattern: "POST /tx/%2Fdebounce/eh1",
+		Handler: tx_dispatch,
+	},
+	{
+		Pattern: "POST /tx/%2Fdebounce/eh2",
+		Handler: tx_dispatch,
+	},
+	{
+		Pattern: "POST /tx/%2Fdebounce/eh3",
 		Handler: tx_dispatch,
 	},
 	{
@@ -3752,6 +4103,21 @@ var tx_routes []TxRoute = []TxRoute{
 		},
 	},
 	{
+		Pattern: "GET /slot-fill-swap",
+		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
+			tx_next := map[string]any{}
+			tx_comp := tx_new_tx_SL_slot_HY_fill_HY_swap(nil, tx_next, "", "")
+			tx_next["page"] = tx_comp
+			tx_comp.tx_compute()
+			var tx_buf1, tx_buf2 bytes.Buffer
+			tx_comp.tx_render(&tx_buf1, &tx_buf2)
+			tx_json, _ := json.Marshal(tx_next)
+			tx_w.Write(tx_buf1.Bytes())
+			tx_w.Write(tx_json)
+			tx_w.Write(tx_buf2.Bytes())
+		},
+	},
+	{
 		Pattern: "GET /slot-state",
 		Handler: func(tx_w http.ResponseWriter, tx_r *http.Request) {
 			tx_next := map[string]any{}
@@ -3894,6 +4260,10 @@ var tx_routes []TxRoute = []TxRoute{
 		Pattern: "POST /tx/tx-seeded/eh1",
 		Handler: tx_dispatch,
 	},
+	{
+		Pattern: "POST /tx/tx-slotpanel/eh1",
+		Handler: tx_dispatch,
+	},
 }
 
 func Routes() []TxRoute { return tx_routes }
@@ -3913,6 +4283,12 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
   }
 
   const underTarget = (k, t) => k === t || (k.startsWith(t) && ':@;'.includes(k[t.length]))
+
+  const pending = new Set()
+
+  const flushPending = () => {
+    for (const fire of [...pending]) fire()
+  }
 
   const morph = (a, b) => {
     if (a.nodeName !== b.nodeName) {
@@ -4011,6 +4387,14 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
         const eventName = attr.value
         const fun = base + '/' + id
         const argPfx = 'data-tx-' + id + '-arg-'
+        const wait = parseInt(cn.getAttribute('data-tx-debounce')) || 0
+        let timer, task
+        const fire = () => {
+          clearTimeout(timer)
+          pending.delete(fire)
+          tasks.push(task)
+          processQueue()
+        }
         cn.addEventListener(eventName, (e) => {
           const p = new URLSearchParams()
           if (typeof e.target.value === 'string') {
@@ -4021,8 +4405,18 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
               p.append(a.name.slice(argPfx.length), a.value)
             }
           }
-          tasks.push(() => send(cn, fun, target, p))
-          processQueue()
+          task = () => send(cn, fun, target, p)
+          if (wait) {
+            // a quiet period sends only the burst's last event; any other
+            // event flushes pending debounces first, preserving order
+            clearTimeout(timer)
+            pending.add(fire)
+            timer = setTimeout(fire, wait)
+          } else {
+            flushPending()
+            tasks.push(task)
+            processQueue()
+          }
         })
       } else if (attr.name === 'data-tx-action') {
         const fun = attr.value
@@ -4039,6 +4433,7 @@ var tx_runtime_script = `document.addEventListener('DOMContentLoaded', function(
               params.append(el.name, v)
             }
           }
+          flushPending()
           tasks.push(() => send(cn, fun, target, params))
           processQueue()
         })

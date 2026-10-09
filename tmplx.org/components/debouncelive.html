@@ -1,0 +1,7 @@
+<script type="text/tmplx">
+  var query string
+  var requests int
+</script>
+
+<input type="text" tx-oninput="query = event.target.value; requests++" tx-debounce="300" placeholder="type fast, then pause" />
+<p>server saw: "{ query }" &mdash; requests handled: { requests }</p>

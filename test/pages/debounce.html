@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>debounce</title></head>
+<body>
+<script type="text/tmplx">
+  var fast int
+  var slow int
+</script>
+<input id="fast" tx-oninput="fast++">
+<input id="slow" tx-oninput="slow++" tx-debounce="150">
+<button id="x10" tx-onclick="slow = slow * 10">x10</button>
+<span id="fastN">{ fast }</span>
+<span id="slowN">{ slow }</span>
+</body>
+</html>
